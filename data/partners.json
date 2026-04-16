@@ -50,7 +50,7 @@
       },
       "notes": "Starter partner profile for fallback login testing.",
       "partner_slug": "demo-partner",
-      "store_path": "/partner/demo-partner/",
+      "store_path": "/demo-partner/",
       "created_at": "2026-04-16T00:00:00Z",
       "updated_at": "2026-04-16T00:00:00Z"
     }

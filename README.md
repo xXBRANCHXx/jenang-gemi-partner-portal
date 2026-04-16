@@ -1,24 +1,24 @@
 # Jenang Gemi Partner Portal
 
-Partner management backend for `partner.jenanggemi.com`.
+Partner-facing dashboard for `partner.jenanggemi.com`.
 
 ## Scope
 
-- Partner profile management
-- Company assignment (`Jenang Gemi`, `ZERO`, `ZFIT`)
-- Brand and product access controls per partner
-- Pricing agreements per partner
-- Future communication layer between executive admin and store operations
+- Partner login sequence
+- Partner dashboard and session handling
+- Draft order create/edit/delete flow
+- Catalog restrictions driven by admin partner profiles
+- Future communication layer with store operations
 
 ## Current routes
 
 - `/dashboard/`
-- `/profiles/`
-- `/profile/?code=...`
 - `/logout/`
-- `/api/partners/`
+- `/api/session/`
+- `/api/orders/`
 
 ## Notes
 
-- Partner profile data currently uses local JSON storage in `data/partners.json`.
+- Partner profile access currently reads from the executive dashboard partner registry endpoint, with `data/partners.json` as local fallback.
+- Draft orders currently use local JSON storage in `data/orders.json`.
 - The long-term design is for this repo to communicate with `jenang-gemi-store-ops` through APIs for SKU, product, stock, and order data.

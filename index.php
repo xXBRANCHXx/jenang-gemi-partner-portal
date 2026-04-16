@@ -1,19 +1,20 @@
 <?php
 declare(strict_types=1);
 
-require __DIR__ . '/auth.php';
+require __DIR__ . '/partner-auth.php';
 
 $hasError = false;
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $submittedCode = (string) ($_POST['admin_code'] ?? '');
-    if (jg_admin_attempt_login($submittedCode)) {
+    $submittedCode = (string) ($_POST['partner_code'] ?? '');
+    $submittedName = (string) ($_POST['partner_name'] ?? '');
+    if (jg_partner_attempt_login($submittedCode, $submittedName)) {
         header('Location: ./dashboard/');
         exit;
     }
     $hasError = true;
 }
 
-if (jg_admin_is_authenticated()) {
+if (jg_partner_is_authenticated()) {
     header('Location: ./dashboard/');
     exit;
 }
@@ -25,7 +26,7 @@ $adminCssVersion = (string) @filemtime(__DIR__ . '/admin.css');
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover, user-scalable=no">
-    <title>Partner Portal Login | Jenang Gemi</title>
+    <title>Partner Login | Jenang Gemi</title>
     <meta name="robots" content="noindex,nofollow">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -38,15 +39,17 @@ $adminCssVersion = (string) @filemtime(__DIR__ . '/admin.css');
             <div class="admin-login-brand">
                 <span class="admin-chip">Partner Portal Access</span>
                 <h1>Jenang Gemi Partner Portal</h1>
-                <p>Secure access to partner profiles, pricing agreements, company assignment, and future store coordination.</p>
+                <p>Sign in with your partner code and registered partner name to access your dashboard on `partner.jenanggemi.com`.</p>
             </div>
             <form method="post" class="admin-login-form" autocomplete="off">
-                <label for="admin_code">Security Code</label>
-                <input id="admin_code" name="admin_code" type="password" inputmode="numeric" pattern="[0-9]*" placeholder="Enter 6-digit security code" required autofocus>
+                <label for="partner_code">Partner Code</label>
+                <input id="partner_code" name="partner_code" type="text" placeholder="e.g. partner-001-demo-partner" required autofocus>
+                <label for="partner_name">Partner Name</label>
+                <input id="partner_name" name="partner_name" type="text" placeholder="Enter the partner name from your profile" required>
                 <?php if ($hasError): ?>
-                    <p class="admin-login-error">Security code tidak valid.</p>
+                    <p class="admin-login-error">Partner code or partner name is invalid.</p>
                 <?php endif; ?>
-                <button type="submit" class="admin-primary-btn">Access Partner Portal</button>
+                <button type="submit" class="admin-primary-btn">Access Dashboard</button>
             </form>
         </section>
     </main>

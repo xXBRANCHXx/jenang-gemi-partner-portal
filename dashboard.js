@@ -53,7 +53,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const optionMarkup = (items, placeholder) => [`<option value="">${escapeHtml(placeholder)}</option>`, ...items.map((item) => `<option value="${escapeHtml(item)}">${escapeHtml(item)}</option>`)].join('');
 
   const refreshBrandOptions = () => {
-    const brands = state.partner?.allowed_brands || [];
+    const brands = state.partner?.companies || [];
     if (!(brandSelect instanceof HTMLSelectElement)) return;
     const current = brandSelect.value;
     brandSelect.innerHTML = optionMarkup(brands, 'Select brand');
@@ -63,9 +63,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const refreshProductOptions = () => {
     const brand = brandSelect?.value || '';
-    const allowedProducts = state.partner?.products || [];
+    const accessMap = state.partner?.product_access?.[brand] || {};
     const catalogProducts = Object.keys(state.catalog[brand] || {});
-    const products = catalogProducts.filter((product) => allowedProducts.includes(product));
+    const products = catalogProducts.filter((product) => !!accessMap[product]?.enabled);
     if (!(productSelect instanceof HTMLSelectElement)) return;
     const current = productSelect.value;
     productSelect.innerHTML = optionMarkup(products, 'Select product');
@@ -77,6 +77,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const brand = brandSelect?.value || '';
     const product = productSelect?.value || '';
     const productData = state.catalog[brand]?.[product] || { flavors: [], sizes: [] };
+    const allowedSizes = state.partner?.product_access?.[brand]?.[product]?.sizes || [];
     if (flavorSelect instanceof HTMLSelectElement) {
       const currentFlavor = flavorSelect.value;
       flavorSelect.innerHTML = optionMarkup(productData.flavors || [], 'Select flavor');
@@ -84,8 +85,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     if (sizeSelect instanceof HTMLSelectElement) {
       const currentSize = sizeSelect.value;
-      sizeSelect.innerHTML = optionMarkup(productData.sizes || [], 'Select size');
-      sizeSelect.value = (productData.sizes || []).includes(currentSize) ? currentSize : ((productData.sizes || [])[0] || '');
+      const sizes = (productData.sizes || []).filter((size) => allowedSizes.includes(size));
+      sizeSelect.innerHTML = optionMarkup(sizes, 'Select size');
+      sizeSelect.value = sizes.includes(currentSize) ? currentSize : (sizes[0] || '');
     }
   };
 
@@ -125,10 +127,17 @@ document.addEventListener('DOMContentLoaded', () => {
     if (partnerNameNode) partnerNameNode.textContent = state.partner?.name || 'Partner';
     if (partnerCodeNode) partnerCodeNode.textContent = state.partner?.code || 'Partner';
     if (allowedBrandsNode) {
-      allowedBrandsNode.innerHTML = (state.partner?.allowed_brands || []).map((brand) => `<span class="admin-chip">${escapeHtml(brand)}</span>`).join('') || '<span class="admin-empty">No brands assigned.</span>';
+      allowedBrandsNode.innerHTML = (state.partner?.companies || []).map((brand) => `<span class="admin-chip">${escapeHtml(brand)}</span>`).join('') || '<span class="admin-empty">No companies assigned.</span>';
     }
     if (allowedProductsNode) {
-      allowedProductsNode.innerHTML = (state.partner?.products || []).map((product) => `<span class="admin-chip">${escapeHtml(product)}</span>`).join('') || '<span class="admin-empty">No products assigned.</span>';
+      const summary = [];
+      Object.entries(state.partner?.product_access || {}).forEach(([brand, products]) => {
+        Object.entries(products || {}).forEach(([product, config]) => {
+          if (!config?.enabled) return;
+          summary.push(`${product} (${(config.sizes || []).join(', ')})`);
+        });
+      });
+      allowedProductsNode.innerHTML = summary.map((item) => `<span class="admin-chip">${escapeHtml(item)}</span>`).join('') || '<span class="admin-empty">No products assigned.</span>';
     }
     refreshBrandOptions();
   };

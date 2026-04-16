@@ -10,16 +10,43 @@
       "companies": [
         "Jenang Gemi"
       ],
-      "allowed_brands": [
-        "Jenang Gemi"
-      ],
-      "products": [
-        "Bubur",
-        "Jamu"
-      ],
+      "product_access": {
+        "Jenang Gemi": {
+          "Bubur": {
+            "enabled": true,
+            "sizes": [
+              "15 Sachet",
+              "30 Sachet",
+              "60 Sachet"
+            ]
+          },
+          "Jamu": {
+            "enabled": true,
+            "sizes": [
+              "15 Sachet",
+              "30 Sachet",
+              "60 Sachet"
+            ]
+          }
+        },
+        "ZERO": [],
+        "ZFIT": []
+      },
       "pricing": {
-        "jenang_gemi_bubur": 18000,
-        "jenang_gemi_jamu": 22000
+        "Jenang Gemi": {
+          "Bubur": {
+            "15 Sachet": 18000,
+            "30 Sachet": 35000,
+            "60 Sachet": 68000
+          },
+          "Jamu": {
+            "15 Sachet": 22000,
+            "30 Sachet": 42000,
+            "60 Sachet": 81000
+          }
+        },
+        "ZERO": [],
+        "ZFIT": []
       },
       "notes": "Starter partner profile for fallback login testing.",
       "partner_slug": "demo-partner",

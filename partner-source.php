@@ -73,11 +73,11 @@ function jg_partner_source_catalog(): array
         'Jenang Gemi' => [
             'Bubur' => [
                 'flavors' => ['Original', 'Coklat', 'Pandan', 'Stroberi'],
-                'sizes' => ['250g', '500g', '1000g'],
+                'sizes' => ['15 Sachet', '30 Sachet', '60 Sachet'],
             ],
             'Jamu' => [
                 'flavors' => ['Original', 'Jahe', 'Kunyit Asam'],
-                'sizes' => ['10 sachet', '20 sachet'],
+                'sizes' => ['15 Sachet', '30 Sachet', '60 Sachet'],
             ],
         ],
         'ZERO' => [],

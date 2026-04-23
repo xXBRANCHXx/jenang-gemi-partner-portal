@@ -16,6 +16,7 @@ Partner-facing dashboard for `partner.jenanggemi.com`.
 - `/logout/`
 - `/api/session/`
 - `/api/orders/`
+- `/api/db-status/`
 
 ## Database setup
 

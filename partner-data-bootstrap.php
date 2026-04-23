@@ -15,6 +15,17 @@ function jg_partner_data_db_config(): array
     ];
 }
 
+function jg_partner_data_last_error(?string $message = null): string
+{
+    static $lastError = '';
+
+    if ($message !== null) {
+        $lastError = $message;
+    }
+
+    return $lastError;
+}
+
 function jg_partner_data_db(): ?PDO
 {
     static $pdo = false;
@@ -29,6 +40,11 @@ function jg_partner_data_db(): ?PDO
 
     $config = jg_partner_data_db_config();
     if ($config['name'] === '' || $config['user'] === '' || $config['pass'] === '') {
+        $missing = [];
+        if ($config['name'] === '') $missing[] = 'database name';
+        if ($config['user'] === '') $missing[] = 'database user';
+        if ($config['pass'] === '') $missing[] = 'database password';
+        jg_partner_data_last_error('Missing ' . implode(', ', $missing) . '.');
         $pdo = null;
         return null;
     }
@@ -53,11 +69,55 @@ function jg_partner_data_db(): ?PDO
             ]
         );
         jg_partner_data_ensure_schema($pdo);
-    } catch (Throwable) {
+        jg_partner_data_last_error('');
+    } catch (Throwable $exception) {
+        jg_partner_data_last_error($exception->getMessage());
         $pdo = null;
     }
 
     return $pdo instanceof PDO ? $pdo : null;
+}
+
+function jg_partner_data_status(): array
+{
+    $config = jg_partner_data_db_config();
+    $pdo = jg_partner_data_db();
+    $tables = [];
+
+    if ($pdo instanceof PDO) {
+        foreach (['partner_orders', 'partner_order_labels'] as $tableName) {
+            $stmt = $pdo->prepare(
+                'SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES
+                 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = :table_name'
+            );
+            $stmt->execute([':table_name' => $tableName]);
+            $tables[$tableName] = (int) $stmt->fetchColumn() > 0;
+        }
+    }
+
+    return [
+        'connected' => $pdo instanceof PDO,
+        'storage' => $pdo instanceof PDO ? 'mysql' : 'json',
+        'host' => $config['host'],
+        'port' => $config['port'],
+        'database_configured' => $config['name'] !== '',
+        'user_configured' => $config['user'] !== '',
+        'password_configured' => $config['pass'] !== '',
+        'database_name' => $config['name'],
+        'database_user' => $config['user'],
+        'config_files' => [
+            [
+                'path' => __DIR__ . '/config.local.php',
+                'exists' => is_file(__DIR__ . '/config.local.php'),
+            ],
+            [
+                'path' => '/public_html/config.local.php',
+                'exists' => is_file('/public_html/config.local.php'),
+            ],
+        ],
+        'tables' => $tables,
+        'error' => jg_partner_data_last_error(),
+    ];
 }
 
 function jg_partner_data_now(): string

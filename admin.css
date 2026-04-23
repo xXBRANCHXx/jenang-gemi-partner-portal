@@ -2063,7 +2063,8 @@ button, input {
   right: 0;
   z-index: 30;
   display: grid;
-  max-height: 320px;
+  grid-template-rows: minmax(0, 1fr) auto;
+  max-height: min(360px, 50svh);
   border-radius: 16px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(9, 15, 19, 0.98);
@@ -2071,9 +2072,14 @@ button, input {
   overflow: hidden;
 }
 
+.partner-picker-panel[hidden] {
+  display: none !important;
+}
+
 .partner-picker-options {
   display: grid;
   gap: 1px;
+  min-height: 0;
   overflow-y: auto;
   background: rgba(255, 255, 255, 0.03);
 }
@@ -2104,6 +2110,9 @@ button, input {
 }
 
 .partner-picker-search-shell {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
   padding: 0.8rem;
   border-top: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(6, 10, 12, 0.98);

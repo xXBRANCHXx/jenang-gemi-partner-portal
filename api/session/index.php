@@ -12,7 +12,7 @@ if ($method === 'GET') {
     $partner = jg_partner_current_profile();
     echo json_encode([
         'partner' => $partner,
-        'catalog' => jg_partner_source_catalog(),
+        'catalog' => jg_partner_source_catalog($partner),
     ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
     exit;
 }

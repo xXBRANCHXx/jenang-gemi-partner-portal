@@ -67,20 +67,58 @@ function jg_partner_source_find(string $code): ?array
     return null;
 }
 
-function jg_partner_source_catalog(): array
+function jg_partner_source_catalog(?array $partner = null): array
 {
-    return [
-        'Jenang Gemi' => [
-            'Bubur' => [
-                'flavors' => ['Original', 'Coklat', 'Pandan', 'Stroberi'],
-                'sizes' => ['15 Sachet', '30 Sachet', '60 Sachet'],
-            ],
-            'Jamu' => [
-                'flavors' => ['Original', 'Jahe', 'Kunyit Asam'],
-                'sizes' => ['15 Sachet', '30 Sachet', '60 Sachet'],
-            ],
-        ],
-        'ZERO' => [],
-        'ZFIT' => [],
-    ];
+    $partner = is_array($partner) ? $partner : jg_partner_current_profile();
+    if (!is_array($partner)) {
+        return [];
+    }
+
+    $catalog = [];
+    foreach ((array) ($partner['selected_sku_records'] ?? []) as $sku) {
+        if (!is_array($sku)) {
+            continue;
+        }
+
+        $brandName = trim((string) ($sku['brand_name'] ?? ''));
+        $productName = trim((string) ($sku['product_name'] ?? $sku['base_product_name'] ?? ''));
+        $skuCode = trim((string) ($sku['sku'] ?? ''));
+        if ($brandName === '' || $productName === '' || $skuCode === '') {
+            continue;
+        }
+
+        if (!isset($catalog[$brandName])) {
+            $catalog[$brandName] = [];
+        }
+
+        if (!isset($catalog[$brandName][$productName])) {
+            $catalog[$brandName][$productName] = [
+                'skus' => [],
+            ];
+        }
+
+        $catalog[$brandName][$productName]['skus'][] = [
+            'sku' => $skuCode,
+            'label' => trim((string) ($sku['label'] ?? '')) ?: $skuCode,
+            'flavor' => trim((string) ($sku['flavor_name'] ?? '')),
+            'size' => trim((string) ($sku['size_label'] ?? '')),
+            'stock' => (int) ($sku['current_stock'] ?? 0),
+        ];
+    }
+
+    foreach ($catalog as &$products) {
+        ksort($products);
+        foreach ($products as &$product) {
+            usort(
+                $product['skus'],
+                static fn (array $left, array $right): int => strcmp((string) ($left['label'] ?? ''), (string) ($right['label'] ?? ''))
+            );
+        }
+        unset($product);
+    }
+    unset($products);
+
+    ksort($catalog);
+
+    return $catalog;
 }

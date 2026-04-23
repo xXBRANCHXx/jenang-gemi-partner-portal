@@ -26,6 +26,17 @@ function jg_partner_data_last_error(?string $message = null): string
     return $lastError;
 }
 
+function jg_partner_data_host_candidates(string $host): array
+{
+    $hosts = [$host];
+
+    if ($host === 'local.server') {
+        $hosts[] = 'localhost';
+    }
+
+    return array_values(array_unique(array_filter($hosts)));
+}
+
 function jg_partner_data_db(): ?PDO
 {
     static $pdo = false;
@@ -49,30 +60,38 @@ function jg_partner_data_db(): ?PDO
         return null;
     }
 
-    $dsn = sprintf(
-        'mysql:host=%s;port=%s;dbname=%s;charset=%s',
-        $config['host'],
-        $config['port'],
-        $config['name'],
-        $config['charset']
-    );
-
-    try {
-        $pdo = new PDO(
-            $dsn,
-            $config['user'],
-            $config['pass'],
-            [
-                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-                PDO::ATTR_EMULATE_PREPARES => false,
-            ]
+    $errors = [];
+    foreach (jg_partner_data_host_candidates($config['host']) as $host) {
+        $dsn = sprintf(
+            'mysql:host=%s;port=%s;dbname=%s;charset=%s',
+            $host,
+            $config['port'],
+            $config['name'],
+            $config['charset']
         );
-        jg_partner_data_ensure_schema($pdo);
-        jg_partner_data_last_error('');
-    } catch (Throwable $exception) {
-        jg_partner_data_last_error($exception->getMessage());
-        $pdo = null;
+
+        try {
+            $pdo = new PDO(
+                $dsn,
+                $config['user'],
+                $config['pass'],
+                [
+                    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                    PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+                    PDO::ATTR_EMULATE_PREPARES => false,
+                ]
+            );
+            jg_partner_data_ensure_schema($pdo);
+            jg_partner_data_last_error('');
+            break;
+        } catch (Throwable $exception) {
+            $errors[] = $host . ': ' . $exception->getMessage();
+            $pdo = null;
+        }
+    }
+
+    if (!$pdo instanceof PDO && $errors !== []) {
+        jg_partner_data_last_error(implode(' | ', $errors));
     }
 
     return $pdo instanceof PDO ? $pdo : null;
@@ -99,6 +118,7 @@ function jg_partner_data_status(): array
         'connected' => $pdo instanceof PDO,
         'storage' => $pdo instanceof PDO ? 'mysql' : 'json',
         'host' => $config['host'],
+        'attempted_hosts' => jg_partner_data_host_candidates($config['host']),
         'port' => $config['port'],
         'database_configured' => $config['name'] !== '',
         'user_configured' => $config['user'] !== '',

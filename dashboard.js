@@ -12,9 +12,13 @@ document.addEventListener('DOMContentLoaded', () => {
   const partnerNameNode = document.querySelector('[data-partner-name]');
   const partnerCodeNode = document.querySelector('[data-partner-code]');
   const busiestHourNode = document.querySelector('[data-busiest-hour]');
-  const yearToggle = document.querySelector('[data-year-toggle]');
-  const monthlyChart = document.querySelector('[data-monthly-chart]');
+  const timeframeToggle = document.querySelector('[data-timeframe-toggle]');
+  const salesChart = document.querySelector('[data-sales-chart]');
+  const salesChartTitle = document.querySelector('[data-sales-chart-title]');
+  const salesSummary = document.querySelector('[data-sales-summary]');
   const hourlyChart = document.querySelector('[data-hourly-chart]');
+  const productInsights = document.querySelector('[data-product-insights]');
+  const flavorInsights = document.querySelector('[data-flavor-insights]');
   const invoiceItemsNode = document.querySelector('[data-invoice-items]');
   const labelDropzone = document.querySelector('[data-label-dropzone]');
   const labelDropzoneCopy = document.querySelector('[data-label-dropzone-copy]');
@@ -24,6 +28,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const state = {
     partner: null,
     catalog: {},
+    skuIndex: {},
     productOptions: [],
     orders: [],
     analytics: {
@@ -34,7 +39,7 @@ document.addEventListener('DOMContentLoaded', () => {
       total_orders: 0
     },
     editingId: '',
-    selectedYear: '',
+    selectedTimeframe: '30d',
     queuedFile: null,
     currentLabels: []
   };
@@ -119,28 +124,35 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const flattenCatalog = () => {
     const options = [];
+    const skuIndex = {};
     Object.entries(state.catalog || {}).forEach(([brand, products]) => {
       Object.entries(products || {}).forEach(([product, productData]) => {
-        const sku = (productData.skus || [])[0];
-        if (!sku?.sku) return;
-        options.push({
-          sku_code: sku.sku,
-          label: product,
-          brand,
-          product,
-          meta: [sku.size, sku.flavor].filter(Boolean).join(' • ')
+        (productData.skus || []).forEach((sku) => {
+          if (!sku?.sku) return;
+          const meta = [sku.size, sku.flavor].filter(Boolean).join(' • ');
+          const option = {
+            sku_code: sku.sku,
+            label: product,
+            brand,
+            product,
+            flavor: sku.flavor || '',
+            size: sku.size || '',
+            meta
+          };
+          options.push(option);
+          skuIndex[sku.sku] = option;
         });
       });
     });
     state.productOptions = options.sort((left, right) => left.label.localeCompare(right.label));
+    state.skuIndex = skuIndex;
   };
 
-  const productOptionMarkup = (selectedSku = '') => [
-    '<option value="">Select product</option>',
-    ...state.productOptions.map((option) => `
-      <option value="${escapeHtml(option.sku_code)}" ${option.sku_code === selectedSku ? 'selected' : ''}>${escapeHtml(option.label)}</option>
-    `)
-  ].join('');
+  const catalogItem = (item = {}) => state.skuIndex[item.sku_code] || null;
+
+  const itemProductName = (item = {}) => catalogItem(item)?.product || item.product || item.sku_label || item.sku_code || 'Product';
+
+  const itemFlavorName = (item = {}) => catalogItem(item)?.flavor || item.flavor || 'Unspecified flavor';
 
   const invoiceItemMarkup = (item = {}, index = 0) => `
     <article class="partner-invoice-item" data-invoice-item>
@@ -192,7 +204,7 @@ document.addEventListener('DOMContentLoaded', () => {
     optionsNode.innerHTML = filtered.length ? filtered.map((option) => `
       <button type="button" class="partner-picker-option ${option.sku_code === hiddenInput.value ? 'is-active' : ''}" data-picker-option="${escapeHtml(option.sku_code)}">
         <strong>${escapeHtml(option.label)}</strong>
-        <span>${escapeHtml([option.brand, option.meta].filter(Boolean).join(' • '))}</span>
+        <span>${escapeHtml(option.meta || '')}</span>
       </button>
     `).join('') : '<p class="partner-picker-empty">No products match that search.</p>';
   };
@@ -288,7 +300,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     orderList.innerHTML = state.orders.map((order) => {
       const items = order.items || [];
-      const itemSummary = items.map((item) => `${escapeHtml(item.product || item.sku_label || item.sku_code)} x${escapeHtml(item.quantity || 1)}`).join('<br>');
+      const itemSummary = items.map((item) => `${escapeHtml(itemProductName(item))} x${escapeHtml(item.quantity || 1)}`).join('<br>');
       const totalQuantity = items.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
       const label = (order.labels || [])[0] || null;
 
@@ -318,33 +330,170 @@ document.addEventListener('DOMContentLoaded', () => {
     }).join('');
   };
 
-  const renderAnalytics = () => {
-    const years = state.analytics.years || [];
-    const activeYear = state.selectedYear || years[years.length - 1] || '';
-    if (!state.selectedYear && activeYear) state.selectedYear = activeYear;
+  const orderTime = (order = {}) => {
+    const timestamp = new Date(order.order_timestamp || order.created_at || '');
+    return Number.isNaN(timestamp.getTime()) ? null : timestamp;
+  };
 
-    if (yearToggle) {
-      yearToggle.innerHTML = years.length ? years.map((year) => `
-        <button type="button" class="${year === activeYear ? 'is-active' : ''}" data-analytics-year="${escapeHtml(year)}">${escapeHtml(year)}</button>
-      `).join('') : '<span class="admin-empty">No year data yet.</span>';
+  const timeframeStart = (range) => {
+    const now = new Date();
+    if (range === '24h') return new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    if (range === '7d') return new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    if (range === '30d') return new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    if (range === '90d') return new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+    if (range === 'year') return new Date(now.getFullYear(), 0, 1);
+    return null;
+  };
+
+  const filteredOrders = () => {
+    const start = timeframeStart(state.selectedTimeframe);
+    if (!start) return state.orders;
+    return state.orders.filter((order) => {
+      const timestamp = orderTime(order);
+      return timestamp && timestamp >= start;
+    });
+  };
+
+  const timeframeLabel = () => ({
+    '24h': 'Last 24 hours',
+    '7d': 'Last 7 days',
+    '30d': 'Last 30 days',
+    '90d': 'Last 90 days',
+    year: 'This year',
+    all: 'All time'
+  })[state.selectedTimeframe] || 'Last 30 days';
+
+  const orderUnits = (order = {}) => (order.items || []).reduce((sum, item) => sum + Number(item.quantity || 0), 0);
+
+  const buildSalesBuckets = (orders) => {
+    const range = state.selectedTimeframe;
+    const now = new Date();
+    if (range === '24h') {
+      return Array.from({ length: 24 }, (_, index) => {
+        const date = new Date(now.getTime() - (23 - index) * 60 * 60 * 1000);
+        return {
+          key: `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}-${date.getHours()}`,
+          label: `${String(date.getHours()).padStart(2, '0')}:00`,
+          value: 0
+        };
+      });
     }
 
-    if (monthlyChart) {
-      const monthLabels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-      const monthly = state.analytics.monthly_by_year?.[activeYear] || Array.from({ length: 12 }, () => 0);
-      const maxValue = Math.max(1, ...monthly);
-      monthlyChart.innerHTML = monthly.map((count, index) => `
+    if (range === '7d' || range === '30d' || range === '90d') {
+      const days = range === '7d' ? 7 : range === '30d' ? 30 : 90;
+      return Array.from({ length: days }, (_, index) => {
+        const date = new Date(now.getFullYear(), now.getMonth(), now.getDate() - (days - 1 - index));
+        return {
+          key: `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`,
+          label: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+          value: 0
+        };
+      });
+    }
+
+    if (range === 'all') {
+      const timestamps = orders.map(orderTime).filter(Boolean);
+      const firstOrder = timestamps.length
+        ? new Date(Math.min(...timestamps.map((date) => date.getTime())))
+        : now;
+      const first = new Date(firstOrder.getFullYear(), firstOrder.getMonth(), 1);
+      const last = new Date(now.getFullYear(), now.getMonth(), 1);
+      const months = ((last.getFullYear() - first.getFullYear()) * 12) + (last.getMonth() - first.getMonth()) + 1;
+      return Array.from({ length: months }, (_, index) => {
+        const date = new Date(first.getFullYear(), first.getMonth() + index, 1);
+        return {
+          key: `${date.getFullYear()}-${date.getMonth()}`,
+          label: date.toLocaleDateString('en-US', { month: 'short', year: months > 12 ? '2-digit' : undefined }),
+          value: 0
+        };
+      });
+    }
+
+    const months = now.getMonth() + 1;
+    const first = new Date(now.getFullYear(), 0, 1);
+    return Array.from({ length: months }, (_, index) => {
+      const date = new Date(first.getFullYear(), first.getMonth() + index, 1);
+      return {
+        key: `${date.getFullYear()}-${date.getMonth()}`,
+        label: date.toLocaleDateString('en-US', { month: 'short' }),
+        value: 0
+      };
+    });
+  };
+
+  const renderInsightList = (node, rows, emptyText) => {
+    if (!node) return;
+    const total = rows.reduce((sum, row) => sum + row.value, 0);
+    node.innerHTML = rows.length ? rows.map((row) => {
+      const percent = total ? Math.round((row.value / total) * 100) : 0;
+      return `
+        <article class="partner-insight-row">
+          <div class="partner-insight-copy">
+            <strong>${escapeHtml(row.label)}</strong>
+            <span>${escapeHtml(row.value)} units • ${escapeHtml(percent)}%</span>
+          </div>
+          <div class="partner-insight-track"><i style="width:${Math.max(4, percent)}%"></i></div>
+        </article>
+      `;
+    }).join('') : `<p class="admin-empty">${escapeHtml(emptyText)}</p>`;
+  };
+
+  const renderAnalytics = () => {
+    const visibleOrders = filteredOrders();
+    const totalUnits = visibleOrders.reduce((sum, order) => sum + orderUnits(order), 0);
+
+    if (timeframeToggle) {
+      timeframeToggle.querySelectorAll('[data-timeframe]').forEach((button) => {
+        button.classList.toggle('is-active', button.getAttribute('data-timeframe') === state.selectedTimeframe);
+      });
+    }
+
+    if (salesChartTitle) salesChartTitle.textContent = timeframeLabel();
+    if (salesSummary) salesSummary.textContent = `${totalUnits} units`;
+
+    if (salesChart) {
+      const buckets = buildSalesBuckets(visibleOrders);
+      const bucketIndex = new Map(buckets.map((bucket) => [bucket.key, bucket]));
+      visibleOrders.forEach((order) => {
+        const timestamp = orderTime(order);
+        if (!timestamp) return;
+        const key = state.selectedTimeframe === '24h'
+          ? `${timestamp.getFullYear()}-${timestamp.getMonth()}-${timestamp.getDate()}-${timestamp.getHours()}`
+          : (state.selectedTimeframe === '7d' || state.selectedTimeframe === '30d' || state.selectedTimeframe === '90d')
+            ? `${timestamp.getFullYear()}-${timestamp.getMonth()}-${timestamp.getDate()}`
+            : `${timestamp.getFullYear()}-${timestamp.getMonth()}`;
+        const bucket = bucketIndex.get(key);
+        if (bucket) bucket.value += orderUnits(order);
+      });
+
+      const maxValue = Math.max(1, ...buckets.map((bucket) => bucket.value));
+      salesChart.style.setProperty('--partner-chart-columns', String(buckets.length));
+      salesChart.innerHTML = buckets.map((bucket) => `
         <div class="partner-chart-bar">
-          <span>${escapeHtml(monthLabels[index])}</span>
-          <div class="partner-chart-bar-track"><i style="height:${Math.max(8, Math.round((count / maxValue) * 100))}%"></i></div>
-          <strong>${escapeHtml(count)}</strong>
+          <span>${escapeHtml(bucket.label)}</span>
+          <div class="partner-chart-bar-track"><i style="height:${Math.max(8, Math.round((bucket.value / maxValue) * 100))}%"></i></div>
+          <strong>${escapeHtml(bucket.value)}</strong>
         </div>
       `).join('');
     }
 
     if (hourlyChart) {
-      const hourly = state.analytics.hourly_distribution || Array.from({ length: 24 }, () => 0);
+      const hourly = Array.from({ length: 24 }, () => 0);
+      visibleOrders.forEach((order) => {
+        const timestamp = orderTime(order);
+        if (!timestamp) return;
+        hourly[timestamp.getHours()] += orderUnits(order);
+      });
       const maxValue = Math.max(1, ...hourly);
+      let busiestHour = 0;
+      let busiestCount = -1;
+      hourly.forEach((count, hour) => {
+        if (count > busiestCount) {
+          busiestCount = count;
+          busiestHour = hour;
+        }
+      });
+
       hourlyChart.innerHTML = hourly.map((count, hour) => `
         <div class="partner-hour-row">
           <span>${escapeHtml(String(hour).padStart(2, '0'))}:00</span>
@@ -352,9 +501,33 @@ document.addEventListener('DOMContentLoaded', () => {
           <strong>${escapeHtml(count)}</strong>
         </div>
       `).join('');
+
+      if (busiestHourNode) busiestHourNode.textContent = `${String(busiestHour).padStart(2, '0')}:00`;
     }
 
-    if (busiestHourNode) busiestHourNode.textContent = state.analytics.busiest_hour || '00:00';
+    const productRows = new Map();
+    const flavorRows = new Map();
+    visibleOrders.forEach((order) => {
+      (order.items || []).forEach((item) => {
+        const quantity = Number(item.quantity || 0);
+        const product = itemProductName(item);
+        const flavor = itemFlavorName(item);
+        const productFlavor = `${product} - ${flavor}`;
+        productRows.set(product, (productRows.get(product) || 0) + quantity);
+        flavorRows.set(productFlavor, (flavorRows.get(productFlavor) || 0) + quantity);
+      });
+    });
+
+    const sortedProducts = [...productRows.entries()]
+      .map(([label, value]) => ({ label, value }))
+      .sort((left, right) => right.value - left.value);
+    const sortedFlavors = [...flavorRows.entries()]
+      .map(([label, value]) => ({ label, value }))
+      .sort((left, right) => right.value - left.value);
+
+    renderInsightList(productInsights, sortedProducts, 'No product sales in this timeframe.');
+    renderInsightList(flavorInsights, sortedFlavors, 'No flavor sales in this timeframe.');
+
   };
 
   const loadOrders = async () => {
@@ -370,6 +543,10 @@ document.addEventListener('DOMContentLoaded', () => {
     state.partner = payload.partner || null;
     state.catalog = payload.catalog || {};
     flattenCatalog();
+    if (state.orders.length) {
+      renderOrders();
+      renderAnalytics();
+    }
     if (partnerNameNode) partnerNameNode.textContent = state.partner?.name || 'Partner';
     if (partnerCodeNode) partnerCodeNode.textContent = state.partner?.code || 'Partner';
   };
@@ -565,12 +742,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  yearToggle?.addEventListener('click', (event) => {
+  timeframeToggle?.addEventListener('click', (event) => {
     const target = event.target;
     if (!(target instanceof HTMLElement)) return;
-    const nextYear = target.getAttribute('data-analytics-year');
-    if (!nextYear) return;
-    state.selectedYear = nextYear;
+    const nextTimeframe = target.getAttribute('data-timeframe');
+    if (!nextTimeframe) return;
+    state.selectedTimeframe = nextTimeframe;
     renderAnalytics();
   });
 

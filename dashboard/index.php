@@ -42,16 +42,31 @@ $partner = jg_partner_current_profile();
         </header>
 
         <main class="admin-layout">
+            <section class="partner-analytics-toolbar admin-panel admin-panel-affiliates">
+                <div>
+                    <span class="admin-panel-kicker">Sales Window</span>
+                    <h3>Units sold by timeframe</h3>
+                </div>
+                <div class="partner-timeframe-toggle" data-timeframe-toggle>
+                    <button type="button" data-timeframe="24h">24H</button>
+                    <button type="button" data-timeframe="7d">7D</button>
+                    <button type="button" data-timeframe="30d">30D</button>
+                    <button type="button" data-timeframe="90d">90D</button>
+                    <button type="button" data-timeframe="year">Year</button>
+                    <button type="button" data-timeframe="all">All</button>
+                </div>
+            </section>
+
             <section class="partner-analytics-dashboard">
                 <section class="admin-panel admin-panel-affiliates partner-chart-panel">
                     <div class="admin-panel-head">
                         <div>
-                            <span class="admin-panel-kicker">Monthly Analytics</span>
-                            <h3>Orders per month</h3>
+                            <span class="admin-panel-kicker">Sales Analytics</span>
+                            <h3 data-sales-chart-title>Sales by timeframe</h3>
                         </div>
-                        <div class="partner-year-toggle" data-year-toggle></div>
+                        <span class="partner-hero-chip" data-sales-summary>0 units</span>
                     </div>
-                    <div class="partner-chart" data-monthly-chart></div>
+                    <div class="partner-chart" data-sales-chart></div>
                 </section>
 
                 <section class="admin-panel admin-panel-affiliates partner-chart-panel">
@@ -63,6 +78,28 @@ $partner = jg_partner_current_profile();
                         <span class="partner-hero-chip" data-busiest-hour>00:00</span>
                     </div>
                     <div class="partner-chart partner-hour-chart" data-hourly-chart></div>
+                </section>
+            </section>
+
+            <section class="partner-analytics-dashboard">
+                <section class="admin-panel admin-panel-affiliates partner-chart-panel">
+                    <div class="admin-panel-head">
+                        <div>
+                            <span class="admin-panel-kicker">Product Insights</span>
+                            <h3>Share of selected sales</h3>
+                        </div>
+                    </div>
+                    <div class="partner-insight-list" data-product-insights></div>
+                </section>
+
+                <section class="admin-panel admin-panel-affiliates partner-chart-panel">
+                    <div class="admin-panel-head">
+                        <div>
+                            <span class="admin-panel-kicker">Flavor Insights</span>
+                            <h3>Flavor mix</h3>
+                        </div>
+                    </div>
+                    <div class="partner-insight-list" data-flavor-insights></div>
                 </section>
             </section>
 

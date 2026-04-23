@@ -438,6 +438,51 @@ document.addEventListener('DOMContentLoaded', () => {
     }).join('') : `<p class="admin-empty">${escapeHtml(emptyText)}</p>`;
   };
 
+  const renderSalesLineChart = (buckets) => {
+    if (!salesChart) return;
+    const width = 920;
+    const height = 300;
+    const padX = 44;
+    const padTop = 28;
+    const padBottom = 58;
+    const chartWidth = width - padX * 2;
+    const chartHeight = height - padTop - padBottom;
+    const maxValue = Math.max(1, ...buckets.map((bucket) => bucket.value));
+    const points = buckets.map((bucket, index) => {
+      const x = buckets.length === 1 ? width / 2 : padX + (index / (buckets.length - 1)) * chartWidth;
+      const y = padTop + chartHeight - (bucket.value / maxValue) * chartHeight;
+      return { ...bucket, x, y };
+    });
+    const linePath = points.map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x.toFixed(2)} ${point.y.toFixed(2)}`).join(' ');
+    const areaPath = points.length
+      ? `${linePath} L ${points[points.length - 1].x.toFixed(2)} ${height - padBottom} L ${points[0].x.toFixed(2)} ${height - padBottom} Z`
+      : '';
+    const labelModulo = buckets.length > 18 ? Math.ceil(buckets.length / 9) : 1;
+
+    salesChart.innerHTML = `
+      <svg class="partner-line-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="${escapeHtml(timeframeLabel())} sales line chart">
+        <defs>
+          <linearGradient id="partner-line-fill" x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0%" stop-color="#78ffb1" stop-opacity="0.32"></stop>
+            <stop offset="100%" stop-color="#0f8d4d" stop-opacity="0"></stop>
+          </linearGradient>
+        </defs>
+        <line x1="${padX}" y1="${height - padBottom}" x2="${width - padX}" y2="${height - padBottom}" class="partner-line-axis"></line>
+        ${areaPath ? `<path d="${areaPath}" class="partner-line-area"></path>` : ''}
+        ${linePath ? `<path d="${linePath}" class="partner-line-path"></path>` : ''}
+        ${points.map((point) => `
+          <g class="partner-line-point">
+            <circle cx="${point.x.toFixed(2)}" cy="${point.y.toFixed(2)}" r="5"></circle>
+            <text x="${point.x.toFixed(2)}" y="${Math.max(14, point.y - 12).toFixed(2)}">${escapeHtml(point.value)}</text>
+          </g>
+        `).join('')}
+        ${points.map((point, index) => index % labelModulo === 0 || index === points.length - 1 ? `
+          <text class="partner-line-label" x="${point.x.toFixed(2)}" y="${height - 22}" text-anchor="middle">${escapeHtml(point.label)}</text>
+        ` : '').join('')}
+      </svg>
+    `;
+  };
+
   const renderAnalytics = () => {
     const visibleOrders = filteredOrders();
     const totalUnits = visibleOrders.reduce((sum, order) => sum + orderUnits(order), 0);
@@ -466,15 +511,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (bucket) bucket.value += orderUnits(order);
       });
 
-      const maxValue = Math.max(1, ...buckets.map((bucket) => bucket.value));
-      salesChart.style.setProperty('--partner-chart-columns', String(buckets.length));
-      salesChart.innerHTML = buckets.map((bucket) => `
-        <div class="partner-chart-bar">
-          <span>${escapeHtml(bucket.label)}</span>
-          <div class="partner-chart-bar-track"><i style="height:${Math.max(8, Math.round((bucket.value / maxValue) * 100))}%"></i></div>
-          <strong>${escapeHtml(bucket.value)}</strong>
-        </div>
-      `).join('');
+      renderSalesLineChart(buckets);
     }
 
     if (hourlyChart) {

@@ -1855,51 +1855,53 @@ button, input {
 }
 
 .partner-chart {
-  display: grid;
-  grid-template-columns: repeat(var(--partner-chart-columns, 12), minmax(42px, 1fr));
-  gap: 0.7rem;
-  align-items: end;
+  display: block;
   min-height: 240px;
   overflow-x: auto;
   padding-bottom: 0.35rem;
 }
 
-.partner-chart-bar {
-  display: grid;
-  gap: 0.45rem;
-  justify-items: center;
-}
-
-.partner-chart-bar span,
-.partner-chart-bar strong {
-  font-size: 0.84rem;
-}
-
-.partner-chart-bar span {
-  color: rgba(255, 255, 255, 0.58);
-}
-
-.partner-chart-bar strong {
-  color: rgba(255, 255, 255, 0.84);
-}
-
-.partner-chart-bar-track {
-  display: flex;
-  align-items: end;
-  justify-content: center;
-  width: 100%;
-  height: 150px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.03);
-  overflow: hidden;
-}
-
-.partner-chart-bar-track i {
+.partner-line-chart {
   display: block;
-  width: 100%;
-  min-height: 8%;
-  border-radius: 999px;
-  background: linear-gradient(180deg, #6ff1a7, #0f8d4d);
+  width: max(100%, 760px);
+  min-height: 300px;
+}
+
+.partner-line-axis {
+  stroke: rgba(255, 255, 255, 0.12);
+  stroke-width: 1;
+}
+
+.partner-line-area {
+  fill: url(#partner-line-fill);
+}
+
+.partner-line-path {
+  fill: none;
+  stroke: #65f5a3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 4;
+  filter: drop-shadow(0 8px 12px rgba(16, 185, 104, 0.26));
+}
+
+.partner-line-point circle {
+  fill: #08130d;
+  stroke: #9dffc3;
+  stroke-width: 3;
+}
+
+.partner-line-point text {
+  fill: rgba(242, 255, 247, 0.86);
+  font-size: 13px;
+  font-weight: 800;
+  text-anchor: middle;
+}
+
+.partner-line-label {
+  fill: rgba(255, 255, 255, 0.58);
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .partner-hour-chart {

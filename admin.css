@@ -1904,6 +1904,66 @@ button, input {
   font-weight: 700;
 }
 
+.partner-line-hover-zone {
+  fill: transparent;
+  cursor: crosshair;
+  outline: none;
+}
+
+.partner-line-guide {
+  opacity: 0;
+  stroke: rgba(157, 255, 195, 0.56);
+  stroke-dasharray: 5 6;
+  stroke-width: 2;
+  transition: opacity 140ms ease;
+}
+
+.partner-line-hover-dot {
+  opacity: 0;
+  fill: #9dffc3;
+  stroke: #08130d;
+  stroke-width: 3;
+  transition: opacity 140ms ease;
+}
+
+.partner-line-tooltip {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 140ms ease;
+}
+
+.partner-line-tooltip rect {
+  fill: rgba(8, 17, 11, 0.94);
+  stroke: rgba(157, 255, 195, 0.28);
+  stroke-width: 1;
+  filter: drop-shadow(0 14px 22px rgba(0, 0, 0, 0.32));
+}
+
+.partner-line-tooltip text {
+  text-anchor: middle;
+}
+
+.partner-line-tooltip-label {
+  fill: rgba(231, 255, 239, 0.7);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.partner-line-tooltip-value {
+  fill: #f5fff8;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.partner-line-hover:hover .partner-line-guide,
+.partner-line-hover:hover .partner-line-hover-dot,
+.partner-line-hover:hover .partner-line-tooltip,
+.partner-line-hover:focus-within .partner-line-guide,
+.partner-line-hover:focus-within .partner-line-hover-dot,
+.partner-line-hover:focus-within .partner-line-tooltip {
+  opacity: 1;
+}
+
 .partner-hour-chart {
   display: grid;
   grid-template-columns: 1fr;

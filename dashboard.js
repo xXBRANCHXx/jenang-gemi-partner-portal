@@ -458,6 +458,7 @@ document.addEventListener('DOMContentLoaded', () => {
       ? `${linePath} L ${points[points.length - 1].x.toFixed(2)} ${height - padBottom} L ${points[0].x.toFixed(2)} ${height - padBottom} Z`
       : '';
     const labelModulo = buckets.length > 18 ? Math.ceil(buckets.length / 9) : 1;
+    const hoverWidth = buckets.length <= 1 ? chartWidth : chartWidth / (buckets.length - 1);
 
     salesChart.innerHTML = `
       <svg class="partner-line-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="${escapeHtml(timeframeLabel())} sales line chart">
@@ -479,6 +480,22 @@ document.addEventListener('DOMContentLoaded', () => {
         ${points.map((point, index) => index % labelModulo === 0 || index === points.length - 1 ? `
           <text class="partner-line-label" x="${point.x.toFixed(2)}" y="${height - 22}" text-anchor="middle">${escapeHtml(point.label)}</text>
         ` : '').join('')}
+        ${points.map((point) => {
+          const tooltipX = Math.min(width - 92, Math.max(92, point.x));
+          const tooltipY = point.y < 82 ? point.y + 46 : point.y - 46;
+          return `
+            <g class="partner-line-hover">
+              <rect class="partner-line-hover-zone" x="${(point.x - hoverWidth / 2).toFixed(2)}" y="${padTop}" width="${hoverWidth.toFixed(2)}" height="${chartHeight}" tabindex="0" aria-label="${escapeHtml(point.label)}: ${escapeHtml(point.value)} units"></rect>
+              <line class="partner-line-guide" x1="${point.x.toFixed(2)}" y1="${padTop}" x2="${point.x.toFixed(2)}" y2="${height - padBottom}"></line>
+              <circle class="partner-line-hover-dot" cx="${point.x.toFixed(2)}" cy="${point.y.toFixed(2)}" r="7"></circle>
+              <g class="partner-line-tooltip" transform="translate(${tooltipX.toFixed(2)} ${tooltipY.toFixed(2)})">
+                <rect x="-78" y="-26" width="156" height="52" rx="14"></rect>
+                <text class="partner-line-tooltip-label" x="0" y="-5">${escapeHtml(point.label)}</text>
+                <text class="partner-line-tooltip-value" x="0" y="15">${escapeHtml(point.value)} units</text>
+              </g>
+            </g>
+          `;
+        }).join('')}
       </svg>
     `;
   };

@@ -1,6 +1,23 @@
 <?php
 declare(strict_types=1);
 
+function jg_partner_portal_ensure_local_config_file(): void
+{
+    $localConfig = __DIR__ . '/config.local.php';
+    $publicConfig = '/public_html/config.local.php';
+    $placeholderConfig = __DIR__ . '/config.local.placeholder.php';
+
+    if (is_file($localConfig) || is_file($publicConfig) || !is_file($placeholderConfig)) {
+        return;
+    }
+
+    if (!is_writable(__DIR__)) {
+        return;
+    }
+
+    copy($placeholderConfig, $localConfig);
+}
+
 function jg_partner_portal_load_local_config(): array
 {
     static $config = null;
@@ -8,6 +25,8 @@ function jg_partner_portal_load_local_config(): array
     if (is_array($config)) {
         return $config;
     }
+
+    jg_partner_portal_ensure_local_config_file();
 
     $config = [];
     $configFiles = [

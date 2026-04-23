@@ -8,8 +8,8 @@ function jg_partner_data_db_config(): array
     return [
         'host' => jg_partner_portal_config_value('JG_PARTNER_DB_HOST', 'partner_db_host', 'localhost'),
         'port' => jg_partner_portal_config_value('JG_PARTNER_DB_PORT', 'partner_db_port', '3306'),
-        'name' => jg_partner_portal_config_value('JG_PARTNER_DB_NAME', 'partner_db_name'),
-        'user' => jg_partner_portal_config_value('JG_PARTNER_DB_USER', 'partner_db_user'),
+        'name' => jg_partner_portal_config_value('JG_PARTNER_DB_NAME', 'partner_db_name', 'u558678012_Partner_Data'),
+        'user' => jg_partner_portal_config_value('JG_PARTNER_DB_USER', 'partner_db_user', 'u558678012_BranchVincent2'),
         'pass' => jg_partner_portal_config_value('JG_PARTNER_DB_PASSWORD', 'partner_db_password'),
         'charset' => jg_partner_portal_config_value('JG_PARTNER_DB_CHARSET', 'partner_db_charset', 'utf8mb4'),
     ];

@@ -17,8 +17,19 @@ Partner-facing dashboard for `partner.jenanggemi.com`.
 - `/api/session/`
 - `/api/orders/`
 
+## Database setup
+
+The partner order tables are created automatically when the portal can connect to MySQL. The database name and user default to the Hostinger database values, but the password must be configured on the server and should not be committed to git.
+
+1. Copy `config.local.php.example` to `config.local.php` on the deployed server.
+2. Replace `PUT_DATABASE_PASSWORD_HERE` with the MySQL password for `u558678012_BranchVincent2`.
+3. Put the file in either the project root or `/public_html/config.local.php`.
+4. Visit `/dashboard/` or `/api/orders/` while logged in as a partner; this triggers automatic table creation.
+
+If phpMyAdmin needs the tables created manually, import `database/partner-data-schema.sql` into `u558678012_Partner_Data`.
+
 ## Notes
 
 - Partner profile access currently reads from the executive dashboard partner registry endpoint, with `data/partners.json` as local fallback.
-- Draft orders currently use local JSON storage in `data/orders.json`.
+- Draft orders use MySQL when configured, otherwise local JSON storage in `data/orders.json`.
 - The long-term design is for this repo to communicate with `jenang-gemi-store-ops` through APIs for SKU, product, stock, and order data.

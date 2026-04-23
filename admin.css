@@ -2040,6 +2040,91 @@ button, input {
   background: rgba(255, 255, 255, 0.03);
 }
 
+.partner-picker {
+  position: relative;
+}
+
+.partner-picker-trigger {
+  width: 100%;
+  min-height: 48px;
+  padding: 13px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+  color: #fff;
+  text-align: left;
+  cursor: pointer;
+}
+
+.partner-picker-panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  right: 0;
+  z-index: 30;
+  display: grid;
+  max-height: 320px;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(9, 15, 19, 0.98);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+  overflow: hidden;
+}
+
+.partner-picker-options {
+  display: grid;
+  gap: 1px;
+  overflow-y: auto;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.partner-picker-option {
+  padding: 0.9rem 1rem;
+  border: 0;
+  background: rgba(255, 255, 255, 0.02);
+  color: #fff;
+  text-align: left;
+  cursor: pointer;
+}
+
+.partner-picker-option strong,
+.partner-picker-option span {
+  display: block;
+}
+
+.partner-picker-option span {
+  margin-top: 0.25rem;
+  color: rgba(255, 255, 255, 0.62);
+  font-size: 0.86rem;
+}
+
+.partner-picker-option.is-active,
+.partner-picker-option:hover {
+  background: rgba(32, 200, 113, 0.12);
+}
+
+.partner-picker-search-shell {
+  padding: 0.8rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(6, 10, 12, 0.98);
+}
+
+.partner-picker-search {
+  width: 100%;
+  min-height: 42px;
+  padding: 0 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+  color: #fff;
+}
+
+.partner-picker-empty {
+  margin: 0;
+  padding: 1rem;
+  color: rgba(255, 255, 255, 0.62);
+}
+
 .partner-invoice-qty input {
   width: 100%;
   padding: 13px 14px;

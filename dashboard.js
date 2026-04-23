@@ -146,7 +146,16 @@ document.addEventListener('DOMContentLoaded', () => {
     <article class="partner-invoice-item" data-invoice-item>
       <label class="admin-affiliate-field">
         <span class="admin-control-label">Product</span>
-        <select class="admin-select" data-invoice-product required>${productOptionMarkup(item.sku_code || '')}</select>
+        <div class="partner-picker" data-product-picker>
+          <input type="hidden" value="${escapeHtml(item.sku_code || '')}" data-invoice-product required>
+          <button type="button" class="partner-picker-trigger" data-picker-trigger>${escapeHtml((state.productOptions.find((option) => option.sku_code === (item.sku_code || '')) || {}).label || 'Select product')}</button>
+          <div class="partner-picker-panel" data-picker-panel hidden>
+            <div class="partner-picker-options" data-picker-options></div>
+            <div class="partner-picker-search-shell">
+              <input type="search" class="partner-picker-search" placeholder="Search products" data-picker-search>
+            </div>
+          </div>
+        </div>
       </label>
       <label class="admin-affiliate-field partner-invoice-qty">
         <span class="admin-control-label">QTY</span>
@@ -160,6 +169,32 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!invoiceItemsNode) return;
     const normalized = items.length ? items : [{ quantity: 1 }];
     invoiceItemsNode.innerHTML = normalized.map((item, index) => invoiceItemMarkup(item, index)).join('');
+    document.querySelectorAll('[data-product-picker]').forEach((picker) => {
+      renderPickerOptions(picker);
+    });
+  };
+
+  const renderPickerOptions = (picker, query = '') => {
+    const optionsNode = picker.querySelector('[data-picker-options]');
+    const hiddenInput = picker.querySelector('[data-invoice-product]');
+    const trigger = picker.querySelector('[data-picker-trigger]');
+    if (!(optionsNode instanceof HTMLElement) || !(hiddenInput instanceof HTMLInputElement) || !(trigger instanceof HTMLButtonElement)) return;
+
+    const selected = state.productOptions.find((option) => option.sku_code === hiddenInput.value) || null;
+    trigger.textContent = selected?.label || 'Select product';
+
+    const filtered = state.productOptions.filter((option) => {
+      const needle = query.trim().toLowerCase();
+      if (!needle) return true;
+      return [option.label, option.brand, option.meta].some((value) => String(value || '').toLowerCase().includes(needle));
+    });
+
+    optionsNode.innerHTML = filtered.length ? filtered.map((option) => `
+      <button type="button" class="partner-picker-option ${option.sku_code === hiddenInput.value ? 'is-active' : ''}" data-picker-option="${escapeHtml(option.sku_code)}">
+        <strong>${escapeHtml(option.label)}</strong>
+        <span>${escapeHtml([option.brand, option.meta].filter(Boolean).join(' • '))}</span>
+      </button>
+    `).join('') : '<p class="partner-picker-empty">No products match that search.</p>';
   };
 
   const collectInvoiceItems = () => {
@@ -167,7 +202,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('[data-invoice-item]').forEach((itemNode) => {
       const select = itemNode.querySelector('[data-invoice-product]');
       const quantity = itemNode.querySelector('[data-invoice-quantity]');
-      if (!(select instanceof HTMLSelectElement) || !(quantity instanceof HTMLInputElement)) return;
+      if (!(select instanceof HTMLInputElement) || !(quantity instanceof HTMLInputElement)) return;
       if (!select.value) return;
       items.push({
         sku_code: select.value,
@@ -356,11 +391,65 @@ document.addEventListener('DOMContentLoaded', () => {
   invoiceItemsNode?.addEventListener('click', (event) => {
     const target = event.target;
     if (!(target instanceof HTMLElement)) return;
+    const pickerTrigger = target.closest('[data-picker-trigger]');
+    if (pickerTrigger instanceof HTMLButtonElement) {
+      const picker = pickerTrigger.closest('[data-product-picker]');
+      if (!(picker instanceof HTMLElement)) return;
+      document.querySelectorAll('[data-picker-panel]').forEach((panel) => {
+        if (panel !== picker.querySelector('[data-picker-panel]')) panel.hidden = true;
+      });
+      const panel = picker.querySelector('[data-picker-panel]');
+      const search = picker.querySelector('[data-picker-search]');
+      if (panel instanceof HTMLElement) {
+        panel.hidden = !panel.hidden;
+        if (!panel.hidden && search instanceof HTMLInputElement) search.focus();
+      }
+      return;
+    }
+
+    const pickerOption = target.closest('[data-picker-option]');
+    if (pickerOption instanceof HTMLButtonElement) {
+      const picker = pickerOption.closest('[data-product-picker]');
+      const hiddenInput = picker?.querySelector('[data-invoice-product]');
+      const panel = picker?.querySelector('[data-picker-panel]');
+      const search = picker?.querySelector('[data-picker-search]');
+      if (hiddenInput instanceof HTMLInputElement) {
+        hiddenInput.value = pickerOption.getAttribute('data-picker-option') || '';
+      }
+      if (search instanceof HTMLInputElement) {
+        search.value = '';
+      }
+      if (panel instanceof HTMLElement) {
+        panel.hidden = true;
+      }
+      if (picker instanceof HTMLElement) {
+        renderPickerOptions(picker);
+      }
+      return;
+    }
+
     if (!target.matches('[data-remove-invoice-item]')) return;
     const current = collectInvoiceItems();
     const index = Number(target.getAttribute('data-remove-invoice-item') || 0);
     current.splice(index, 1);
     renderInvoiceItems(current);
+  });
+
+  invoiceItemsNode?.addEventListener('input', (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLInputElement) || !target.matches('[data-picker-search]')) return;
+    const picker = target.closest('[data-product-picker]');
+    if (!(picker instanceof HTMLElement)) return;
+    renderPickerOptions(picker, target.value);
+  });
+
+  document.addEventListener('click', (event) => {
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+    if (target.closest('[data-product-picker]')) return;
+    document.querySelectorAll('[data-picker-panel]').forEach((panel) => {
+      panel.hidden = true;
+    });
   });
 
   orderForm?.addEventListener('submit', async (event) => {

@@ -1,0 +1,4 @@
+---
+deployment:
+  tasks:
+    - if [ ! -f config.local.php ]; then cp config.local.placeholder.php config.local.php; fi

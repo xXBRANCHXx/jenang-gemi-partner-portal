@@ -1,0 +1,11 @@
+<?php
+declare(strict_types=1);
+
+return [
+    'partner_db_host' => 'local.server',
+    'partner_db_port' => '3306',
+    'partner_db_name' => 'u558678012_Partner_Data',
+    'partner_db_user' => 'u558678012_BranchVincent2',
+    'partner_db_password' => 'PUT_DATABASE_PASSWORD_HERE',
+    'partner_db_charset' => 'utf8mb4',
+];

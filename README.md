@@ -22,9 +22,11 @@ Partner-facing dashboard for `partner.jenanggemi.com`.
 The partner order tables are created automatically when the portal can connect to MySQL. Database credentials must be configured on the server and should not be committed to git.
 
 1. Create `config.local.php` on the deployed server.
-2. Fill in the MySQL host, database name, user, and password.
+2. Use `config.local.placeholder.php` as the reference values and replace only the password.
 3. Put the file in either the project root or `/public_html/config.local.php`.
 4. Visit `/dashboard/` or `/api/orders/` while logged in as a partner; this triggers automatic table creation.
+
+`config.local.php` is ignored by git. Do not track it and do not have deployment copy `config.local.placeholder.php` over it; that keeps future GitHub-to-Hostinger deploys from overwriting the real server password.
 
 If phpMyAdmin needs the tables created manually, import `database/partner-data-schema.sql` into `u558678012_Partner_Data`.
 

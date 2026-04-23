@@ -3,9 +3,20 @@ declare(strict_types=1);
 
 require __DIR__ . '/partner-auth.php';
 
+$requestPath = trim(parse_url((string) ($_SERVER['REQUEST_URI'] ?? '/'), PHP_URL_PATH) ?: '/', '/');
+$knownStaticPrefixes = ['dashboard', 'logout', 'api'];
+$requestedPartner = null;
+
+if ($requestPath !== '' && !in_array(explode('/', $requestPath)[0], $knownStaticPrefixes, true)) {
+    $requestedPartner = jg_partner_source_find_by_slug($requestPath);
+    if ($requestedPartner === null) {
+        http_response_code(404);
+    }
+}
+
 $hasError = false;
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $submittedCode = (string) ($_POST['partner_code'] ?? '');
+    $submittedCode = (string) ($_POST['partner_code'] ?? ($requestedPartner['code'] ?? ''));
     $submittedName = (string) ($_POST['partner_name'] ?? '');
     if (jg_partner_attempt_login($submittedCode, $submittedName)) {
         header('Location: ./dashboard/');
@@ -20,6 +31,11 @@ if (jg_partner_is_authenticated()) {
 }
 
 $adminCssVersion = (string) @filemtime(__DIR__ . '/admin.css');
+$portalTitle = $requestedPartner ? ((string) ($requestedPartner['name'] ?? 'Partner Portal')) : 'Jenang Gemi Partner Portal';
+$portalChip = $requestedPartner ? 'Partner Login' : 'Partner Portal Access';
+$portalCopy = $requestedPartner
+    ? 'Sign in with the registered partner name to access this partner workspace.'
+    : 'Sign in with your partner code and registered partner name to access your dashboard on `partner.jenanggemi.com`.';
 ?>
 <!DOCTYPE html>
 <html lang="id">
@@ -37,17 +53,28 @@ $adminCssVersion = (string) @filemtime(__DIR__ . '/admin.css');
     <main class="admin-login-shell">
         <section class="admin-login-card">
             <div class="admin-login-brand">
-                <span class="admin-chip">Partner Portal Access</span>
-                <h1>Jenang Gemi Partner Portal</h1>
-                <p>Sign in with your partner code and registered partner name to access your dashboard on `partner.jenanggemi.com`.</p>
+                <span class="admin-chip"><?php echo htmlspecialchars($portalChip, ENT_QUOTES); ?></span>
+                <h1><?php echo htmlspecialchars($portalTitle, ENT_QUOTES); ?></h1>
+                <p><?php echo htmlspecialchars($portalCopy, ENT_QUOTES); ?></p>
             </div>
             <form method="post" class="admin-login-form" autocomplete="off">
-                <label for="partner_code">Partner Code</label>
-                <input id="partner_code" name="partner_code" type="text" placeholder="e.g. partner-001-demo-partner" required autofocus>
+                <?php if ($requestedPartner): ?>
+                    <input name="partner_code" type="hidden" value="<?php echo htmlspecialchars((string) ($requestedPartner['code'] ?? ''), ENT_QUOTES); ?>">
+                    <div class="admin-affiliate-field">
+                        <span class="admin-control-label">Partner Code</span>
+                        <div class="admin-platform-choice"><span><?php echo htmlspecialchars((string) ($requestedPartner['code'] ?? ''), ENT_QUOTES); ?></span></div>
+                    </div>
+                <?php else: ?>
+                    <label for="partner_code">Partner Code</label>
+                    <input id="partner_code" name="partner_code" type="text" placeholder="e.g. partner-001-demo-partner" required autofocus>
+                <?php endif; ?>
                 <label for="partner_name">Partner Name</label>
-                <input id="partner_name" name="partner_name" type="text" placeholder="Enter the partner name from your profile" required>
+                <input id="partner_name" name="partner_name" type="text" placeholder="Enter the partner name from your profile" <?php echo $requestedPartner ? 'autofocus' : ''; ?> required>
                 <?php if ($hasError): ?>
                     <p class="admin-login-error">Partner code or partner name is invalid.</p>
+                <?php endif; ?>
+                <?php if ($requestPath !== '' && $requestedPartner === null): ?>
+                    <p class="admin-login-error">That partner page was not found.</p>
                 <?php endif; ?>
                 <button type="submit" class="admin-primary-btn">Access Dashboard</button>
             </form>

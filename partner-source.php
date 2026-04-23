@@ -67,6 +67,23 @@ function jg_partner_source_find(string $code): ?array
     return null;
 }
 
+function jg_partner_source_find_by_slug(string $slug): ?array
+{
+    $normalizedSlug = trim(trim($slug), '/');
+    if ($normalizedSlug === '') {
+        return null;
+    }
+
+    $registry = jg_partner_source_load();
+    foreach ($registry['partners'] ?? [] as $partner) {
+        if ((string) ($partner['partner_slug'] ?? '') === $normalizedSlug) {
+            return $partner;
+        }
+    }
+
+    return null;
+}
+
 function jg_partner_source_catalog(?array $partner = null): array
 {
     $partner = is_array($partner) ? $partner : jg_partner_current_profile();

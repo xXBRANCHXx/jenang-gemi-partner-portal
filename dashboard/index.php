@@ -26,7 +26,7 @@ $partner = jg_partner_current_profile();
     <link rel="stylesheet" href="../admin.css?v=<?php echo urlencode($adminCssVersion ?: '1'); ?>">
 </head>
 <body class="admin-body is-dashboard">
-    <div class="admin-build-badge" aria-label="Partner portal build version">Build 1.01.00</div>
+    <div class="admin-build-badge" aria-label="Partner portal build version">Build 1.02.00</div>
     <div class="admin-app partner-dashboard-app" data-partner-dashboard data-session-endpoint="../api/session/" data-orders-endpoint="../api/orders/" data-labels-endpoint="../api/order-labels/">
         <div class="admin-backdrop admin-backdrop-a"></div>
         <div class="admin-backdrop admin-backdrop-b"></div>
@@ -34,141 +34,35 @@ $partner = jg_partner_current_profile();
             <div class="admin-topbar-brand">
                 <span class="admin-chip" data-partner-code><?php echo htmlspecialchars((string) ($partner['code'] ?? 'PARTNER'), ENT_QUOTES); ?></span>
                 <h1 data-partner-name><?php echo htmlspecialchars((string) ($partner['name'] ?? 'Partner Dashboard'), ENT_QUOTES); ?></h1>
-                <p>Manage orders, upload shipping labels, and watch partner activity from a SKU-locked workspace that mirrors your approved catalog.</p>
             </div>
             <div class="admin-topbar-actions">
+                <button type="button" class="admin-primary-btn" data-open-order-modal>New Order</button>
                 <button type="button" class="admin-ghost-btn" data-partner-logout>Logout</button>
             </div>
         </header>
 
         <main class="admin-layout">
-            <section class="partner-hero">
-                <div class="partner-hero-copy">
-                    <span class="admin-chip admin-chip-accent">Partner Workspace</span>
-                    <h2>Shopee-style flow, tuned for Jenang Gemi and filtered to the SKUs your admin enabled.</h2>
-                    <p>Choose a brand, then product, then exact SKU. Create orders, attach shipping labels, and review trends by month and by busiest hour.</p>
-                </div>
-                <div class="partner-hero-status">
-                    <div class="admin-status-pill">
-                        <span class="admin-status-dot"></span>
-                        <span>Session Active</span>
-                    </div>
-                    <div class="partner-hero-chip" data-storage-mode>Storage Loading</div>
-                </div>
-            </section>
-
-            <section class="partner-summary-grid">
-                <article class="partner-summary-card">
-                    <span>Allowed Brands</span>
-                    <strong data-brand-count>0</strong>
-                    <small data-allowed-brands></small>
-                </article>
-                <article class="partner-summary-card">
-                    <span>Allowed Products</span>
-                    <strong data-product-count>0</strong>
-                    <small data-allowed-products></small>
-                </article>
-                <article class="partner-summary-card">
-                    <span>Orders</span>
-                    <strong data-order-count>0</strong>
-                    <small>Total recorded in your workspace</small>
-                </article>
-                <article class="partner-summary-card">
-                    <span>Busiest Time</span>
-                    <strong data-busiest-hour>00:00</strong>
-                    <small>Based on your saved orders</small>
-                </article>
-            </section>
-
-            <section class="partner-content-grid">
-                <section class="admin-panel admin-panel-affiliates partner-order-panel">
+            <section class="partner-analytics-dashboard">
+                <section class="admin-panel admin-panel-affiliates partner-chart-panel">
                     <div class="admin-panel-head">
                         <div>
-                            <span class="admin-panel-kicker">Order Entry</span>
-                            <h3>Create or update an order</h3>
+                            <span class="admin-panel-kicker">Monthly Analytics</span>
+                            <h3>Orders per month</h3>
                         </div>
+                        <div class="partner-year-toggle" data-year-toggle></div>
                     </div>
-                    <form class="admin-affiliate-editor partner-order-form" data-order-form>
-                        <input type="hidden" name="order_id">
-                        <label class="admin-affiliate-field">
-                            <span class="admin-control-label">Customer name</span>
-                            <input type="text" name="customer_name" maxlength="160" placeholder="Customer full name" required>
-                        </label>
-                        <div class="partner-order-step-grid">
-                            <label class="admin-affiliate-field">
-                                <span class="admin-control-label">Brand</span>
-                                <select class="admin-select" name="brand" required></select>
-                            </label>
-                            <label class="admin-affiliate-field">
-                                <span class="admin-control-label">Product</span>
-                                <select class="admin-select" name="product" required></select>
-                            </label>
-                        </div>
-                        <label class="admin-affiliate-field">
-                            <span class="admin-control-label">SKU</span>
-                            <select class="admin-select" name="sku_code" required></select>
-                        </label>
-                        <div class="partner-selected-sku" data-selected-sku-card>
-                            <strong data-selected-sku-name>Select a SKU</strong>
-                            <span data-selected-sku-meta>The selected SKU details will show here.</span>
-                        </div>
-                        <div class="partner-order-step-grid">
-                            <label class="admin-affiliate-field">
-                                <span class="admin-control-label">Quantity</span>
-                                <input type="number" name="quantity" min="1" step="1" value="1" required>
-                            </label>
-                            <label class="admin-affiliate-field">
-                                <span class="admin-control-label">Notes</span>
-                                <input type="text" name="notes" maxlength="300" placeholder="Optional internal note">
-                            </label>
-                        </div>
-                        <section class="partner-upload-card">
-                            <div class="partner-upload-head">
-                                <div>
-                                    <span class="admin-panel-kicker">Shipping Label</span>
-                                    <h4>Drag and drop, click to upload, or tap the plus button</h4>
-                                </div>
-                                <p>Accepted: PDF, PNG, JPG, JPEG, WEBP, GIF, SVG, ZPL, TXT, PRN.</p>
-                            </div>
-                            <button type="button" class="partner-upload-dropzone" data-label-dropzone>
-                                <span class="partner-upload-plus" aria-hidden="true">+</span>
-                                <strong>Upload shipping label</strong>
-                                <span>Add files now. They will be attached after the order is saved.</span>
-                            </button>
-                            <input type="file" name="labels" data-label-input hidden multiple accept=".pdf,.png,.jpg,.jpeg,.webp,.gif,.svg,.zpl,.txt,.prn">
-                            <div class="partner-upload-queue" data-label-queue>
-                                <p class="admin-empty">No label files queued.</p>
-                            </div>
-                        </section>
-                        <p class="admin-form-error" data-order-error hidden></p>
-                        <div class="admin-affiliate-actions">
-                            <button type="submit" class="admin-primary-btn">Create Order</button>
-                            <button type="button" class="admin-ghost-btn" data-reset-order-form>Reset</button>
-                        </div>
-                    </form>
+                    <div class="partner-chart" data-monthly-chart></div>
                 </section>
 
-                <section class="partner-analytics-stack">
-                    <section class="admin-panel admin-panel-affiliates partner-chart-panel">
-                        <div class="admin-panel-head">
-                            <div>
-                                <span class="admin-panel-kicker">Monthly Analytics</span>
-                                <h3>Orders per month</h3>
-                            </div>
-                            <div class="partner-year-toggle" data-year-toggle></div>
+                <section class="admin-panel admin-panel-affiliates partner-chart-panel">
+                    <div class="admin-panel-head">
+                        <div>
+                            <span class="admin-panel-kicker">Time Activity</span>
+                            <h3>Most busy hours</h3>
                         </div>
-                        <div class="partner-chart" data-monthly-chart></div>
-                    </section>
-
-                    <section class="admin-panel admin-panel-affiliates partner-chart-panel">
-                        <div class="admin-panel-head">
-                            <div>
-                                <span class="admin-panel-kicker">Time Activity</span>
-                                <h3>Most busy hours</h3>
-                            </div>
-                        </div>
-                        <div class="partner-chart partner-hour-chart" data-hourly-chart></div>
-                    </section>
+                        <span class="partner-hero-chip" data-busiest-hour>00:00</span>
+                    </div>
+                    <div class="partner-chart partner-hour-chart" data-hourly-chart></div>
                 </section>
             </section>
 
@@ -176,8 +70,9 @@ $partner = jg_partner_current_profile();
                 <div class="admin-panel-head">
                     <div>
                         <span class="admin-panel-kicker">Orders</span>
-                        <h3>Your order table</h3>
+                        <h3>Order history</h3>
                     </div>
+                    <button type="button" class="admin-primary-btn" data-open-order-modal>New Order</button>
                 </div>
                 <div class="partner-order-table-wrap">
                     <table class="partner-order-table">
@@ -185,10 +80,10 @@ $partner = jg_partner_current_profile();
                             <tr>
                                 <th>Order</th>
                                 <th>Customer</th>
-                                <th>SKU</th>
+                                <th>Invoice</th>
                                 <th>Qty</th>
-                                <th>Labels</th>
-                                <th>Updated</th>
+                                <th>Label</th>
+                                <th>Time</th>
                                 <th>Actions</th>
                             </tr>
                         </thead>
@@ -199,6 +94,72 @@ $partner = jg_partner_current_profile();
                 </div>
             </section>
         </main>
+    </div>
+
+    <div class="admin-modal-shell partner-order-modal-shell" data-order-modal hidden>
+        <div class="admin-modal-backdrop" data-close-order-modal></div>
+        <div class="admin-modal-card partner-order-modal" role="dialog" aria-modal="true" aria-labelledby="order-modal-title">
+            <div class="admin-modal-head">
+                <div>
+                    <span class="admin-panel-kicker">Order</span>
+                    <h3 id="order-modal-title">Create order</h3>
+                </div>
+                <button type="button" class="admin-ghost-btn" data-close-order-modal>Close</button>
+            </div>
+            <form class="admin-affiliate-editor partner-order-form" data-order-form>
+                <input type="hidden" name="order_id">
+                <section class="partner-order-modal-step">
+                    <label class="admin-affiliate-field">
+                        <span class="admin-control-label">Customer name</span>
+                        <input type="text" name="customer_name" maxlength="160" placeholder="Customer full name" required>
+                    </label>
+                    <label class="admin-affiliate-field">
+                        <span class="admin-control-label">Timestamp</span>
+                        <input type="datetime-local" name="order_timestamp" required>
+                    </label>
+                </section>
+
+                <section class="partner-invoice-builder">
+                    <div class="admin-panel-head">
+                        <div>
+                            <span class="admin-panel-kicker">Invoice</span>
+                            <h3>Add products</h3>
+                        </div>
+                        <button type="button" class="admin-ghost-btn" data-add-invoice-item>Add Product</button>
+                    </div>
+                    <div class="partner-invoice-items" data-invoice-items></div>
+                </section>
+
+                <section class="partner-upload-card">
+                    <div class="partner-upload-head">
+                        <div>
+                            <span class="admin-panel-kicker">Shipping Label</span>
+                            <h4>One label per order</h4>
+                        </div>
+                        <p>Upload one PDF, image, ZPL, TXT, or PRN file. Delete the current label before replacing it.</p>
+                    </div>
+                    <button type="button" class="partner-upload-dropzone" data-label-dropzone>
+                        <span class="partner-upload-plus" aria-hidden="true">+</span>
+                        <strong>Upload shipping label</strong>
+                        <span data-label-dropzone-copy>Add one label after the order is saved.</span>
+                    </button>
+                    <input type="file" name="labels" data-label-input hidden accept=".pdf,.png,.jpg,.jpeg,.webp,.gif,.svg,.zpl,.txt,.prn">
+                    <div class="partner-upload-queue" data-label-queue>
+                        <p class="admin-empty">No label file queued.</p>
+                    </div>
+                </section>
+
+                <label class="admin-affiliate-field">
+                    <span class="admin-control-label">Notes</span>
+                    <input type="text" name="notes" maxlength="300" placeholder="Optional internal note">
+                </label>
+                <p class="admin-form-error" data-order-error hidden></p>
+                <div class="admin-modal-actions">
+                    <button type="button" class="admin-ghost-btn" data-close-order-modal>Cancel</button>
+                    <button type="submit" class="admin-primary-btn">Create Order</button>
+                </div>
+            </form>
+        </div>
     </div>
 
     <script type="module" src="../dashboard.js?v=<?php echo urlencode($dashboardJsVersion ?: '1'); ?>"></script>

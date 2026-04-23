@@ -104,4 +104,27 @@ function jg_partner_data_ensure_schema(PDO $pdo): void
     foreach ($statements as $sql) {
         $pdo->exec($sql);
     }
+
+    jg_partner_data_ensure_column($pdo, 'partner_orders', 'order_timestamp', 'DATETIME NULL DEFAULT NULL');
+    jg_partner_data_ensure_column($pdo, 'partner_orders', 'items_json', 'LONGTEXT NULL DEFAULT NULL');
+}
+
+function jg_partner_data_ensure_column(PDO $pdo, string $tableName, string $columnName, string $definition): void
+{
+    $stmt = $pdo->prepare(
+        'SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = :table_name AND COLUMN_NAME = :column_name'
+    );
+    $stmt->execute([
+        ':table_name' => $tableName,
+        ':column_name' => $columnName,
+    ]);
+
+    if ((int) $stmt->fetchColumn() > 0) {
+        return;
+    }
+
+    $safeTable = preg_replace('/[^a-zA-Z0-9_]/', '', $tableName) ?: $tableName;
+    $safeColumn = preg_replace('/[^a-zA-Z0-9_]/', '', $columnName) ?: $columnName;
+    $pdo->exec(sprintf('ALTER TABLE `%s` ADD COLUMN `%s` %s', $safeTable, $safeColumn, $definition));
 }

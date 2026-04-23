@@ -26,11 +26,23 @@ if ($orderId === '') {
     jg_partner_label_fail('Order id is required.');
 }
 
-if (!isset($_FILES['labels']) || !is_array($_FILES['labels'])) {
-    jg_partner_label_fail('Select at least one label file.');
-}
+$action = trim((string) ($_POST['action'] ?? 'upload')) ?: 'upload';
 
 try {
+    if ($action === 'delete') {
+        $labels = jg_partner_order_delete_label($partnerCode, $orderId);
+        echo json_encode([
+            'ok' => true,
+            'labels' => $labels,
+            'storage' => jg_partner_order_storage_mode(),
+        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+        exit;
+    }
+
+    if (!isset($_FILES['labels']) || !is_array($_FILES['labels'])) {
+        jg_partner_label_fail('Select one label file.');
+    }
+
     $labels = jg_partner_order_store_uploaded_labels($partnerCode, $orderId, $_FILES['labels']);
     echo json_encode([
         'ok' => true,

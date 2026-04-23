@@ -98,6 +98,73 @@ function jg_partner_order_validate_sku(?array $partner, mixed $skuCode): array
     return $allowed[$normalized];
 }
 
+function jg_partner_order_normalize_timestamp(mixed $value): string
+{
+    $raw = trim((string) $value);
+    if ($raw === '') {
+        return gmdate(DATE_ATOM);
+    }
+
+    $timestamp = strtotime($raw);
+    if ($timestamp === false) {
+        throw new InvalidArgumentException('Order timestamp is invalid.');
+    }
+
+    return gmdate(DATE_ATOM, $timestamp);
+}
+
+function jg_partner_order_normalize_items(?array $partner, mixed $value): array
+{
+    if (!is_array($value)) {
+        throw new InvalidArgumentException('Add at least one product to the invoice.');
+    }
+
+    $items = [];
+    foreach ($value as $item) {
+        if (!is_array($item)) {
+            continue;
+        }
+
+        $sku = jg_partner_order_validate_sku($partner, $item['sku_code'] ?? null);
+        $quantity = max(1, (int) ($item['quantity'] ?? 1));
+
+        $items[] = [
+            'sku_code' => $sku['sku'],
+            'sku_label' => $sku['label'],
+            'brand' => $sku['brand_name'],
+            'product' => $sku['product_name'],
+            'flavor' => $sku['flavor_name'],
+            'size' => $sku['size_label'],
+            'quantity' => $quantity,
+        ];
+    }
+
+    if ($items === []) {
+        throw new InvalidArgumentException('Add at least one product to the invoice.');
+    }
+
+    return $items;
+}
+
+function jg_partner_order_item_summary(array $items): array
+{
+    $first = $items[0] ?? [];
+    $productNames = array_values(array_unique(array_filter(array_map(
+        static fn (array $item): string => trim((string) ($item['product'] ?? '')),
+        $items
+    ))));
+
+    return [
+        'brand' => (string) ($first['brand'] ?? ''),
+        'product' => $productNames === [] ? (string) ($first['product'] ?? '') : implode(', ', $productNames),
+        'sku_code' => (string) ($first['sku_code'] ?? ''),
+        'sku_label' => count($items) === 1 ? (string) ($first['sku_label'] ?? '') : count($items) . ' invoice items',
+        'flavor' => (string) ($first['flavor'] ?? ''),
+        'size' => (string) ($first['size'] ?? ''),
+        'quantity' => array_sum(array_map(static fn (array $item): int => max(1, (int) ($item['quantity'] ?? 1)), $items)),
+    ];
+}
+
 function jg_partner_order_normalize_text(mixed $value, string $label, int $maxLength = 160, bool $required = true): string
 {
     $normalized = trim(preg_replace('/\s+/', ' ', (string) $value) ?? '');
@@ -118,21 +185,25 @@ function jg_partner_order_normalize_text(mixed $value, string $label, int $maxLe
 
 function jg_partner_order_build_record(string $partnerCode, ?array $partner, array $payload, ?array $existing = null): array
 {
-    $sku = jg_partner_order_validate_sku($partner, $payload['sku_code'] ?? null);
+    $items = jg_partner_order_normalize_items($partner, $payload['items'] ?? []);
+    $summary = jg_partner_order_item_summary($items);
     $createdAt = (string) ($existing['created_at'] ?? gmdate(DATE_ATOM));
     $labelRecords = array_values(array_filter((array) ($existing['labels'] ?? []), 'is_array'));
+    $orderTimestamp = jg_partner_order_normalize_timestamp($payload['order_timestamp'] ?? ($existing['order_timestamp'] ?? $createdAt));
 
     return [
         'id' => (string) ($existing['id'] ?? ('order-' . substr(sha1($partnerCode . microtime(true) . random_int(1000, 9999)), 0, 12))),
         'partner_code' => $partnerCode,
         'customer_name' => jg_partner_order_normalize_text($payload['customer_name'] ?? '', 'Customer name'),
-        'brand' => $sku['brand_name'],
-        'product' => $sku['product_name'],
-        'sku_code' => $sku['sku'],
-        'sku_label' => $sku['label'],
-        'flavor' => $sku['flavor_name'],
-        'size' => $sku['size_label'],
-        'quantity' => max(1, (int) ($payload['quantity'] ?? 1)),
+        'brand' => $summary['brand'],
+        'product' => $summary['product'],
+        'sku_code' => $summary['sku_code'],
+        'sku_label' => $summary['sku_label'],
+        'flavor' => $summary['flavor'],
+        'size' => $summary['size'],
+        'quantity' => $summary['quantity'],
+        'items' => $items,
+        'order_timestamp' => $orderTimestamp,
         'notes' => jg_partner_order_normalize_text($payload['notes'] ?? '', 'Notes', 300, false),
         'status' => trim((string) ($existing['status'] ?? 'draft')) ?: 'draft',
         'created_at' => $createdAt,
@@ -191,7 +262,7 @@ function jg_partner_order_list(string $partnerCode): array
     $pdo = jg_partner_data_db();
     if ($pdo instanceof PDO) {
         $stmt = $pdo->prepare(
-            'SELECT id, partner_code, customer_name, brand_name, product_name, sku_code, sku_label, quantity, notes, status, created_at, updated_at
+            'SELECT id, partner_code, customer_name, brand_name, product_name, sku_code, sku_label, quantity, notes, status, order_timestamp, items_json, created_at, updated_at
              FROM partner_orders
              WHERE partner_code = :partner_code
              ORDER BY created_at DESC, id DESC'
@@ -200,6 +271,18 @@ function jg_partner_order_list(string $partnerCode): array
 
         $orders = [];
         foreach ($stmt->fetchAll() as $row) {
+            $items = json_decode((string) ($row['items_json'] ?? ''), true);
+            $items = is_array($items) ? array_values(array_filter($items, 'is_array')) : [];
+            if ($items === []) {
+                $items = [[
+                    'sku_code' => (string) ($row['sku_code'] ?? ''),
+                    'sku_label' => (string) ($row['sku_label'] ?? ''),
+                    'brand' => (string) ($row['brand_name'] ?? ''),
+                    'product' => (string) ($row['product_name'] ?? ''),
+                    'quantity' => (int) ($row['quantity'] ?? 1),
+                ]];
+            }
+
             $orders[] = [
                 'id' => (string) ($row['id'] ?? ''),
                 'partner_code' => (string) ($row['partner_code'] ?? ''),
@@ -209,6 +292,8 @@ function jg_partner_order_list(string $partnerCode): array
                 'sku_code' => (string) ($row['sku_code'] ?? ''),
                 'sku_label' => (string) ($row['sku_label'] ?? ''),
                 'quantity' => (int) ($row['quantity'] ?? 1),
+                'items' => $items,
+                'order_timestamp' => (string) ($row['order_timestamp'] ?? ''),
                 'notes' => (string) ($row['notes'] ?? ''),
                 'status' => (string) ($row['status'] ?? 'draft'),
                 'created_at' => (string) ($row['created_at'] ?? ''),
@@ -224,6 +309,20 @@ function jg_partner_order_list(string $partnerCode): array
         $database['orders'],
         static fn (array $order): bool => (string) ($order['partner_code'] ?? '') === $partnerCode
     ));
+
+    foreach ($orders as &$order) {
+        if (!isset($order['items']) || !is_array($order['items'])) {
+            $order['items'] = [[
+                'sku_code' => (string) ($order['sku_code'] ?? ''),
+                'sku_label' => (string) ($order['sku_label'] ?? ''),
+                'brand' => (string) ($order['brand'] ?? ''),
+                'product' => (string) ($order['product'] ?? ''),
+                'quantity' => (int) ($order['quantity'] ?? 1),
+            ]];
+        }
+        $order['order_timestamp'] = (string) ($order['order_timestamp'] ?? $order['created_at'] ?? '');
+    }
+    unset($order);
 
     return jg_partner_order_attach_labels($orders, []);
 }
@@ -256,9 +355,9 @@ function jg_partner_order_save(string $partnerCode, ?array $partner, array $payl
             $record = jg_partner_order_build_record($partnerCode, $partner, $payload);
             $stmt = $pdo->prepare(
                 'INSERT INTO partner_orders
-                    (id, partner_code, customer_name, brand_name, product_name, sku_code, sku_label, quantity, notes, status, created_at, updated_at)
+                    (id, partner_code, customer_name, brand_name, product_name, sku_code, sku_label, quantity, notes, status, order_timestamp, items_json, created_at, updated_at)
                  VALUES
-                    (:id, :partner_code, :customer_name, :brand_name, :product_name, :sku_code, :sku_label, :quantity, :notes, :status, :created_at, :updated_at)'
+                    (:id, :partner_code, :customer_name, :brand_name, :product_name, :sku_code, :sku_label, :quantity, :notes, :status, :order_timestamp, :items_json, :created_at, :updated_at)'
             );
             $stmt->execute([
                 ':id' => $record['id'],
@@ -271,6 +370,8 @@ function jg_partner_order_save(string $partnerCode, ?array $partner, array $payl
                 ':quantity' => $record['quantity'],
                 ':notes' => $record['notes'],
                 ':status' => $record['status'],
+                ':order_timestamp' => gmdate('Y-m-d H:i:s', strtotime($record['order_timestamp'])),
+                ':items_json' => json_encode($record['items'], JSON_UNESCAPED_SLASHES),
                 ':created_at' => gmdate('Y-m-d H:i:s', strtotime($record['created_at'])),
                 ':updated_at' => gmdate('Y-m-d H:i:s', strtotime($record['updated_at'])),
             ]);
@@ -294,6 +395,8 @@ function jg_partner_order_save(string $partnerCode, ?array $partner, array $payl
                  sku_label = :sku_label,
                  quantity = :quantity,
                  notes = :notes,
+                 order_timestamp = :order_timestamp,
+                 items_json = :items_json,
                  updated_at = :updated_at
              WHERE id = :id AND partner_code = :partner_code'
         );
@@ -305,6 +408,8 @@ function jg_partner_order_save(string $partnerCode, ?array $partner, array $payl
             ':sku_label' => $record['sku_label'],
             ':quantity' => $record['quantity'],
             ':notes' => $record['notes'],
+            ':order_timestamp' => gmdate('Y-m-d H:i:s', strtotime($record['order_timestamp'])),
+            ':items_json' => json_encode($record['items'], JSON_UNESCAPED_SLASHES),
             ':updated_at' => gmdate('Y-m-d H:i:s', strtotime($record['updated_at'])),
             ':id' => $record['id'],
             ':partner_code' => $partnerCode,
@@ -378,11 +483,17 @@ function jg_partner_order_store_uploaded_labels(string $partnerCode, string $ord
     if (!is_array($existingOrder)) {
         throw new RuntimeException('Order not found.');
     }
+    if (!empty($existingOrder['labels'])) {
+        throw new InvalidArgumentException('Delete the current shipping label before uploading another one.');
+    }
 
     $uploadDir = jg_partner_order_upload_directory();
     $savedLabels = [];
 
     foreach ($files['name'] ?? [] as $index => $originalName) {
+        if ($savedLabels !== []) {
+            throw new InvalidArgumentException('Upload only one shipping label per order.');
+        }
         $errorCode = (int) (($files['error'][$index] ?? UPLOAD_ERR_NO_FILE));
         if ($errorCode === UPLOAD_ERR_NO_FILE) {
             continue;
@@ -486,7 +597,7 @@ function jg_partner_order_analytics(array $orders): array
     $hourlyBuckets = array_fill(0, 24, 0);
 
     foreach ($orders as $order) {
-        $timestamp = strtotime((string) ($order['created_at'] ?? ''));
+        $timestamp = strtotime((string) ($order['order_timestamp'] ?? $order['created_at'] ?? ''));
         if ($timestamp === false) {
             continue;
         }
@@ -522,4 +633,43 @@ function jg_partner_order_analytics(array $orders): array
         'busiest_hour' => sprintf('%02d:00', $busiestHour),
         'total_orders' => count($orders),
     ];
+}
+
+function jg_partner_order_delete_label(string $partnerCode, string $orderId): array
+{
+    $order = jg_partner_order_find($partnerCode, $orderId);
+    if (!is_array($order)) {
+        throw new RuntimeException('Order not found.');
+    }
+
+    foreach ((array) ($order['labels'] ?? []) as $label) {
+        $path = __DIR__ . '/' . ltrim((string) ($label['path'] ?? ''), '/');
+        if (is_file($path)) {
+            @unlink($path);
+        }
+    }
+
+    $pdo = jg_partner_data_db();
+    if ($pdo instanceof PDO) {
+        $stmt = $pdo->prepare('DELETE FROM partner_order_labels WHERE order_id = :order_id AND partner_code = :partner_code');
+        $stmt->execute([
+            ':order_id' => $orderId,
+            ':partner_code' => $partnerCode,
+        ]);
+        return [];
+    }
+
+    $database = jg_partner_order_read_json_database();
+    foreach ($database['orders'] as &$storedOrder) {
+        if ((string) ($storedOrder['id'] ?? '') !== $orderId || (string) ($storedOrder['partner_code'] ?? '') !== $partnerCode) {
+            continue;
+        }
+        $storedOrder['labels'] = [];
+        $storedOrder['updated_at'] = gmdate(DATE_ATOM);
+        break;
+    }
+    unset($storedOrder);
+    jg_partner_order_write_json_database($database);
+
+    return [];
 }

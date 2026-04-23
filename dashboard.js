@@ -5,33 +5,26 @@ document.addEventListener('DOMContentLoaded', () => {
   const sessionEndpoint = root.dataset.sessionEndpoint || '../api/session/';
   const ordersEndpoint = root.dataset.ordersEndpoint || '../api/orders/';
   const labelsEndpoint = root.dataset.labelsEndpoint || '../api/order-labels/';
+  const orderModal = document.querySelector('[data-order-modal]');
   const orderForm = document.querySelector('[data-order-form]');
   const orderList = document.querySelector('[data-order-list]');
   const errorNode = document.querySelector('[data-order-error]');
   const partnerNameNode = document.querySelector('[data-partner-name]');
   const partnerCodeNode = document.querySelector('[data-partner-code]');
-  const allowedBrandsNode = document.querySelector('[data-allowed-brands]');
-  const allowedProductsNode = document.querySelector('[data-allowed-products]');
-  const brandCountNode = document.querySelector('[data-brand-count]');
-  const productCountNode = document.querySelector('[data-product-count]');
-  const orderCountNode = document.querySelector('[data-order-count]');
   const busiestHourNode = document.querySelector('[data-busiest-hour]');
-  const storageModeNode = document.querySelector('[data-storage-mode]');
-  const brandSelect = document.querySelector('[name="brand"]');
-  const productSelect = document.querySelector('[name="product"]');
-  const skuSelect = document.querySelector('[name="sku_code"]');
-  const selectedSkuName = document.querySelector('[data-selected-sku-name]');
-  const selectedSkuMeta = document.querySelector('[data-selected-sku-meta]');
   const yearToggle = document.querySelector('[data-year-toggle]');
   const monthlyChart = document.querySelector('[data-monthly-chart]');
   const hourlyChart = document.querySelector('[data-hourly-chart]');
+  const invoiceItemsNode = document.querySelector('[data-invoice-items]');
   const labelDropzone = document.querySelector('[data-label-dropzone]');
+  const labelDropzoneCopy = document.querySelector('[data-label-dropzone-copy]');
   const labelInput = document.querySelector('[data-label-input]');
   const labelQueue = document.querySelector('[data-label-queue]');
 
   const state = {
     partner: null,
     catalog: {},
+    productOptions: [],
     orders: [],
     analytics: {
       years: [],
@@ -42,8 +35,8 @@ document.addEventListener('DOMContentLoaded', () => {
     },
     editingId: '',
     selectedYear: '',
-    storage: 'json',
-    queuedFiles: []
+    queuedFile: null,
+    currentLabels: []
   };
 
   const escapeHtml = (value) => String(value)
@@ -67,13 +60,7 @@ document.addEventListener('DOMContentLoaded', () => {
     return payload;
   };
 
-  const uploadLabels = async (orderId, files) => {
-    const formData = new window.FormData();
-    formData.append('order_id', orderId);
-    files.forEach((file) => {
-      formData.append('labels[]', file);
-    });
-
+  const postLabelForm = async (formData) => {
     const response = await fetch(labelsEndpoint, {
       method: 'POST',
       credentials: 'same-origin',
@@ -84,22 +71,25 @@ document.addEventListener('DOMContentLoaded', () => {
     return payload;
   };
 
+  const uploadLabel = async (orderId, file) => {
+    const formData = new window.FormData();
+    formData.append('order_id', orderId);
+    formData.append('labels[]', file);
+    return postLabelForm(formData);
+  };
+
+  const deleteLabel = async (orderId) => {
+    const formData = new window.FormData();
+    formData.append('action', 'delete');
+    formData.append('order_id', orderId);
+    return postLabelForm(formData);
+  };
+
   const setError = (message) => {
     if (!errorNode) return;
     errorNode.hidden = !message;
     errorNode.textContent = message || '';
   };
-
-  const optionMarkup = (items, placeholder) => [`<option value="">${escapeHtml(placeholder)}</option>`, ...items.map((item) => `<option value="${escapeHtml(item)}">${escapeHtml(item)}</option>`)].join('');
-
-  const currentProducts = () => Object.keys(state.catalog[brandSelect?.value || ''] || {});
-  const currentSkuRecords = () => {
-    const brand = brandSelect?.value || '';
-    const product = productSelect?.value || '';
-    return state.catalog[brand]?.[product]?.skus || [];
-  };
-
-  const currentSkuRecord = () => currentSkuRecords().find((sku) => sku.sku === (skuSelect?.value || '')) || null;
 
   const formatTimestamp = (value) => {
     const date = new Date(value);
@@ -113,6 +103,13 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   };
 
+  const datetimeLocalValue = (value = '') => {
+    const date = value ? new Date(value) : new Date();
+    if (Number.isNaN(date.getTime())) return '';
+    const offsetDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+    return offsetDate.toISOString().slice(0, 16);
+  };
+
   const formatFileSize = (bytes) => {
     const size = Number(bytes || 0);
     if (size >= 1024 * 1024) return `${(size / (1024 * 1024)).toFixed(1)} MB`;
@@ -120,75 +117,131 @@ document.addEventListener('DOMContentLoaded', () => {
     return `${size} B`;
   };
 
-  const renderSkuCard = () => {
-    const sku = currentSkuRecord();
-    if (!sku) {
-      if (selectedSkuName) selectedSkuName.textContent = 'Select a SKU';
-      if (selectedSkuMeta) selectedSkuMeta.textContent = 'The selected SKU details will show here.';
-      return;
-    }
-
-    if (selectedSkuName) selectedSkuName.textContent = sku.label || sku.sku;
-    if (selectedSkuMeta) {
-      const parts = [sku.sku];
-      if (sku.flavor) parts.push(sku.flavor);
-      if (sku.size) parts.push(sku.size);
-      parts.push(`Stock ${sku.stock ?? 0}`);
-      selectedSkuMeta.textContent = parts.join(' • ');
-    }
+  const flattenCatalog = () => {
+    const options = [];
+    Object.entries(state.catalog || {}).forEach(([brand, products]) => {
+      Object.entries(products || {}).forEach(([product, productData]) => {
+        const sku = (productData.skus || [])[0];
+        if (!sku?.sku) return;
+        options.push({
+          sku_code: sku.sku,
+          label: product,
+          brand,
+          product,
+          meta: [sku.size, sku.flavor].filter(Boolean).join(' • ')
+        });
+      });
+    });
+    state.productOptions = options.sort((left, right) => left.label.localeCompare(right.label));
   };
 
-  const renderFileQueue = () => {
+  const productOptionMarkup = (selectedSku = '') => [
+    '<option value="">Select product</option>',
+    ...state.productOptions.map((option) => `
+      <option value="${escapeHtml(option.sku_code)}" ${option.sku_code === selectedSku ? 'selected' : ''}>${escapeHtml(option.label)}</option>
+    `)
+  ].join('');
+
+  const invoiceItemMarkup = (item = {}, index = 0) => `
+    <article class="partner-invoice-item" data-invoice-item>
+      <label class="admin-affiliate-field">
+        <span class="admin-control-label">Product</span>
+        <select class="admin-select" data-invoice-product required>${productOptionMarkup(item.sku_code || '')}</select>
+      </label>
+      <label class="admin-affiliate-field partner-invoice-qty">
+        <span class="admin-control-label">QTY</span>
+        <input type="number" min="1" step="1" value="${escapeHtml(item.quantity || 1)}" data-invoice-quantity required>
+      </label>
+      <button type="button" class="admin-ghost-btn" data-remove-invoice-item="${index}">Remove</button>
+    </article>
+  `;
+
+  const renderInvoiceItems = (items = []) => {
+    if (!invoiceItemsNode) return;
+    const normalized = items.length ? items : [{ quantity: 1 }];
+    invoiceItemsNode.innerHTML = normalized.map((item, index) => invoiceItemMarkup(item, index)).join('');
+  };
+
+  const collectInvoiceItems = () => {
+    const items = [];
+    document.querySelectorAll('[data-invoice-item]').forEach((itemNode) => {
+      const select = itemNode.querySelector('[data-invoice-product]');
+      const quantity = itemNode.querySelector('[data-invoice-quantity]');
+      if (!(select instanceof HTMLSelectElement) || !(quantity instanceof HTMLInputElement)) return;
+      if (!select.value) return;
+      items.push({
+        sku_code: select.value,
+        quantity: Math.max(1, Number.parseInt(quantity.value || '1', 10))
+      });
+    });
+    return items;
+  };
+
+  const renderLabelQueue = () => {
     if (!labelQueue) return;
-    if (!state.queuedFiles.length) {
-      labelQueue.innerHTML = '<p class="admin-empty">No label files queued.</p>';
+
+    if (state.currentLabels.length) {
+      const label = state.currentLabels[0];
+      labelQueue.innerHTML = `
+        <article class="partner-upload-item">
+          <div>
+            <strong>${escapeHtml(label.name || 'Shipping label')}</strong>
+            <span>${escapeHtml(formatFileSize(label.size_bytes || 0))}</span>
+          </div>
+          <button type="button" class="admin-danger-btn" data-delete-current-label>Delete Label</button>
+        </article>
+      `;
+      if (labelDropzone) labelDropzone.disabled = true;
+      if (labelDropzoneCopy) labelDropzoneCopy.textContent = 'Delete the current label before uploading another.';
       return;
     }
 
-    labelQueue.innerHTML = state.queuedFiles.map((file, index) => `
-      <article class="partner-upload-item">
-        <div>
-          <strong>${escapeHtml(file.name)}</strong>
-          <span>${escapeHtml(formatFileSize(file.size))}</span>
-        </div>
-        <button type="button" class="admin-ghost-btn" data-remove-queued-file="${index}">Remove</button>
-      </article>
-    `).join('');
+    if (state.queuedFile) {
+      labelQueue.innerHTML = `
+        <article class="partner-upload-item">
+          <div>
+            <strong>${escapeHtml(state.queuedFile.name)}</strong>
+            <span>${escapeHtml(formatFileSize(state.queuedFile.size))}</span>
+          </div>
+          <button type="button" class="admin-ghost-btn" data-remove-queued-file>Remove</button>
+        </article>
+      `;
+      if (labelDropzone) labelDropzone.disabled = false;
+      if (labelDropzoneCopy) labelDropzoneCopy.textContent = 'One label is queued for this order.';
+      return;
+    }
+
+    labelQueue.innerHTML = '<p class="admin-empty">No label file queued.</p>';
+    if (labelDropzone) labelDropzone.disabled = false;
+    if (labelDropzoneCopy) labelDropzoneCopy.textContent = 'Add one label after the order is saved.';
   };
 
-  const setQueuedFiles = (files) => {
-    state.queuedFiles = [...state.queuedFiles, ...Array.from(files || [])];
-    renderFileQueue();
+  const openOrderModal = (order = null) => {
+    if (!(orderModal instanceof HTMLElement) || !(orderForm instanceof HTMLFormElement)) return;
+    state.editingId = order?.id || '';
+    state.queuedFile = null;
+    state.currentLabels = [...(order?.labels || [])];
+    orderModal.hidden = false;
+    setError('');
+    orderForm.reset();
+    orderForm.elements.order_id.value = order?.id || '';
+    orderForm.elements.customer_name.value = order?.customer_name || '';
+    orderForm.elements.order_timestamp.value = datetimeLocalValue(order?.order_timestamp || order?.created_at || '');
+    orderForm.elements.notes.value = order?.notes || '';
+    renderInvoiceItems(order?.items || []);
+    renderLabelQueue();
+    const submit = orderForm.querySelector('[type="submit"]');
+    if (submit) submit.textContent = state.editingId ? 'Save Order' : 'Create Order';
   };
 
-  const refreshBrandOptions = () => {
-    const brands = state.partner?.companies || [];
-    if (!(brandSelect instanceof HTMLSelectElement)) return;
-    const current = brandSelect.value;
-    brandSelect.innerHTML = optionMarkup(brands, 'Select brand');
-    brandSelect.value = brands.includes(current) ? current : (brands[0] || '');
-    refreshProductOptions();
-  };
-
-  const refreshProductOptions = () => {
-    const products = currentProducts();
-    if (!(productSelect instanceof HTMLSelectElement)) return;
-    const current = productSelect.value;
-    productSelect.innerHTML = optionMarkup(products, 'Select product');
-    productSelect.value = products.includes(current) ? current : (products[0] || '');
-    refreshSkuOptions();
-  };
-
-  const refreshSkuOptions = () => {
-    if (!(skuSelect instanceof HTMLSelectElement)) return;
-    const skuRecords = currentSkuRecords();
-    const current = skuSelect.value;
-    skuSelect.innerHTML = [
-      '<option value="">Select SKU</option>',
-      ...skuRecords.map((sku) => `<option value="${escapeHtml(sku.sku)}">${escapeHtml(sku.label || sku.sku)}</option>`)
-    ].join('');
-    skuSelect.value = skuRecords.some((sku) => sku.sku === current) ? current : ((skuRecords[0] || {}).sku || '');
-    renderSkuCard();
+  const closeOrderModal = () => {
+    if (!(orderModal instanceof HTMLElement) || !(orderForm instanceof HTMLFormElement)) return;
+    orderModal.hidden = true;
+    state.editingId = '';
+    state.queuedFile = null;
+    state.currentLabels = [];
+    orderForm.reset();
+    setError('');
   };
 
   const renderOrders = () => {
@@ -197,32 +250,37 @@ document.addEventListener('DOMContentLoaded', () => {
       orderList.innerHTML = '<tr><td colspan="7" class="partner-order-empty">No orders yet.</td></tr>';
       return;
     }
-    orderList.innerHTML = state.orders.map((order) => `
-      <tr>
-        <td>
-          <strong>${escapeHtml(order.id || '')}</strong>
-          <span>${escapeHtml(order.brand || '')} • ${escapeHtml(order.product || '')}</span>
-        </td>
-        <td>${escapeHtml(order.customer_name || '')}</td>
-        <td>
-          <strong>${escapeHtml(order.sku_code || '')}</strong>
-          <span>${escapeHtml(order.sku_label || '')}</span>
-        </td>
-        <td>${escapeHtml(order.quantity || 1)}</td>
-        <td>
-          <div class="partner-label-list">
-            ${(order.labels || []).length ? (order.labels || []).map((label) => `<a href="${escapeHtml(label.url || '#')}" target="_blank" rel="noopener">${escapeHtml(label.name || 'Label')}</a>`).join('') : '<span>No files</span>'}
-          </div>
-        </td>
-        <td>${escapeHtml(formatTimestamp(order.updated_at || order.created_at || ''))}</td>
-        <td>
-          <div class="partner-table-actions">
-            <button type="button" class="admin-primary-btn" data-edit-order="${escapeHtml(order.id || '')}">Edit</button>
-            <button type="button" class="admin-ghost-btn" data-delete-order="${escapeHtml(order.id || '')}">Delete</button>
-          </div>
-        </td>
-      </tr>
-    `).join('');
+
+    orderList.innerHTML = state.orders.map((order) => {
+      const items = order.items || [];
+      const itemSummary = items.map((item) => `${escapeHtml(item.product || item.sku_label || item.sku_code)} x${escapeHtml(item.quantity || 1)}`).join('<br>');
+      const totalQuantity = items.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
+      const label = (order.labels || [])[0] || null;
+
+      return `
+        <tr>
+          <td>
+            <strong>${escapeHtml(order.id || '')}</strong>
+            <span>${escapeHtml(order.status || 'draft')}</span>
+          </td>
+          <td>${escapeHtml(order.customer_name || '')}</td>
+          <td>${itemSummary || '--'}</td>
+          <td>${escapeHtml(totalQuantity || order.quantity || 0)}</td>
+          <td>
+            <div class="partner-label-list">
+              ${label ? `<a href="${escapeHtml(label.url || '#')}" target="_blank" rel="noopener">${escapeHtml(label.name || 'Label')}</a>` : '<span>No label</span>'}
+            </div>
+          </td>
+          <td>${escapeHtml(formatTimestamp(order.order_timestamp || order.created_at || ''))}</td>
+          <td>
+            <div class="partner-table-actions">
+              <button type="button" class="admin-primary-btn" data-edit-order="${escapeHtml(order.id || '')}">Edit</button>
+              <button type="button" class="admin-ghost-btn" data-delete-order="${escapeHtml(order.id || '')}">Delete</button>
+            </div>
+          </td>
+        </tr>
+      `;
+    }).join('');
   };
 
   const renderAnalytics = () => {
@@ -260,40 +318,14 @@ document.addEventListener('DOMContentLoaded', () => {
         </div>
       `).join('');
     }
-  };
 
-  const renderPartner = () => {
-    if (partnerNameNode) partnerNameNode.textContent = state.partner?.name || 'Partner';
-    if (partnerCodeNode) partnerCodeNode.textContent = state.partner?.code || 'Partner';
-    if (brandCountNode) brandCountNode.textContent = String((state.partner?.companies || []).length);
-    if (allowedBrandsNode) {
-      allowedBrandsNode.textContent = (state.partner?.companies || []).join(', ') || 'No brands assigned.';
-    }
-    if (allowedProductsNode) {
-      const summary = [];
-      Object.entries(state.partner?.product_access || {}).forEach(([brand, products]) => {
-        Object.entries(products || {}).forEach(([product, config]) => {
-          if (!config?.enabled) return;
-          summary.push(`${brand} / ${product}`);
-        });
-      });
-      if (productCountNode) productCountNode.textContent = String(summary.length);
-      allowedProductsNode.textContent = summary.join(', ') || 'No products assigned.';
-    }
-    if (storageModeNode) {
-      storageModeNode.textContent = state.storage === 'mysql' ? 'MySQL Live' : 'JSON Fallback';
-    }
-    refreshBrandOptions();
+    if (busiestHourNode) busiestHourNode.textContent = state.analytics.busiest_hour || '00:00';
   };
 
   const loadOrders = async () => {
     const payload = await requestJson(ordersEndpoint);
     state.orders = payload.orders || [];
     state.analytics = payload.analytics || state.analytics;
-    state.storage = payload.storage || state.storage;
-    if (orderCountNode) orderCountNode.textContent = String(state.analytics.total_orders || state.orders.length);
-    if (busiestHourNode) busiestHourNode.textContent = state.analytics.busiest_hour || '00:00';
-    if (storageModeNode) storageModeNode.textContent = state.storage === 'mysql' ? 'MySQL Live' : 'JSON Fallback';
     renderOrders();
     renderAnalytics();
   };
@@ -302,35 +334,45 @@ document.addEventListener('DOMContentLoaded', () => {
     const payload = await requestJson(sessionEndpoint);
     state.partner = payload.partner || null;
     state.catalog = payload.catalog || {};
-    renderPartner();
+    flattenCatalog();
+    if (partnerNameNode) partnerNameNode.textContent = state.partner?.name || 'Partner';
+    if (partnerCodeNode) partnerCodeNode.textContent = state.partner?.code || 'Partner';
   };
 
-  const fillOrderForm = (order) => {
-    if (!(orderForm instanceof HTMLFormElement)) return;
-    state.editingId = order?.id || '';
-    orderForm.elements.order_id.value = order?.id || '';
-    orderForm.elements.customer_name.value = order?.customer_name || '';
-    brandSelect.value = order?.brand || '';
-    refreshProductOptions();
-    productSelect.value = order?.product || '';
-    refreshSkuOptions();
-    skuSelect.value = order?.sku_code || '';
-    renderSkuCard();
-    orderForm.elements.quantity.value = order?.quantity || 1;
-    orderForm.elements.notes.value = order?.notes || '';
-    state.queuedFiles = [];
-    renderFileQueue();
-    const submit = orderForm.querySelector('[type="submit"]');
-    if (submit) submit.textContent = state.editingId ? 'Save Order' : 'Create Order';
-  };
+  document.querySelectorAll('[data-open-order-modal]').forEach((button) => {
+    button.addEventListener('click', () => openOrderModal());
+  });
 
-  brandSelect?.addEventListener('change', refreshProductOptions);
-  productSelect?.addEventListener('change', refreshSkuOptions);
-  skuSelect?.addEventListener('change', renderSkuCard);
+  document.querySelectorAll('[data-close-order-modal]').forEach((button) => {
+    button.addEventListener('click', closeOrderModal);
+  });
+
+  document.querySelector('[data-add-invoice-item]')?.addEventListener('click', () => {
+    const current = collectInvoiceItems();
+    current.push({ quantity: 1 });
+    renderInvoiceItems(current);
+  });
+
+  invoiceItemsNode?.addEventListener('click', (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) return;
+    if (!target.matches('[data-remove-invoice-item]')) return;
+    const current = collectInvoiceItems();
+    const index = Number(target.getAttribute('data-remove-invoice-item') || 0);
+    current.splice(index, 1);
+    renderInvoiceItems(current);
+  });
 
   orderForm?.addEventListener('submit', async (event) => {
     event.preventDefault();
     setError('');
+
+    const items = collectInvoiceItems();
+    if (!items.length) {
+      setError('Add at least one product to the invoice.');
+      return;
+    }
+
     try {
       const formData = new window.FormData(orderForm);
       const payload = await requestJson(ordersEndpoint, {
@@ -339,28 +381,19 @@ document.addEventListener('DOMContentLoaded', () => {
           action: state.editingId ? 'update' : 'create',
           id: formData.get('order_id'),
           customer_name: formData.get('customer_name'),
-          brand: formData.get('brand'),
-          product: formData.get('product'),
-          sku_code: formData.get('sku_code'),
-          quantity: formData.get('quantity'),
+          order_timestamp: formData.get('order_timestamp'),
+          items,
           notes: formData.get('notes')
         }
       });
 
       const savedOrder = payload.order || null;
-      if (savedOrder?.id && state.queuedFiles.length) {
-        await uploadLabels(savedOrder.id, state.queuedFiles);
+      if (savedOrder?.id && state.queuedFile) {
+        await uploadLabel(savedOrder.id, state.queuedFile);
       }
 
-      orderForm.reset();
-      state.editingId = '';
-      state.queuedFiles = [];
-      renderFileQueue();
-      refreshBrandOptions();
+      closeOrderModal();
       await loadOrders();
-      renderSkuCard();
-      const submit = orderForm.querySelector('[type="submit"]');
-      if (submit) submit.textContent = 'Create Order';
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Unable to save order.');
     }
@@ -371,25 +404,19 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!(target instanceof HTMLElement)) return;
     const editId = target.getAttribute('data-edit-order');
     const deleteId = target.getAttribute('data-delete-order');
+
     if (editId) {
       const order = state.orders.find((item) => item.id === editId);
-      if (order) fillOrderForm(order);
+      if (order) openOrderModal(order);
       return;
     }
+
     if (deleteId) {
       try {
         await requestJson(ordersEndpoint, {
           method: 'POST',
           body: { action: 'delete', id: deleteId }
         });
-        if (state.editingId === deleteId) {
-          orderForm?.reset();
-          state.editingId = '';
-          state.queuedFiles = [];
-          renderFileQueue();
-          const submit = orderForm?.querySelector('[type="submit"]');
-          if (submit) submit.textContent = 'Create Order';
-        }
         await loadOrders();
       } catch (error) {
         setError(error instanceof Error ? error.message : 'Unable to delete order.');
@@ -397,10 +424,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  labelDropzone?.addEventListener('click', () => labelInput?.click());
+  labelDropzone?.addEventListener('click', () => {
+    if (state.currentLabels.length) return;
+    labelInput?.click();
+  });
   labelDropzone?.addEventListener('dragover', (event) => {
     event.preventDefault();
-    labelDropzone.classList.add('is-dragover');
+    if (!state.currentLabels.length) labelDropzone.classList.add('is-dragover');
   });
   labelDropzone?.addEventListener('dragleave', () => {
     labelDropzone.classList.remove('is-dragover');
@@ -408,35 +438,42 @@ document.addEventListener('DOMContentLoaded', () => {
   labelDropzone?.addEventListener('drop', (event) => {
     event.preventDefault();
     labelDropzone.classList.remove('is-dragover');
-    if (event.dataTransfer?.files?.length) {
-      setQueuedFiles(event.dataTransfer.files);
+    if (state.currentLabels.length) return;
+    const file = event.dataTransfer?.files?.[0] || null;
+    if (file) {
+      state.queuedFile = file;
+      renderLabelQueue();
     }
   });
   labelInput?.addEventListener('change', () => {
-    if (labelInput.files?.length) {
-      setQueuedFiles(labelInput.files);
+    const file = labelInput.files?.[0] || null;
+    if (file) {
+      state.queuedFile = file;
+      renderLabelQueue();
       labelInput.value = '';
     }
   });
-
-  labelQueue?.addEventListener('click', (event) => {
+  labelQueue?.addEventListener('click', async (event) => {
     const target = event.target;
     if (!(target instanceof HTMLElement)) return;
-    const removeIndex = target.getAttribute('data-remove-queued-file');
-    if (removeIndex === null) return;
-    state.queuedFiles.splice(Number(removeIndex), 1);
-    renderFileQueue();
-  });
 
-  document.querySelector('[data-reset-order-form]')?.addEventListener('click', () => {
-    orderForm?.reset();
-    state.editingId = '';
-    state.queuedFiles = [];
-    renderFileQueue();
-    refreshBrandOptions();
-    renderSkuCard();
-    const submit = orderForm?.querySelector('[type="submit"]');
-    if (submit) submit.textContent = 'Create Order';
+    if (target.matches('[data-remove-queued-file]')) {
+      state.queuedFile = null;
+      renderLabelQueue();
+      return;
+    }
+
+    if (target.matches('[data-delete-current-label]')) {
+      if (!state.editingId) return;
+      try {
+        await deleteLabel(state.editingId);
+        state.currentLabels = [];
+        renderLabelQueue();
+        await loadOrders();
+      } catch (error) {
+        setError(error instanceof Error ? error.message : 'Unable to delete label.');
+      }
+    }
   });
 
   yearToggle?.addEventListener('click', (event) => {

@@ -16,9 +16,8 @@ if ($requestPath !== '' && !in_array(explode('/', $requestPath)[0], $knownStatic
 
 $hasError = false;
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $submittedCode = (string) ($_POST['partner_code'] ?? ($requestedPartner['code'] ?? ''));
-    $submittedName = (string) ($_POST['partner_name'] ?? '');
-    if (jg_partner_attempt_login($submittedCode, $submittedName)) {
+    $submittedCode = (string) ($_POST['partner_code'] ?? '');
+    if (jg_partner_attempt_login($submittedCode)) {
         header('Location: /dashboard/');
         exit;
     }
@@ -34,8 +33,8 @@ $adminCssVersion = (string) @filemtime(__DIR__ . '/admin.css');
 $portalTitle = $requestedPartner ? ((string) ($requestedPartner['name'] ?? 'Partner Portal')) : 'Jenang Gemi Partner Portal';
 $portalChip = $requestedPartner ? 'Partner Login' : 'Partner Portal Access';
 $portalCopy = $requestedPartner
-    ? 'Sign in with the registered partner name to access this partner workspace.'
-    : 'Sign in with your partner code and registered partner name to access your dashboard on `partner.jenanggemi.com`.';
+    ? 'Enter the partner code for this workspace to access the dashboard.'
+    : 'Enter your partner code to access your dashboard on `partner.jenanggemi.com`.';
 ?>
 <!DOCTYPE html>
 <html lang="id">
@@ -58,20 +57,10 @@ $portalCopy = $requestedPartner
                 <p><?php echo htmlspecialchars($portalCopy, ENT_QUOTES); ?></p>
             </div>
             <form method="post" class="admin-login-form" autocomplete="off">
-                <?php if ($requestedPartner): ?>
-                    <input name="partner_code" type="hidden" value="<?php echo htmlspecialchars((string) ($requestedPartner['code'] ?? ''), ENT_QUOTES); ?>">
-                    <div class="admin-affiliate-field">
-                        <span class="admin-control-label">Partner Code</span>
-                        <div class="admin-platform-choice"><span><?php echo htmlspecialchars((string) ($requestedPartner['code'] ?? ''), ENT_QUOTES); ?></span></div>
-                    </div>
-                <?php else: ?>
-                    <label for="partner_code">Partner Code</label>
-                    <input id="partner_code" name="partner_code" type="text" placeholder="e.g. partner-001-demo-partner" required autofocus>
-                <?php endif; ?>
-                <label for="partner_name">Partner Name</label>
-                <input id="partner_name" name="partner_name" type="text" placeholder="Enter the partner name from your profile" <?php echo $requestedPartner ? 'autofocus' : ''; ?> required>
+                <label for="partner_code">Partner Code</label>
+                <input id="partner_code" name="partner_code" type="text" placeholder="Enter your partner code" autocomplete="one-time-code" required autofocus>
                 <?php if ($hasError): ?>
-                    <p class="admin-login-error">Partner code or partner name is invalid.</p>
+                    <p class="admin-login-error">Partner code is invalid.</p>
                 <?php endif; ?>
                 <?php if ($requestPath !== '' && $requestedPartner === null): ?>
                     <p class="admin-login-error">That partner page was not found.</p>

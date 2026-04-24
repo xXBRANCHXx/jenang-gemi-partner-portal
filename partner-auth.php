@@ -3,14 +3,17 @@ declare(strict_types=1);
 
 require __DIR__ . '/partner-source.php';
 
+const JG_PARTNER_SESSION_LIFETIME = 2592000;
+
 function jg_partner_start_session(): void
 {
     if (session_status() === PHP_SESSION_ACTIVE) {
         return;
     }
 
+    ini_set('session.gc_maxlifetime', (string) JG_PARTNER_SESSION_LIFETIME);
     session_set_cookie_params([
-        'lifetime' => 0,
+        'lifetime' => JG_PARTNER_SESSION_LIFETIME,
         'path' => '/',
         'secure' => !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off',
         'httponly' => true,
@@ -24,7 +27,7 @@ function jg_partner_start_session(): void
 function jg_partner_is_authenticated(): bool
 {
     jg_partner_start_session();
-    return !empty($_SESSION['jg_partner_code']);
+    return trim((string) ($_SESSION['jg_partner_code'] ?? '')) !== '';
 }
 
 function jg_partner_current_code(): string
@@ -42,20 +45,15 @@ function jg_partner_current_profile(): ?array
     return jg_partner_source_find($code);
 }
 
-function jg_partner_attempt_login(string $code, string $name): bool
+function jg_partner_attempt_login(string $code): bool
 {
     jg_partner_start_session();
-    $partner = jg_partner_source_find(trim($code));
+    $partner = jg_partner_source_find(strtoupper(trim($code)));
     if (!$partner) {
         return false;
     }
 
-    $submittedName = trim($name);
     $partnerName = trim((string) ($partner['name'] ?? ''));
-    if ($submittedName === '' || strcasecmp($submittedName, $partnerName) !== 0) {
-        return false;
-    }
-
     session_regenerate_id(true);
     $_SESSION['jg_partner_code'] = (string) ($partner['code'] ?? '');
     $_SESSION['jg_partner_name'] = $partnerName;

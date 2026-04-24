@@ -2,15 +2,17 @@
 declare(strict_types=1);
 
 const JG_PARTNER_SOURCE_URL = 'https://admin.jenanggemi.com/api/partners/public/';
+const JG_PARTNER_RUNTIME_FILE = __DIR__ . '/data/partners.runtime.json';
 const JG_PARTNER_FALLBACK_FILE = __DIR__ . '/data/partners.json';
 
 function jg_partner_source_fallback(): array
 {
-    if (!file_exists(JG_PARTNER_FALLBACK_FILE)) {
+    $path = is_file(JG_PARTNER_RUNTIME_FILE) ? JG_PARTNER_RUNTIME_FILE : JG_PARTNER_FALLBACK_FILE;
+    if (!file_exists($path)) {
         return ['partners' => []];
     }
 
-    $raw = file_get_contents(JG_PARTNER_FALLBACK_FILE);
+    $raw = file_get_contents($path);
     $data = json_decode((string) $raw, true);
     return is_array($data) ? $data : ['partners' => []];
 }

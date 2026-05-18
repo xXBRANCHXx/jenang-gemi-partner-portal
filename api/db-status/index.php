@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-require dirname(__DIR__, 2) . '/partner-auth.php';
+require_once dirname(__DIR__, 2) . '/partner-auth.php';
 require_once dirname(__DIR__, 2) . '/partner-data-bootstrap.php';
 
 header('Content-Type: application/json; charset=utf-8');

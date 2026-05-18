@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-require dirname(__DIR__, 2) . '/partner-auth.php';
+require_once dirname(__DIR__, 2) . '/partner-auth.php';
 require_once dirname(__DIR__, 2) . '/partner-order-storage.php';
 
 jg_partner_require_auth_json();

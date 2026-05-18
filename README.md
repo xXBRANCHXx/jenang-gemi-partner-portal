@@ -6,16 +6,21 @@ Partner-facing dashboard for `partner.jenanggemi.com`.
 
 - Partner login sequence
 - Partner dashboard and session handling
-- Draft order create/edit/delete flow
+- Partner order create/edit/delete flow
 - Catalog restrictions driven by admin partner profiles
 - Future communication layer with store operations
 
 ## Current routes
 
-- `/dashboard/`
-- `/logout/`
+- `/{partner_slug}/`
+- `/{partner_slug}/dashboard/`
+- `/{partner_slug}/logout/`
+- `/{partner_slug}/api/session/`
+- `/{partner_slug}/api/orders/`
+- `/{partner_slug}/api/order-labels/`
 - `/api/session/`
 - `/api/orders/`
+- `/api/store-orders/`
 - `/api/db-status/`
 
 ## Database setup
@@ -24,7 +29,7 @@ The partner order tables are created automatically when the portal can connect t
 
 1. Deploy the repo. `.cpanel.yml` creates `config.local.php` from `config.local.placeholder.php` only if `config.local.php` does not already exist.
 2. In Hostinger File Manager, edit `config.local.php` and replace `PUT_DATABASE_PASSWORD_HERE`.
-3. Visit `/dashboard/` or `/api/orders/` while logged in as a partner; this triggers automatic table creation.
+3. Visit `/{partner_slug}/dashboard/` or `/{partner_slug}/api/orders/` while logged in as a partner; this triggers automatic table creation.
 
 `config.local.php` is ignored by git. Future deploys should not overwrite it because the deploy task checks that the file is missing before copying the placeholder.
 
@@ -33,5 +38,7 @@ If phpMyAdmin needs the tables created manually, import `database/partner-data-s
 ## Notes
 
 - Partner profile access currently reads from the executive dashboard partner registry endpoint, with `data/partners.json` as local fallback.
-- Draft orders use MySQL when configured, otherwise local JSON storage in `data/orders.json`.
-- The long-term design is for this repo to communicate with `jenang-gemi-store-ops` through APIs for SKU, product, stock, and order data.
+- Partner-created orders use MySQL when configured, otherwise local JSON storage in `data/orders.json`. For a small partner count, JSON storage remains acceptable.
+- New partner-created orders are saved with `status: IS_LISTED` so Store Ops can pull them into the live fulfillment queue.
+- Store Ops can read partner orders from the token-protected `/api/store-orders/` feed, so direct database access is optional.
+- Partner access is bound to unique partner URLs like `/{partner_slug}/`; one partner code cannot be used on another partner's landing page.

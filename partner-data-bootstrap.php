@@ -158,7 +158,7 @@ function jg_partner_data_ensure_schema(PDO $pdo): void
             sku_label VARCHAR(255) NOT NULL,
             quantity INT UNSIGNED NOT NULL DEFAULT 1,
             notes VARCHAR(300) NOT NULL DEFAULT "",
-            status VARCHAR(32) NOT NULL DEFAULT "draft",
+            status VARCHAR(32) NOT NULL DEFAULT "IS_LISTED",
             created_at DATETIME NOT NULL,
             updated_at DATETIME NOT NULL,
             KEY idx_partner_orders_partner_created (partner_code, created_at),

@@ -5,6 +5,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const sessionEndpoint = root.dataset.sessionEndpoint || '../api/session/';
   const ordersEndpoint = root.dataset.ordersEndpoint || '../api/orders/';
   const labelsEndpoint = root.dataset.labelsEndpoint || '../api/order-labels/';
+  const logoutUrl = root.dataset.logoutUrl || '../logout/';
   const orderModal = document.querySelector('[data-order-modal]');
   const orderForm = document.querySelector('[data-order-form]');
   const orderList = document.querySelector('[data-order-list]');
@@ -308,7 +309,7 @@ document.addEventListener('DOMContentLoaded', () => {
         <tr>
           <td>
             <strong>${escapeHtml(order.id || '')}</strong>
-            <span>${escapeHtml(order.status || 'draft')}</span>
+            <span>${escapeHtml(order.status || 'IS_LISTED')}</span>
           </td>
           <td>${escapeHtml(order.customer_name || '')}</td>
           <td>${itemSummary || '--'}</td>
@@ -808,9 +809,9 @@ document.addEventListener('DOMContentLoaded', () => {
   document.querySelector('[data-partner-logout]')?.addEventListener('click', async () => {
     try {
       await requestJson(sessionEndpoint, { method: 'DELETE' });
-      window.location.href = '../';
+      window.location.href = logoutUrl.replace(/logout\/?$/, '');
     } catch (_) {
-      window.location.href = '../logout/';
+      window.location.href = logoutUrl;
     }
   });
 

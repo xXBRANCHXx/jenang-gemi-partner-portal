@@ -1,7 +1,9 @@
 RewriteEngine On
 
+RewriteRule ^(api|dashboard|logout)(/.*)?$ - [L]
+
 RewriteCond %{REQUEST_FILENAME} -f [OR]
-RewriteCond %{REQUEST_FILENAME} -d
+RewriteCond %{REQUEST_FILENAME} \.(css|js|png|jpg|jpeg|gif|webp|svg|ico|json|txt|pdf|zpl|prn)$ [NC]
 RewriteRule ^ - [L]
 
 RewriteRule ^ index.php [L,QSA]

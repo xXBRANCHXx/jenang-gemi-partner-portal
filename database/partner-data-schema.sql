@@ -8,7 +8,7 @@ CREATE TABLE IF NOT EXISTS `partner_orders` (
   `sku_label` VARCHAR(255) NOT NULL,
   `quantity` INT UNSIGNED NOT NULL DEFAULT 1,
   `notes` VARCHAR(300) NOT NULL DEFAULT '',
-  `status` VARCHAR(32) NOT NULL DEFAULT 'draft',
+  `status` VARCHAR(32) NOT NULL DEFAULT 'IS_LISTED',
   `order_timestamp` DATETIME NULL DEFAULT NULL,
   `items_json` LONGTEXT NULL DEFAULT NULL,
   `created_at` DATETIME NOT NULL,

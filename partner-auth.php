@@ -45,11 +45,25 @@ function jg_partner_current_profile(): ?array
     return jg_partner_source_find($code);
 }
 
-function jg_partner_attempt_login(string $code): bool
+function jg_partner_current_slug(): string
+{
+    jg_partner_start_session();
+    return (string) ($_SESSION['jg_partner_slug'] ?? '');
+}
+
+function jg_partner_profile_slug(?array $partner): string
+{
+    return trim((string) ($partner['partner_slug'] ?? ''), '/');
+}
+
+function jg_partner_attempt_login(string $code, ?array $requestedPartner = null): bool
 {
     jg_partner_start_session();
     $partner = jg_partner_source_find(strtoupper(trim($code)));
     if (!$partner) {
+        return false;
+    }
+    if (is_array($requestedPartner) && (string) ($partner['code'] ?? '') !== (string) ($requestedPartner['code'] ?? '')) {
         return false;
     }
 
@@ -57,8 +71,32 @@ function jg_partner_attempt_login(string $code): bool
     session_regenerate_id(true);
     $_SESSION['jg_partner_code'] = (string) ($partner['code'] ?? '');
     $_SESSION['jg_partner_name'] = $partnerName;
+    $_SESSION['jg_partner_slug'] = jg_partner_profile_slug($partner);
     $_SESSION['jg_partner_login_at'] = gmdate(DATE_ATOM);
     return true;
+}
+
+function jg_partner_is_authenticated_for(?array $partner): bool
+{
+    if (!jg_partner_is_authenticated() || !is_array($partner)) {
+        return false;
+    }
+
+    return jg_partner_current_code() === (string) ($partner['code'] ?? '');
+}
+
+function jg_partner_dashboard_path(?array $partner = null): string
+{
+    $partner = is_array($partner) ? $partner : jg_partner_current_profile();
+    $slug = jg_partner_profile_slug($partner);
+    return $slug !== '' ? '/' . rawurlencode($slug) . '/dashboard/' : '/';
+}
+
+function jg_partner_login_path(?array $partner = null): string
+{
+    $partner = is_array($partner) ? $partner : jg_partner_current_profile();
+    $slug = jg_partner_profile_slug($partner);
+    return $slug !== '' ? '/' . rawurlencode($slug) . '/' : '/';
 }
 
 function jg_partner_logout(): void
@@ -82,5 +120,17 @@ function jg_partner_require_auth_json(): void
     http_response_code(401);
     header('Content-Type: application/json; charset=utf-8');
     echo json_encode(['error' => 'Unauthorized'], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+    exit;
+}
+
+function jg_partner_require_auth_for_json(?array $partner): void
+{
+    if (jg_partner_is_authenticated_for($partner)) {
+        return;
+    }
+
+    http_response_code(401);
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode(['error' => 'Unauthorized for this partner workspace.'], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
     exit;
 }

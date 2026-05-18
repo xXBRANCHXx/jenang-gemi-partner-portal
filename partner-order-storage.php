@@ -205,7 +205,7 @@ function jg_partner_order_build_record(string $partnerCode, ?array $partner, arr
         'items' => $items,
         'order_timestamp' => $orderTimestamp,
         'notes' => jg_partner_order_normalize_text($payload['notes'] ?? '', 'Notes', 300, false),
-        'status' => trim((string) ($existing['status'] ?? 'draft')) ?: 'draft',
+        'status' => trim((string) ($existing['status'] ?? 'IS_LISTED')) ?: 'IS_LISTED',
         'created_at' => $createdAt,
         'updated_at' => gmdate(DATE_ATOM),
         'labels' => $labelRecords,
@@ -295,7 +295,7 @@ function jg_partner_order_list(string $partnerCode): array
                 'items' => $items,
                 'order_timestamp' => (string) ($row['order_timestamp'] ?? ''),
                 'notes' => (string) ($row['notes'] ?? ''),
-                'status' => (string) ($row['status'] ?? 'draft'),
+                'status' => (string) ($row['status'] ?? 'IS_LISTED'),
                 'created_at' => (string) ($row['created_at'] ?? ''),
                 'updated_at' => (string) ($row['updated_at'] ?? ''),
             ];
@@ -324,6 +324,87 @@ function jg_partner_order_list(string $partnerCode): array
     }
     unset($order);
 
+    return jg_partner_order_attach_labels($orders, []);
+}
+
+function jg_partner_order_fetch_all_labels_mysql(PDO $pdo): array
+{
+    $stmt = $pdo->query(
+        'SELECT id, order_id, partner_code, original_name, stored_name, relative_path, mime_type, size_bytes, created_at
+         FROM partner_order_labels
+         ORDER BY created_at DESC, id DESC'
+    );
+
+    $labelsByOrder = [];
+    foreach ($stmt->fetchAll() as $row) {
+        $orderId = (string) ($row['order_id'] ?? '');
+        if ($orderId === '') {
+            continue;
+        }
+
+        $relativePath = trim((string) ($row['relative_path'] ?? ''));
+        $labelsByOrder[$orderId][] = [
+            'id' => (string) ($row['id'] ?? ''),
+            'name' => (string) ($row['original_name'] ?? ''),
+            'stored_name' => (string) ($row['stored_name'] ?? ''),
+            'path' => $relativePath,
+            'url' => $relativePath !== '' ? '../' . ltrim($relativePath, '/') : '',
+            'mime_type' => (string) ($row['mime_type'] ?? ''),
+            'size_bytes' => (int) ($row['size_bytes'] ?? 0),
+            'created_at' => (string) ($row['created_at'] ?? ''),
+        ];
+    }
+
+    return $labelsByOrder;
+}
+
+function jg_partner_order_list_all(): array
+{
+    $pdo = jg_partner_data_db();
+    if ($pdo instanceof PDO) {
+        $stmt = $pdo->query(
+            'SELECT id, partner_code, customer_name, brand_name, product_name, sku_code, sku_label, quantity, notes, status, order_timestamp, items_json, created_at, updated_at
+             FROM partner_orders
+             ORDER BY created_at DESC, id DESC'
+        );
+
+        $orders = [];
+        foreach ($stmt->fetchAll() as $row) {
+            $items = json_decode((string) ($row['items_json'] ?? ''), true);
+            $items = is_array($items) ? array_values(array_filter($items, 'is_array')) : [];
+            if ($items === []) {
+                $items = [[
+                    'sku_code' => (string) ($row['sku_code'] ?? ''),
+                    'sku_label' => (string) ($row['sku_label'] ?? ''),
+                    'brand' => (string) ($row['brand_name'] ?? ''),
+                    'product' => (string) ($row['product_name'] ?? ''),
+                    'quantity' => (int) ($row['quantity'] ?? 1),
+                ]];
+            }
+
+            $orders[] = [
+                'id' => (string) ($row['id'] ?? ''),
+                'partner_code' => (string) ($row['partner_code'] ?? ''),
+                'customer_name' => (string) ($row['customer_name'] ?? ''),
+                'brand' => (string) ($row['brand_name'] ?? ''),
+                'product' => (string) ($row['product_name'] ?? ''),
+                'sku_code' => (string) ($row['sku_code'] ?? ''),
+                'sku_label' => (string) ($row['sku_label'] ?? ''),
+                'quantity' => (int) ($row['quantity'] ?? 1),
+                'items' => $items,
+                'order_timestamp' => (string) ($row['order_timestamp'] ?? ''),
+                'notes' => (string) ($row['notes'] ?? ''),
+                'status' => (string) ($row['status'] ?? 'IS_LISTED'),
+                'created_at' => (string) ($row['created_at'] ?? ''),
+                'updated_at' => (string) ($row['updated_at'] ?? ''),
+            ];
+        }
+
+        return jg_partner_order_attach_labels($orders, jg_partner_order_fetch_all_labels_mysql($pdo));
+    }
+
+    $database = jg_partner_order_read_json_database();
+    $orders = array_values(array_filter($database['orders'], 'is_array'));
     return jg_partner_order_attach_labels($orders, []);
 }
 

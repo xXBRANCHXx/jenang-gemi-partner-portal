@@ -4,13 +4,26 @@ declare(strict_types=1);
 require dirname(__DIR__) . '/partner-auth.php';
 
 if (!jg_partner_is_authenticated()) {
-    header('Location: ../');
+    header('Location: /');
     exit;
 }
 
 $adminCssVersion = (string) @filemtime(dirname(__DIR__) . '/admin.css');
 $dashboardJsVersion = (string) @filemtime(dirname(__DIR__) . '/dashboard.js');
 $partner = jg_partner_current_profile();
+$partnerSlug = jg_partner_profile_slug($partner);
+$requestPath = trim(parse_url((string) ($_SERVER['REQUEST_URI'] ?? '/'), PHP_URL_PATH) ?: '/', '/');
+
+if ($partnerSlug !== '' && $requestPath === 'dashboard') {
+    header('Location: ' . jg_partner_dashboard_path($partner));
+    exit;
+}
+
+$workspaceBase = $partnerSlug !== '' ? '/' . rawurlencode($partnerSlug) : '';
+$sessionEndpoint = $workspaceBase . '/api/session/';
+$ordersEndpoint = $workspaceBase . '/api/orders/';
+$labelsEndpoint = $workspaceBase . '/api/order-labels/';
+$logoutUrl = $workspaceBase . '/logout/';
 ?>
 <!DOCTYPE html>
 <html lang="id">
@@ -23,11 +36,11 @@ $partner = jg_partner_current_profile();
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap">
-    <link rel="stylesheet" href="../admin.css?v=<?php echo urlencode($adminCssVersion ?: '1'); ?>">
+    <link rel="stylesheet" href="/admin.css?v=<?php echo urlencode($adminCssVersion ?: '1'); ?>">
 </head>
 <body class="admin-body is-dashboard">
     <div class="admin-build-badge" aria-label="Partner portal build version">Build 1.02.00</div>
-    <div class="admin-app partner-dashboard-app" data-partner-dashboard data-session-endpoint="../api/session/" data-orders-endpoint="../api/orders/" data-labels-endpoint="../api/order-labels/">
+    <div class="admin-app partner-dashboard-app" data-partner-dashboard data-session-endpoint="<?php echo htmlspecialchars($sessionEndpoint, ENT_QUOTES); ?>" data-orders-endpoint="<?php echo htmlspecialchars($ordersEndpoint, ENT_QUOTES); ?>" data-labels-endpoint="<?php echo htmlspecialchars($labelsEndpoint, ENT_QUOTES); ?>" data-logout-url="<?php echo htmlspecialchars($logoutUrl, ENT_QUOTES); ?>">
         <div class="admin-backdrop admin-backdrop-a"></div>
         <div class="admin-backdrop admin-backdrop-b"></div>
         <header class="admin-topbar">
@@ -199,6 +212,6 @@ $partner = jg_partner_current_profile();
         </div>
     </div>
 
-    <script type="module" src="../dashboard.js?v=<?php echo urlencode($dashboardJsVersion ?: '1'); ?>"></script>
+    <script type="module" src="/dashboard.js?v=<?php echo urlencode($dashboardJsVersion ?: '1'); ?>"></script>
 </body>
 </html>

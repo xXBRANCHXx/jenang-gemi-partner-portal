@@ -5,27 +5,76 @@ require __DIR__ . '/partner-auth.php';
 
 $requestPath = trim(parse_url((string) ($_SERVER['REQUEST_URI'] ?? '/'), PHP_URL_PATH) ?: '/', '/');
 $knownStaticPrefixes = ['dashboard', 'logout', 'api'];
+$pathParts = $requestPath === '' ? [] : explode('/', $requestPath);
+$firstSegment = (string) ($pathParts[0] ?? '');
+$routeParts = array_slice($pathParts, 1);
+$route = implode('/', $routeParts);
 $requestedPartner = null;
 
-if ($requestPath !== '' && !in_array(explode('/', $requestPath)[0], $knownStaticPrefixes, true)) {
-    $requestedPartner = jg_partner_source_find_by_slug($requestPath);
+if ($firstSegment !== '' && !in_array($firstSegment, $knownStaticPrefixes, true)) {
+    $requestedPartner = jg_partner_source_find_by_slug($firstSegment);
     if ($requestedPartner === null) {
         http_response_code(404);
     }
 }
 
+if ($requestedPartner !== null && $route !== '') {
+    if ($route === 'dashboard' || str_starts_with($route, 'dashboard/')) {
+        if (!jg_partner_is_authenticated_for($requestedPartner)) {
+            header('Location: ' . jg_partner_login_path($requestedPartner));
+            exit;
+        }
+        require __DIR__ . '/dashboard/index.php';
+        exit;
+    }
+
+    if ($route === 'logout' || str_starts_with($route, 'logout/')) {
+        jg_partner_logout();
+        header('Location: ' . jg_partner_login_path($requestedPartner));
+        exit;
+    }
+
+    if ($route === 'api/session' || str_starts_with($route, 'api/session/')) {
+        if (strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET')) !== 'DELETE') {
+            jg_partner_require_auth_for_json($requestedPartner);
+        }
+        require __DIR__ . '/api/session/index.php';
+        exit;
+    }
+
+    if ($route === 'api/orders' || str_starts_with($route, 'api/orders/')) {
+        jg_partner_require_auth_for_json($requestedPartner);
+        require __DIR__ . '/api/orders/index.php';
+        exit;
+    }
+
+    if ($route === 'api/order-labels' || str_starts_with($route, 'api/order-labels/')) {
+        jg_partner_require_auth_for_json($requestedPartner);
+        require __DIR__ . '/api/order-labels/index.php';
+        exit;
+    }
+
+    http_response_code(404);
+}
+
 $hasError = false;
+$requiresPartnerUrl = $requestedPartner === null;
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $submittedCode = (string) ($_POST['partner_code'] ?? '');
-    if (jg_partner_attempt_login($submittedCode)) {
-        header('Location: /dashboard/');
+    if ($requestedPartner !== null && jg_partner_attempt_login($submittedCode, $requestedPartner)) {
+        header('Location: ' . jg_partner_dashboard_path($requestedPartner));
         exit;
     }
     $hasError = true;
 }
 
-if (jg_partner_is_authenticated()) {
-    header('Location: /dashboard/');
+if ($requestedPartner !== null && jg_partner_is_authenticated_for($requestedPartner)) {
+    header('Location: ' . jg_partner_dashboard_path($requestedPartner));
+    exit;
+}
+
+if ($requestedPartner === null && $requestPath === '' && jg_partner_is_authenticated()) {
+    header('Location: ' . jg_partner_dashboard_path());
     exit;
 }
 
@@ -33,8 +82,8 @@ $adminCssVersion = (string) @filemtime(__DIR__ . '/admin.css');
 $portalTitle = $requestedPartner ? ((string) ($requestedPartner['name'] ?? 'Partner Portal')) : 'Jenang Gemi Partner Portal';
 $portalChip = $requestedPartner ? 'Partner Login' : 'Partner Portal Access';
 $portalCopy = $requestedPartner
-    ? 'Enter the partner code for this workspace to access the dashboard.'
-    : 'Enter your partner code to access your dashboard on `partner.jenanggemi.com`.';
+    ? 'Enter the partner code assigned to this workspace to access the dashboard.'
+    : 'Use your assigned partner URL to access your dashboard.';
 ?>
 <!DOCTYPE html>
 <html lang="id">
@@ -58,14 +107,16 @@ $portalCopy = $requestedPartner
             </div>
             <form method="post" class="admin-login-form" autocomplete="off">
                 <label for="partner_code">Partner Code</label>
-                <input id="partner_code" name="partner_code" type="text" placeholder="Enter your partner code" autocomplete="one-time-code" required autofocus>
+                <input id="partner_code" name="partner_code" type="text" placeholder="Enter your partner code" autocomplete="one-time-code" required autofocus <?php echo $requiresPartnerUrl ? 'disabled' : ''; ?>>
                 <?php if ($hasError): ?>
-                    <p class="admin-login-error">Partner code is invalid.</p>
+                    <p class="admin-login-error">Partner code is invalid for this workspace.</p>
                 <?php endif; ?>
                 <?php if ($requestPath !== '' && $requestedPartner === null): ?>
                     <p class="admin-login-error">That partner page was not found.</p>
+                <?php elseif ($requiresPartnerUrl): ?>
+                    <p class="admin-login-error">Open the unique URL assigned to your partner workspace.</p>
                 <?php endif; ?>
-                <button type="submit" class="admin-primary-btn">Access Dashboard</button>
+                <button type="submit" class="admin-primary-btn" <?php echo $requiresPartnerUrl ? 'disabled' : ''; ?>>Access Dashboard</button>
             </form>
         </section>
     </main>

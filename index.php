@@ -60,8 +60,9 @@ if ($requestedPartner !== null && $route !== '') {
 $hasError = false;
 $requiresPartnerUrl = $requestedPartner === null;
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $submittedCode = (string) ($_POST['partner_code'] ?? '');
-    if ($requestedPartner !== null && jg_partner_attempt_login($submittedCode, $requestedPartner)) {
+    $submittedCode = $requestedPartner !== null ? (string) ($requestedPartner['code'] ?? '') : (string) ($_POST['partner_code'] ?? '');
+    $submittedPassword = (string) ($_POST['partner_password'] ?? '');
+    if ($requestedPartner !== null && jg_partner_attempt_login($submittedCode, $submittedPassword, $requestedPartner)) {
         header('Location: ' . jg_partner_dashboard_path($requestedPartner));
         exit;
     }
@@ -82,7 +83,7 @@ $adminCssVersion = (string) @filemtime(__DIR__ . '/admin.css');
 $portalTitle = $requestedPartner ? ((string) ($requestedPartner['name'] ?? 'Partner Portal')) : 'Jenang Gemi Partner Portal';
 $portalChip = $requestedPartner ? 'Partner Login' : 'Partner Portal Access';
 $portalCopy = $requestedPartner
-    ? 'Enter the partner code assigned to this workspace to access the dashboard.'
+    ? 'Enter your portal password to access this partner dashboard.'
     : 'Use your assigned partner URL to access your dashboard.';
 ?>
 <!DOCTYPE html>
@@ -106,10 +107,16 @@ $portalCopy = $requestedPartner
                 <p><?php echo htmlspecialchars($portalCopy, ENT_QUOTES); ?></p>
             </div>
             <form method="post" class="admin-login-form" autocomplete="off">
-                <label for="partner_code">Partner Code</label>
-                <input id="partner_code" name="partner_code" type="text" placeholder="Enter your partner code" autocomplete="one-time-code" required autofocus <?php echo $requiresPartnerUrl ? 'disabled' : ''; ?>>
+                <?php if ($requestedPartner !== null): ?>
+                    <input type="hidden" name="partner_code" value="<?php echo htmlspecialchars((string) ($requestedPartner['code'] ?? ''), ENT_QUOTES); ?>">
+                    <label for="partner_password">Password</label>
+                    <input id="partner_password" name="partner_password" type="password" placeholder="Enter your portal password" autocomplete="current-password" required autofocus>
+                <?php else: ?>
+                    <label for="partner_code">Partner Code</label>
+                    <input id="partner_code" name="partner_code" type="text" placeholder="Enter your partner code" autocomplete="one-time-code" required autofocus disabled>
+                <?php endif; ?>
                 <?php if ($hasError): ?>
-                    <p class="admin-login-error">Partner code is invalid for this workspace.</p>
+                    <p class="admin-login-error">Password is invalid for this partner workspace.</p>
                 <?php endif; ?>
                 <?php if ($requestPath !== '' && $requestedPartner === null): ?>
                     <p class="admin-login-error">That partner page was not found.</p>

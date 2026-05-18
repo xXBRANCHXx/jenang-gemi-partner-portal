@@ -39,7 +39,7 @@ $logoutUrl = $workspaceBase . '/logout/';
     <link rel="stylesheet" href="/admin.css?v=<?php echo urlencode($adminCssVersion ?: '1'); ?>">
 </head>
 <body class="admin-body is-dashboard">
-    <div class="admin-build-badge" aria-label="Partner portal build version">Build 1.02.00</div>
+    <div class="admin-build-badge" aria-label="Partner portal build version">Build 1.00.03</div>
     <div class="admin-app partner-dashboard-app" data-partner-dashboard data-session-endpoint="<?php echo htmlspecialchars($sessionEndpoint, ENT_QUOTES); ?>" data-orders-endpoint="<?php echo htmlspecialchars($ordersEndpoint, ENT_QUOTES); ?>" data-labels-endpoint="<?php echo htmlspecialchars($labelsEndpoint, ENT_QUOTES); ?>" data-logout-url="<?php echo htmlspecialchars($logoutUrl, ENT_QUOTES); ?>">
         <div class="admin-backdrop admin-backdrop-a"></div>
         <div class="admin-backdrop admin-backdrop-b"></div>
@@ -50,6 +50,7 @@ $logoutUrl = $workspaceBase . '/logout/';
             </div>
             <div class="admin-topbar-actions">
                 <button type="button" class="admin-primary-btn" data-open-order-modal>New Order</button>
+                <button type="button" class="admin-ghost-btn" data-open-password-modal>Change Password</button>
                 <button type="button" class="admin-ghost-btn" data-partner-logout>Logout</button>
             </div>
         </header>
@@ -207,6 +208,38 @@ $logoutUrl = $workspaceBase . '/logout/';
                 <div class="admin-modal-actions">
                     <button type="button" class="admin-ghost-btn" data-close-order-modal>Cancel</button>
                     <button type="submit" class="admin-primary-btn">Create Order</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="admin-modal-shell" data-password-modal hidden>
+        <div class="admin-modal-backdrop" data-close-password-modal></div>
+        <div class="admin-modal-card" role="dialog" aria-modal="true" aria-labelledby="password-modal-title">
+            <div class="admin-modal-head">
+                <div>
+                    <span class="admin-panel-kicker">Security</span>
+                    <h3 id="password-modal-title">Change password</h3>
+                </div>
+                <button type="button" class="admin-ghost-btn" data-close-password-modal>Close</button>
+            </div>
+            <form class="admin-affiliate-editor" data-password-form>
+                <label class="admin-affiliate-field">
+                    <span class="admin-control-label">Current password</span>
+                    <input type="password" name="current_password" autocomplete="current-password" required>
+                </label>
+                <label class="admin-affiliate-field">
+                    <span class="admin-control-label">New password</span>
+                    <input type="password" name="new_password" autocomplete="new-password" minlength="8" required>
+                </label>
+                <label class="admin-affiliate-field">
+                    <span class="admin-control-label">Confirm new password</span>
+                    <input type="password" name="confirm_password" autocomplete="new-password" minlength="8" required>
+                </label>
+                <p class="admin-form-error" data-password-error hidden></p>
+                <div class="admin-modal-actions">
+                    <button type="button" class="admin-ghost-btn" data-close-password-modal>Cancel</button>
+                    <button type="submit" class="admin-primary-btn">Save Password</button>
                 </div>
             </form>
         </div>

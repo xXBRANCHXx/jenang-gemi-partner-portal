@@ -7,9 +7,12 @@ document.addEventListener('DOMContentLoaded', () => {
   const labelsEndpoint = root.dataset.labelsEndpoint || '../api/order-labels/';
   const logoutUrl = root.dataset.logoutUrl || '../logout/';
   const orderModal = document.querySelector('[data-order-modal]');
+  const passwordModal = document.querySelector('[data-password-modal]');
   const orderForm = document.querySelector('[data-order-form]');
+  const passwordForm = document.querySelector('[data-password-form]');
   const orderList = document.querySelector('[data-order-list]');
   const errorNode = document.querySelector('[data-order-error]');
+  const passwordErrorNode = document.querySelector('[data-password-error]');
   const partnerNameNode = document.querySelector('[data-partner-name]');
   const partnerCodeNode = document.querySelector('[data-partner-code]');
   const busiestHourNode = document.querySelector('[data-busiest-hour]');
@@ -95,6 +98,12 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!errorNode) return;
     errorNode.hidden = !message;
     errorNode.textContent = message || '';
+  };
+
+  const setPasswordError = (message) => {
+    if (!passwordErrorNode) return;
+    passwordErrorNode.hidden = !message;
+    passwordErrorNode.textContent = message || '';
   };
 
   const formatTimestamp = (value) => {
@@ -290,6 +299,21 @@ document.addEventListener('DOMContentLoaded', () => {
     state.currentLabels = [];
     orderForm.reset();
     setError('');
+  };
+
+  const openPasswordModal = () => {
+    if (!(passwordModal instanceof HTMLElement) || !(passwordForm instanceof HTMLFormElement)) return;
+    passwordModal.hidden = false;
+    passwordForm.reset();
+    setPasswordError('');
+    passwordForm.elements.current_password.focus();
+  };
+
+  const closePasswordModal = () => {
+    if (!(passwordModal instanceof HTMLElement) || !(passwordForm instanceof HTMLFormElement)) return;
+    passwordModal.hidden = true;
+    passwordForm.reset();
+    setPasswordError('');
   };
 
   const renderOrders = () => {
@@ -614,6 +638,12 @@ document.addEventListener('DOMContentLoaded', () => {
     button.addEventListener('click', closeOrderModal);
   });
 
+  document.querySelector('[data-open-password-modal]')?.addEventListener('click', openPasswordModal);
+
+  document.querySelectorAll('[data-close-password-modal]').forEach((button) => {
+    button.addEventListener('click', closePasswordModal);
+  });
+
   document.querySelector('[data-add-invoice-item]')?.addEventListener('click', () => {
     const current = collectInvoiceItems();
     current.push({ quantity: 1 });
@@ -717,6 +747,34 @@ document.addEventListener('DOMContentLoaded', () => {
       await loadOrders();
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Unable to save order.');
+    }
+  });
+
+  passwordForm?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    setPasswordError('');
+
+    const formData = new window.FormData(passwordForm);
+    const newPassword = String(formData.get('new_password') || '');
+    const confirmPassword = String(formData.get('confirm_password') || '');
+    if (newPassword !== confirmPassword) {
+      setPasswordError('New passwords do not match.');
+      return;
+    }
+
+    try {
+      await requestJson(sessionEndpoint, {
+        method: 'POST',
+        body: {
+          action: 'change_password',
+          current_password: formData.get('current_password'),
+          new_password: newPassword,
+          confirm_password: confirmPassword
+        }
+      });
+      closePasswordModal();
+    } catch (error) {
+      setPasswordError(error instanceof Error ? error.message : 'Unable to update password.');
     }
   });
 

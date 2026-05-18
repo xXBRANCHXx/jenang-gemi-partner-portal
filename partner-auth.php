@@ -56,10 +56,10 @@ function jg_partner_profile_slug(?array $partner): string
     return trim((string) ($partner['partner_slug'] ?? ''), '/');
 }
 
-function jg_partner_attempt_login(string $code, ?array $requestedPartner = null): bool
+function jg_partner_attempt_login(string $code, string $password, ?array $requestedPartner = null): bool
 {
     jg_partner_start_session();
-    $partner = jg_partner_source_find(strtoupper(trim($code)));
+    $partner = jg_partner_source_authenticate($code, $password);
     if (!$partner) {
         return false;
     }

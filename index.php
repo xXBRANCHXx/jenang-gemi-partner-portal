@@ -108,7 +108,6 @@ $portalCopy = $requestedPartner
             </div>
             <form method="post" class="admin-login-form" autocomplete="off">
                 <?php if ($requestedPartner !== null): ?>
-                    <input type="hidden" name="partner_code" value="<?php echo htmlspecialchars((string) ($requestedPartner['code'] ?? ''), ENT_QUOTES); ?>">
                     <label for="partner_password">Password</label>
                     <input id="partner_password" name="partner_password" type="password" placeholder="Enter your portal password" autocomplete="current-password" required autofocus>
                 <?php else: ?>

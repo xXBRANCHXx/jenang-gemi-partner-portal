@@ -10,8 +10,10 @@ $method = strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET'));
 if ($method === 'GET') {
     jg_partner_require_auth_json();
     $partner = jg_partner_current_profile();
+    $safePartner = is_array($partner) ? $partner : [];
+    unset($safePartner['code']);
     echo json_encode([
-        'partner' => $partner,
+        'partner' => $safePartner,
         'catalog' => jg_partner_source_catalog($partner),
     ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
     exit;

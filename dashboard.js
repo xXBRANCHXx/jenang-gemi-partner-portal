@@ -627,7 +627,7 @@ document.addEventListener('DOMContentLoaded', () => {
       renderAnalytics();
     }
     if (partnerNameNode) partnerNameNode.textContent = state.partner?.name || 'Partner';
-    if (partnerCodeNode) partnerCodeNode.textContent = state.partner?.code || 'Partner';
+    if (partnerCodeNode) partnerCodeNode.textContent = 'Partner Workspace';
   };
 
   document.querySelectorAll('[data-open-order-modal]').forEach((button) => {

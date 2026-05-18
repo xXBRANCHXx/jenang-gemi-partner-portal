@@ -335,7 +335,6 @@ function jg_partner_delete_directory(string $directory): void
 function jg_partner_page_markup(array $partner): string
 {
     $name = htmlspecialchars((string) ($partner['name'] ?? 'Partner'), ENT_QUOTES, 'UTF-8');
-    $code = htmlspecialchars((string) ($partner['code'] ?? ''), ENT_QUOTES, 'UTF-8');
 
     return <<<HTML
 <!DOCTYPE html>
@@ -400,20 +399,13 @@ function jg_partner_page_markup(array $partner): string
             line-height: 1.7;
             color: var(--text-muted);
         }
-        .partner-code {
-            margin-top: 24px;
-            font-size: 0.95rem;
-            color: var(--text-main);
-            font-weight: 700;
-        }
     </style>
 </head>
 <body>
     <main class="partner-page">
         <span class="partner-kicker">Partner Homepage</span>
         <h1>{$name}</h1>
-        <p>This feature is under construction.</p>
-        <p class="partner-code">Partner code: {$code}</p>
+        <p>Use the secure partner portal URL assigned to this workspace to access orders and account settings.</p>
     </main>
 </body>
 </html>

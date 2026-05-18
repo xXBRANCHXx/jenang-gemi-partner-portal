@@ -39,7 +39,7 @@ $logoutUrl = $workspaceBase . '/logout/';
     <link rel="stylesheet" href="/admin.css?v=<?php echo urlencode($adminCssVersion ?: '1'); ?>">
 </head>
 <body class="admin-body is-dashboard">
-    <div class="admin-build-badge" aria-label="Partner portal build version">Build 1.00.04</div>
+    <div class="admin-build-badge" aria-label="Partner portal build version">Build 1.00.05</div>
     <div class="admin-app partner-dashboard-app" data-partner-dashboard data-session-endpoint="<?php echo htmlspecialchars($sessionEndpoint, ENT_QUOTES); ?>" data-orders-endpoint="<?php echo htmlspecialchars($ordersEndpoint, ENT_QUOTES); ?>" data-labels-endpoint="<?php echo htmlspecialchars($labelsEndpoint, ENT_QUOTES); ?>" data-logout-url="<?php echo htmlspecialchars($logoutUrl, ENT_QUOTES); ?>">
         <div class="admin-backdrop admin-backdrop-a"></div>
         <div class="admin-backdrop admin-backdrop-b"></div>

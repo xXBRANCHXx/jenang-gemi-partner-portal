@@ -44,9 +44,13 @@ document.addEventListener('DOMContentLoaded', () => {
     },
     editingId: '',
     selectedTimeframe: '30d',
+    visibleOrderCount: 5,
     queuedFile: null,
     currentLabels: []
   };
+
+  const orderHistoryBatchSize = 5;
+  const flavorChartColors = ['#7cffb2', '#38bdf8', '#fbbf24', '#fb7185', '#a78bfa', '#34d399', '#f97316', '#94a3b8'];
 
   const escapeHtml = (value) => String(value)
     .replace(/&/g, '&amp;')
@@ -163,6 +167,18 @@ document.addEventListener('DOMContentLoaded', () => {
   const itemProductName = (item = {}) => catalogItem(item)?.product || item.product || item.sku_label || item.sku_code || 'Product';
 
   const itemFlavorName = (item = {}) => catalogItem(item)?.flavor || item.flavor || 'Unspecified flavor';
+
+  const isOrderEditable = (order = {}) => {
+    const status = String(order.status || 'IS_LISTED').trim().toUpperCase();
+    return status === '' || ['DRAFT', 'READY', 'SUBMITTED', 'LISTED', 'IS_LISTED'].includes(status);
+  };
+
+  const orderStatusLabel = (order = {}) => {
+    const status = String(order.status || 'IS_LISTED').trim().toUpperCase();
+    if (status === 'IS_BEING_FULFILLED' || status === 'PROCESSING') return 'Being processed';
+    if (status === 'FULFILLED' || status === 'COMPLETED') return 'Completed';
+    return status || 'IS_LISTED';
+  };
 
   const invoiceItemMarkup = (item = {}, index = 0) => `
     <article class="partner-invoice-item" data-invoice-item>
@@ -323,17 +339,21 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    orderList.innerHTML = state.orders.map((order) => {
+    const visibleCount = Math.min(Math.max(orderHistoryBatchSize, state.visibleOrderCount), state.orders.length);
+    state.visibleOrderCount = visibleCount;
+    orderList.innerHTML = state.orders.slice(0, visibleCount).map((order) => {
       const items = order.items || [];
       const itemSummary = items.map((item) => `${escapeHtml(itemProductName(item))} x${escapeHtml(item.quantity || 1)}`).join('<br>');
       const totalQuantity = items.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
       const label = (order.labels || [])[0] || null;
+      const editable = isOrderEditable(order);
+      const statusLabel = orderStatusLabel(order);
 
       return `
         <tr>
           <td>
             <strong>${escapeHtml(order.id || '')}</strong>
-            <span>${escapeHtml(order.status || 'IS_LISTED')}</span>
+            <span>${escapeHtml(statusLabel)}</span>
           </td>
           <td>${escapeHtml(order.customer_name || '')}</td>
           <td>${itemSummary || '--'}</td>
@@ -346,13 +366,19 @@ document.addEventListener('DOMContentLoaded', () => {
           <td>${escapeHtml(formatTimestamp(order.order_timestamp || order.created_at || ''))}</td>
           <td>
             <div class="partner-table-actions">
-              <button type="button" class="admin-primary-btn" data-edit-order="${escapeHtml(order.id || '')}">Edit</button>
-              <button type="button" class="admin-ghost-btn" data-delete-order="${escapeHtml(order.id || '')}">Delete</button>
+              ${editable
+                ? `<button type="button" class="admin-primary-btn" data-edit-order="${escapeHtml(order.id || '')}">Edit</button>`
+                : '<span class="partner-processing-pill">Being processed</span>'}
+              <button type="button" class="admin-ghost-btn" data-delete-order="${escapeHtml(order.id || '')}" ${editable ? '' : 'disabled'}>Delete</button>
             </div>
           </td>
         </tr>
       `;
-    }).join('');
+    }).join('') + (visibleCount < state.orders.length ? `
+      <tr class="partner-order-load-row">
+        <td colspan="7">Scroll for more orders</td>
+      </tr>
+    ` : '');
   };
 
   const orderTime = (order = {}) => {
@@ -461,6 +487,46 @@ document.addEventListener('DOMContentLoaded', () => {
         </article>
       `;
     }).join('') : `<p class="admin-empty">${escapeHtml(emptyText)}</p>`;
+  };
+
+  const renderFlavorPieChart = (node, rows, emptyText) => {
+    if (!node) return;
+    const total = rows.reduce((sum, row) => sum + row.value, 0);
+    if (!rows.length || !total) {
+      node.innerHTML = `<p class="admin-empty">${escapeHtml(emptyText)}</p>`;
+      return;
+    }
+
+    const primaryRows = rows.slice(0, 7);
+    const otherValue = rows.slice(7).reduce((sum, row) => sum + row.value, 0);
+    const chartRows = otherValue > 0 ? [...primaryRows, { label: 'Other flavors', value: otherValue }] : primaryRows;
+    let cursor = 0;
+    const segments = chartRows.map((row, index) => {
+      const start = cursor;
+      const end = cursor + (row.value / total) * 100;
+      cursor = end;
+      return `${flavorChartColors[index % flavorChartColors.length]} ${start.toFixed(2)}% ${end.toFixed(2)}%`;
+    }).join(', ');
+
+    node.innerHTML = `
+      <div class="partner-pie-chart-wrap">
+        <div class="partner-pie-chart" style="background: conic-gradient(${segments});" role="img" aria-label="Units sold by product flavor"></div>
+        <div class="partner-pie-legend">
+          ${chartRows.map((row, index) => {
+            const percent = Math.round((row.value / total) * 100);
+            return `
+              <article class="partner-pie-row">
+                <i style="background:${flavorChartColors[index % flavorChartColors.length]}"></i>
+                <div>
+                  <strong>${escapeHtml(row.label)}</strong>
+                  <span>${escapeHtml(row.value)} units • ${escapeHtml(percent)}%</span>
+                </div>
+              </article>
+            `;
+          }).join('')}
+        </div>
+      </div>
+    `;
   };
 
   const renderSalesLineChart = (buckets) => {
@@ -605,13 +671,14 @@ document.addEventListener('DOMContentLoaded', () => {
       .sort((left, right) => right.value - left.value);
 
     renderInsightList(productInsights, sortedProducts, 'No product sales in this timeframe.');
-    renderInsightList(flavorInsights, sortedFlavors, 'No flavor sales in this timeframe.');
+    renderFlavorPieChart(flavorInsights, sortedFlavors, 'No flavor sales in this timeframe.');
 
   };
 
   const loadOrders = async () => {
     const payload = await requestJson(ordersEndpoint);
     state.orders = payload.orders || [];
+    state.visibleOrderCount = Math.min(Math.max(orderHistoryBatchSize, state.visibleOrderCount), Math.max(orderHistoryBatchSize, state.orders.length));
     state.analytics = payload.analytics || state.analytics;
     renderOrders();
     renderAnalytics();
@@ -786,6 +853,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (editId) {
       const order = state.orders.find((item) => item.id === editId);
+      if (order && !isOrderEditable(order)) {
+        setError('This order is already being processed and can no longer be edited.');
+        return;
+      }
       if (order) openOrderModal(order);
       return;
     }
@@ -801,6 +872,15 @@ document.addEventListener('DOMContentLoaded', () => {
         setError(error instanceof Error ? error.message : 'Unable to delete order.');
       }
     }
+  });
+
+  document.querySelector('.partner-order-table-wrap')?.addEventListener('scroll', (event) => {
+    const target = event.currentTarget;
+    if (!(target instanceof HTMLElement)) return;
+    const distanceFromBottom = target.scrollHeight - target.scrollTop - target.clientHeight;
+    if (distanceFromBottom > 80 || state.visibleOrderCount >= state.orders.length) return;
+    state.visibleOrderCount = Math.min(state.orders.length, state.visibleOrderCount + orderHistoryBatchSize);
+    renderOrders();
   });
 
   labelDropzone?.addEventListener('click', () => {

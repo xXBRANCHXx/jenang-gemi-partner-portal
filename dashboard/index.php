@@ -109,8 +109,11 @@ $logoutUrl = $workspaceBase . '/logout/';
                 <section class="admin-panel admin-panel-affiliates partner-chart-panel">
                     <div class="admin-panel-head">
                         <div>
-                            <span class="admin-panel-kicker">Flavor Insights</span>
-                            <h3>Flavor mix</h3>
+                            <span class="admin-panel-kicker">Flavor Breakdown</span>
+                            <h3>
+                                Units sold by product flavor
+                                <span class="partner-info-badge" title="Shows which product and flavor combinations account for the selected timeframe's unit sales.">i</span>
+                            </h3>
                         </div>
                     </div>
                     <div class="partner-insight-list" data-flavor-insights></div>

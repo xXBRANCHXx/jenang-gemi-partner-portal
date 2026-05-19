@@ -424,6 +424,19 @@ function jg_partner_order_find(string $partnerCode, string $orderId): ?array
     return null;
 }
 
+function jg_partner_order_is_editable(array $order): bool
+{
+    $status = strtoupper(trim((string) ($order['status'] ?? 'IS_LISTED')));
+    return $status === '' || in_array($status, ['DRAFT', 'READY', 'SUBMITTED', 'LISTED', 'IS_LISTED'], true);
+}
+
+function jg_partner_order_assert_editable(array $order): void
+{
+    if (!jg_partner_order_is_editable($order)) {
+        throw new InvalidArgumentException('This order is already being processed and can no longer be edited.');
+    }
+}
+
 function jg_partner_order_save(string $partnerCode, ?array $partner, array $payload, string $action): array
 {
     if ($action !== 'create' && $action !== 'update') {
@@ -465,6 +478,7 @@ function jg_partner_order_save(string $partnerCode, ?array $partner, array $payl
         if (!is_array($existing)) {
             throw new RuntimeException('Order not found.');
         }
+        jg_partner_order_assert_editable($existing);
 
         $record = jg_partner_order_build_record($partnerCode, $partner, $payload, $existing);
         $stmt = $pdo->prepare(
@@ -514,6 +528,7 @@ function jg_partner_order_save(string $partnerCode, ?array $partner, array $payl
             continue;
         }
 
+        jg_partner_order_assert_editable($order);
         $record = jg_partner_order_build_record($partnerCode, $partner, $payload, $order);
         $database['orders'][$index] = $record;
         jg_partner_order_write_json_database($database);
@@ -526,6 +541,12 @@ function jg_partner_order_save(string $partnerCode, ?array $partner, array $payl
 function jg_partner_order_delete(string $partnerCode, string $orderId): void
 {
     $normalizedId = jg_partner_order_normalize_text($orderId, 'Order id');
+    $existing = jg_partner_order_find($partnerCode, $normalizedId);
+    if (!is_array($existing)) {
+        throw new RuntimeException('Order not found.');
+    }
+    jg_partner_order_assert_editable($existing);
+
     $pdo = jg_partner_data_db();
     if ($pdo instanceof PDO) {
         $stmt = $pdo->prepare('DELETE FROM partner_orders WHERE id = :id AND partner_code = :partner_code');

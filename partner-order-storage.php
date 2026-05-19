@@ -565,6 +565,59 @@ function jg_partner_order_delete(string $partnerCode, string $orderId): void
     jg_partner_order_write_json_database($database);
 }
 
+function jg_partner_order_set_status(string $orderId, string $status): bool
+{
+    $normalizedId = jg_partner_order_normalize_text($orderId, 'Order id');
+    $normalizedStatus = strtoupper(trim($status));
+    if (!in_array($normalizedStatus, ['IS_LISTED', 'IS_BEING_FULFILLED', 'FULFILLED'], true)) {
+        throw new InvalidArgumentException('Order status is invalid.');
+    }
+
+    $pdo = jg_partner_data_db();
+    if ($pdo instanceof PDO) {
+        $stmt = $pdo->prepare(
+            'UPDATE partner_orders
+             SET status = :status, updated_at = :updated_at
+             WHERE id = :id'
+        );
+        $stmt->execute([
+            ':status' => $normalizedStatus,
+            ':updated_at' => gmdate('Y-m-d H:i:s'),
+            ':id' => $normalizedId,
+        ]);
+
+        if ($stmt->rowCount() > 0) {
+            return true;
+        }
+
+        $checkStmt = $pdo->prepare('SELECT COUNT(*) FROM partner_orders WHERE id = :id AND status = :status');
+        $checkStmt->execute([
+            ':id' => $normalizedId,
+            ':status' => $normalizedStatus,
+        ]);
+        return (int) $checkStmt->fetchColumn() > 0;
+    }
+
+    $database = jg_partner_order_read_json_database();
+    $updated = false;
+    foreach ($database['orders'] as &$order) {
+        if ((string) ($order['id'] ?? '') !== $normalizedId) {
+            continue;
+        }
+        $order['status'] = $normalizedStatus;
+        $order['updated_at'] = gmdate(DATE_ATOM);
+        $updated = true;
+        break;
+    }
+    unset($order);
+
+    if ($updated) {
+        jg_partner_order_write_json_database($database);
+    }
+
+    return $updated;
+}
+
 function jg_partner_order_upload_directory(): string
 {
     if (!is_dir(JG_PARTNER_LABEL_UPLOAD_DIR)) {

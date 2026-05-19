@@ -28,6 +28,17 @@ function jg_store_orders_request_token(): string
     return trim((string) ($_GET['token'] ?? ''));
 }
 
+function jg_store_orders_request_body(): array
+{
+    $raw = file_get_contents('php://input');
+    if (!is_string($raw) || trim($raw) === '') {
+        return [];
+    }
+
+    $decoded = json_decode($raw, true);
+    return is_array($decoded) ? $decoded : [];
+}
+
 function jg_store_orders_display_id(string $orderId): string
 {
     $normalized = strtoupper(trim($orderId));
@@ -132,10 +143,6 @@ function jg_store_orders_normalize(array $order): array
     ];
 }
 
-if (strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET')) !== 'GET') {
-    jg_store_orders_fail('Method not allowed.', 405);
-}
-
 $configuredToken = jg_store_orders_token();
 if ($configuredToken === '') {
     jg_store_orders_fail('Store Ops order feed token is not configured.', 503);
@@ -143,6 +150,36 @@ if ($configuredToken === '') {
 
 if (!hash_equals($configuredToken, jg_store_orders_request_token())) {
     jg_store_orders_fail('Unauthorized.', 401);
+}
+
+$method = strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET'));
+if ($method === 'POST') {
+    $payload = jg_store_orders_request_body();
+    $action = (string) ($payload['action'] ?? '');
+    if ($action !== 'update_status') {
+        jg_store_orders_fail('Unknown action.', 400);
+    }
+
+    $orderId = trim((string) ($payload['order'] ?? $payload['order_id'] ?? ''));
+    $status = trim((string) ($payload['status'] ?? ''));
+    if ($orderId === '') {
+        jg_store_orders_fail('Order id is required.');
+    }
+
+    try {
+        if (!jg_partner_order_set_status($orderId, $status)) {
+            jg_store_orders_fail('Order not found.', 404);
+        }
+    } catch (InvalidArgumentException $exception) {
+        jg_store_orders_fail($exception->getMessage(), 422);
+    }
+
+    echo json_encode(['ok' => true], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+    exit;
+}
+
+if ($method !== 'GET') {
+    jg_store_orders_fail('Method not allowed.', 405);
 }
 
 $orders = array_values(array_filter(array_map(

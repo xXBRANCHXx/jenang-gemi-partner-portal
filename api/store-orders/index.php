@@ -119,7 +119,7 @@ function jg_store_orders_normalize(array $order): array
         'sourceOrderId' => (string) ($order['id'] ?? ''),
         'platform' => 'Partner',
         'account' => (string) ($order['partner_code'] ?? 'Partner'),
-        'status' => 'IS_LISTED',
+        'status' => (string) ($order['status'] ?? 'IS_LISTED'),
         'marketplaceStatus' => 'PARTNER_ORDER',
         'instant' => false,
         'deadlineAt' => jg_store_orders_deadline_at($order),

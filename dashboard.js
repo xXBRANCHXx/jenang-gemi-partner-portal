@@ -953,6 +953,14 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
+  window.addEventListener('focus', () => {
+    loadOrders().catch(() => {});
+  });
+
+  window.setInterval(() => {
+    loadOrders().catch(() => {});
+  }, 15000);
+
   Promise.all([loadSession(), loadOrders()]).catch((error) => {
     setError(error instanceof Error ? error.message : 'Unable to load dashboard.');
   });

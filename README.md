@@ -38,7 +38,7 @@ If phpMyAdmin needs the tables created manually, import `database/partner-data-s
 ## Notes
 
 - Partner profile access currently reads from the executive dashboard partner registry endpoint, with `data/partners.json` as local fallback.
-- Partner-created orders use MySQL when configured, otherwise local JSON storage in `data/orders.json`. For a small partner count, JSON storage remains acceptable.
+- Partner-created orders use MySQL when configured, otherwise local JSON storage in `data/orders.json`. If MySQL is configured but unavailable, the portal now fails closed instead of silently switching storage backends.
 - New partner-created orders are saved with `status: IS_LISTED` so Store Ops can pull them into the live fulfillment queue.
 - Store Ops can read partner orders from the token-protected `/api/store-orders/` feed, so direct database access is optional.
 - Partner access is bound to unique partner URLs like `/{partner_slug}/`; one partner code cannot be used on another partner's landing page.

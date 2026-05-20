@@ -182,10 +182,14 @@ if ($method !== 'GET') {
     jg_store_orders_fail('Method not allowed.', 405);
 }
 
-$orders = array_values(array_filter(array_map(
-    static fn (array $order): array => jg_store_orders_normalize($order),
-    jg_partner_order_list_all()
-), static fn (array $order): bool => (string) ($order['sourceOrderId'] ?? '') !== ''));
+try {
+    $orders = array_values(array_filter(array_map(
+        static fn (array $order): array => jg_store_orders_normalize($order),
+        jg_partner_order_list_all()
+    ), static fn (array $order): bool => (string) ($order['sourceOrderId'] ?? '') !== ''));
+} catch (Throwable $exception) {
+    jg_store_orders_fail($exception->getMessage() ?: 'Unable to load partner orders.', 500);
+}
 
 echo json_encode([
     'ok' => true,

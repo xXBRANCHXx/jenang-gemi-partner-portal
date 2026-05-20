@@ -46,7 +46,8 @@ document.addEventListener('DOMContentLoaded', () => {
     selectedTimeframe: '30d',
     visibleOrderCount: 5,
     queuedFile: null,
-    currentLabels: []
+    currentLabels: [],
+    openMenuOrderId: ''
   };
 
   const orderHistoryBatchSize = 5;
@@ -167,6 +168,29 @@ document.addEventListener('DOMContentLoaded', () => {
   const itemProductName = (item = {}) => catalogItem(item)?.product || item.product || item.sku_label || item.sku_code || 'Product';
 
   const itemFlavorName = (item = {}) => catalogItem(item)?.flavor || item.flavor || 'Unspecified flavor';
+
+  const isOrderArchived = (order = {}) => String(order.archived_at || '').trim() !== '';
+
+  const closeOrderMenu = () => {
+    state.openMenuOrderId = '';
+    document.querySelectorAll('[data-order-menu-panel]').forEach((panel) => {
+      panel.hidden = true;
+    });
+    document.querySelectorAll('[data-order-menu-trigger]').forEach((button) => {
+      button.setAttribute('aria-expanded', 'false');
+    });
+  };
+
+  const toggleOrderMenu = (orderId) => {
+    const nextOpenId = state.openMenuOrderId === orderId ? '' : orderId;
+    closeOrderMenu();
+    if (!nextOpenId) return;
+    state.openMenuOrderId = nextOpenId;
+    const button = document.querySelector(`[data-order-menu-trigger="${orderId}"]`);
+    const panel = document.querySelector(`[data-order-menu-panel="${orderId}"]`);
+    if (button instanceof HTMLButtonElement) button.setAttribute('aria-expanded', 'true');
+    if (panel instanceof HTMLElement) panel.hidden = false;
+  };
 
   const isOrderEditable = (order = {}) => {
     const status = String(order.status || 'IS_LISTED').trim().toUpperCase();
@@ -335,6 +359,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const renderOrders = () => {
     if (!orderList) return;
+    state.openMenuOrderId = '';
     if (!state.orders.length) {
       orderList.innerHTML = '<tr><td colspan="7" class="partner-order-empty">No orders yet.</td></tr>';
       return;
@@ -349,12 +374,16 @@ document.addEventListener('DOMContentLoaded', () => {
       const label = (order.labels || [])[0] || null;
       const editable = isOrderEditable(order);
       const statusLabel = orderStatusLabel(order);
+      const archived = isOrderArchived(order);
+      const archiveLabel = archived ? 'Restore to charts' : 'Archive from charts';
+      const archiveAction = archived ? 'unarchive' : 'archive';
 
       return `
         <tr>
           <td>
             <strong>${escapeHtml(order.id || '')}</strong>
             <span>${escapeHtml(statusLabel)}</span>
+            ${archived ? '<span class="partner-archived-note">Archived from charts</span>' : ''}
           </td>
           <td>${escapeHtml(order.customer_name || '')}</td>
           <td>${itemSummary || '--'}</td>
@@ -370,7 +399,13 @@ document.addEventListener('DOMContentLoaded', () => {
               ${editable
                 ? `<button type="button" class="admin-primary-btn" data-edit-order="${escapeHtml(order.id || '')}">Edit</button>`
                 : `<span class="partner-processing-pill">${escapeHtml(statusLabel)}</span>`}
-              ${editable ? `<button type="button" class="admin-ghost-btn" data-cancel-order="${escapeHtml(order.id || '')}">Cancel</button>` : ''}
+              <div class="admin-menu-shell partner-order-menu-shell">
+                <button type="button" class="admin-ghost-btn admin-menu-trigger partner-order-menu-trigger" data-order-menu-trigger="${escapeHtml(order.id || '')}" aria-expanded="false" aria-label="Order actions">...</button>
+                <div class="admin-menu-panel partner-order-menu-panel" data-order-menu-panel="${escapeHtml(order.id || '')}" hidden>
+                  <button type="button" class="admin-menu-item" data-order-archive-action="${escapeHtml(archiveAction)}" data-order-archive-id="${escapeHtml(order.id || '')}">${escapeHtml(archiveLabel)}</button>
+                  ${editable ? `<button type="button" class="admin-menu-item" data-cancel-order="${escapeHtml(order.id || '')}">Cancel order</button>` : ''}
+                </div>
+              </div>
             </div>
           </td>
         </tr>
@@ -399,8 +434,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const filteredOrders = () => {
     const start = timeframeStart(state.selectedTimeframe);
-    if (!start) return state.orders;
-    return state.orders.filter((order) => {
+    const chartOrders = state.orders.filter((order) => !isOrderArchived(order));
+    if (!start) return chartOrders;
+    return chartOrders.filter((order) => {
       const timestamp = orderTime(order);
       return timestamp && timestamp >= start;
     });
@@ -776,10 +812,14 @@ document.addEventListener('DOMContentLoaded', () => {
   document.addEventListener('click', (event) => {
     const target = event.target;
     if (!(target instanceof Element)) return;
-    if (target.closest('[data-product-picker]')) return;
-    document.querySelectorAll('[data-picker-panel]').forEach((panel) => {
-      panel.hidden = true;
-    });
+    if (!target.closest('[data-product-picker]')) {
+      document.querySelectorAll('[data-picker-panel]').forEach((panel) => {
+        panel.hidden = true;
+      });
+    }
+    if (!target.closest('[data-order-menu-panel]') && !target.closest('[data-order-menu-trigger]')) {
+      closeOrderMenu();
+    }
   });
 
   orderForm?.addEventListener('submit', async (event) => {
@@ -851,6 +891,14 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!(target instanceof HTMLElement)) return;
     const editId = target.getAttribute('data-edit-order');
     const cancelId = target.getAttribute('data-cancel-order');
+    const menuTriggerId = target.getAttribute('data-order-menu-trigger');
+    const archiveId = target.getAttribute('data-order-archive-id');
+    const archiveAction = target.getAttribute('data-order-archive-action');
+
+    if (menuTriggerId) {
+      toggleOrderMenu(menuTriggerId);
+      return;
+    }
 
     if (editId) {
       const order = state.orders.find((item) => item.id === editId);
@@ -862,12 +910,27 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
+    if (archiveId && archiveAction) {
+      try {
+        await requestJson(ordersEndpoint, {
+          method: 'POST',
+          body: { action: archiveAction, id: archiveId }
+        });
+        closeOrderMenu();
+        await loadOrders();
+      } catch (error) {
+        setError(error instanceof Error ? error.message : 'Unable to update archive state.');
+      }
+      return;
+    }
+
     if (cancelId) {
       try {
         await requestJson(ordersEndpoint, {
           method: 'POST',
           body: { action: 'cancel', id: cancelId }
         });
+        closeOrderMenu();
         await loadOrders();
       } catch (error) {
         setError(error instanceof Error ? error.message : 'Unable to cancel order.');

@@ -18,13 +18,28 @@ function jg_partner_order_default_database(): array
     ];
 }
 
+function jg_partner_order_assert_fallback_storage_allowed(): void
+{
+    if (!jg_partner_data_mysql_is_configured()) {
+        return;
+    }
+
+    throw new LogicException('Order storage is temporarily unavailable.');
+}
+
 function jg_partner_order_storage_mode(): string
 {
-    return jg_partner_data_db() instanceof PDO ? 'mysql' : 'json';
+    if (jg_partner_data_db() instanceof PDO) {
+        return 'mysql';
+    }
+
+    return jg_partner_data_mysql_is_configured() ? 'unavailable' : 'json';
 }
 
 function jg_partner_order_read_json_database(): array
 {
+    jg_partner_order_assert_fallback_storage_allowed();
+
     if (!is_file(JG_PARTNER_ORDER_JSON_FILE)) {
         return jg_partner_order_default_database();
     }
@@ -44,6 +59,8 @@ function jg_partner_order_read_json_database(): array
 
 function jg_partner_order_write_json_database(array $database): void
 {
+    jg_partner_order_assert_fallback_storage_allowed();
+
     $database['meta']['updated_at'] = gmdate(DATE_ATOM);
     $database['meta']['storage'] = 'json';
 
@@ -206,6 +223,7 @@ function jg_partner_order_build_record(string $partnerCode, ?array $partner, arr
         'order_timestamp' => $orderTimestamp,
         'notes' => jg_partner_order_normalize_text($payload['notes'] ?? '', 'Notes', 300, false),
         'status' => trim((string) ($existing['status'] ?? 'IS_LISTED')) ?: 'IS_LISTED',
+        'archived_at' => (string) ($existing['archived_at'] ?? ''),
         'created_at' => $createdAt,
         'updated_at' => gmdate(DATE_ATOM),
         'labels' => $labelRecords,
@@ -262,7 +280,7 @@ function jg_partner_order_list(string $partnerCode): array
     $pdo = jg_partner_data_db();
     if ($pdo instanceof PDO) {
         $stmt = $pdo->prepare(
-            'SELECT id, partner_code, customer_name, brand_name, product_name, sku_code, sku_label, quantity, notes, status, order_timestamp, items_json, created_at, updated_at
+            'SELECT id, partner_code, customer_name, brand_name, product_name, sku_code, sku_label, quantity, notes, status, order_timestamp, items_json, archived_at, created_at, updated_at
              FROM partner_orders
              WHERE partner_code = :partner_code
              ORDER BY created_at DESC, id DESC'
@@ -296,6 +314,7 @@ function jg_partner_order_list(string $partnerCode): array
                 'order_timestamp' => (string) ($row['order_timestamp'] ?? ''),
                 'notes' => (string) ($row['notes'] ?? ''),
                 'status' => (string) ($row['status'] ?? 'IS_LISTED'),
+                'archived_at' => (string) ($row['archived_at'] ?? ''),
                 'created_at' => (string) ($row['created_at'] ?? ''),
                 'updated_at' => (string) ($row['updated_at'] ?? ''),
             ];
@@ -321,6 +340,7 @@ function jg_partner_order_list(string $partnerCode): array
             ]];
         }
         $order['order_timestamp'] = (string) ($order['order_timestamp'] ?? $order['created_at'] ?? '');
+        $order['archived_at'] = (string) ($order['archived_at'] ?? '');
     }
     unset($order);
 
@@ -363,7 +383,7 @@ function jg_partner_order_list_all(): array
     $pdo = jg_partner_data_db();
     if ($pdo instanceof PDO) {
         $stmt = $pdo->query(
-            'SELECT id, partner_code, customer_name, brand_name, product_name, sku_code, sku_label, quantity, notes, status, order_timestamp, items_json, created_at, updated_at
+            'SELECT id, partner_code, customer_name, brand_name, product_name, sku_code, sku_label, quantity, notes, status, order_timestamp, items_json, archived_at, created_at, updated_at
              FROM partner_orders
              ORDER BY created_at DESC, id DESC'
         );
@@ -395,6 +415,7 @@ function jg_partner_order_list_all(): array
                 'order_timestamp' => (string) ($row['order_timestamp'] ?? ''),
                 'notes' => (string) ($row['notes'] ?? ''),
                 'status' => (string) ($row['status'] ?? 'IS_LISTED'),
+                'archived_at' => (string) ($row['archived_at'] ?? ''),
                 'created_at' => (string) ($row['created_at'] ?? ''),
                 'updated_at' => (string) ($row['updated_at'] ?? ''),
             ];
@@ -428,6 +449,11 @@ function jg_partner_order_is_editable(array $order): bool
 {
     $status = strtoupper(trim((string) ($order['status'] ?? 'IS_LISTED')));
     return $status === '' || in_array($status, ['DRAFT', 'READY', 'SUBMITTED', 'LISTED', 'IS_LISTED'], true);
+}
+
+function jg_partner_order_is_archived(array $order): bool
+{
+    return trim((string) ($order['archived_at'] ?? '')) !== '';
 }
 
 function jg_partner_order_assert_editable(array $order): void
@@ -482,6 +508,50 @@ function jg_partner_order_cancel(string $partnerCode, string $orderId): array
     throw new RuntimeException('Order not found.');
 }
 
+function jg_partner_order_set_archived(string $partnerCode, string $orderId, bool $archived): array
+{
+    $normalizedId = jg_partner_order_normalize_text($orderId, 'Order id');
+    $existing = jg_partner_order_find($partnerCode, $normalizedId);
+    if (!is_array($existing)) {
+        throw new RuntimeException('Order not found.');
+    }
+
+    $archivedAt = $archived ? gmdate(DATE_ATOM) : '';
+    $pdo = jg_partner_data_db();
+    if ($pdo instanceof PDO) {
+        $stmt = $pdo->prepare(
+            'UPDATE partner_orders
+             SET archived_at = :archived_at, updated_at = :updated_at
+             WHERE id = :id AND partner_code = :partner_code'
+        );
+        $stmt->execute([
+            ':archived_at' => $archived ? gmdate('Y-m-d H:i:s', strtotime($archivedAt)) : null,
+            ':updated_at' => gmdate('Y-m-d H:i:s'),
+            ':id' => $normalizedId,
+            ':partner_code' => $partnerCode,
+        ]);
+
+        return jg_partner_order_find($partnerCode, $normalizedId) ?? array_merge($existing, [
+            'archived_at' => $archivedAt,
+            'updated_at' => gmdate(DATE_ATOM),
+        ]);
+    }
+
+    $database = jg_partner_order_read_json_database();
+    foreach ($database['orders'] as $index => $order) {
+        if ((string) ($order['id'] ?? '') !== $normalizedId || (string) ($order['partner_code'] ?? '') !== $partnerCode) {
+            continue;
+        }
+
+        $database['orders'][$index]['archived_at'] = $archivedAt;
+        $database['orders'][$index]['updated_at'] = gmdate(DATE_ATOM);
+        jg_partner_order_write_json_database($database);
+        return $database['orders'][$index];
+    }
+
+    throw new RuntimeException('Order not found.');
+}
+
 function jg_partner_order_save(string $partnerCode, ?array $partner, array $payload, string $action): array
 {
     if ($action !== 'create' && $action !== 'update') {
@@ -494,9 +564,9 @@ function jg_partner_order_save(string $partnerCode, ?array $partner, array $payl
             $record = jg_partner_order_build_record($partnerCode, $partner, $payload);
             $stmt = $pdo->prepare(
                 'INSERT INTO partner_orders
-                    (id, partner_code, customer_name, brand_name, product_name, sku_code, sku_label, quantity, notes, status, order_timestamp, items_json, created_at, updated_at)
+                    (id, partner_code, customer_name, brand_name, product_name, sku_code, sku_label, quantity, notes, status, order_timestamp, items_json, archived_at, created_at, updated_at)
                  VALUES
-                    (:id, :partner_code, :customer_name, :brand_name, :product_name, :sku_code, :sku_label, :quantity, :notes, :status, :order_timestamp, :items_json, :created_at, :updated_at)'
+                    (:id, :partner_code, :customer_name, :brand_name, :product_name, :sku_code, :sku_label, :quantity, :notes, :status, :order_timestamp, :items_json, :archived_at, :created_at, :updated_at)'
             );
             $stmt->execute([
                 ':id' => $record['id'],
@@ -511,6 +581,7 @@ function jg_partner_order_save(string $partnerCode, ?array $partner, array $payl
                 ':status' => $record['status'],
                 ':order_timestamp' => gmdate('Y-m-d H:i:s', strtotime($record['order_timestamp'])),
                 ':items_json' => json_encode($record['items'], JSON_UNESCAPED_SLASHES),
+                ':archived_at' => trim((string) ($record['archived_at'] ?? '')) !== '' ? gmdate('Y-m-d H:i:s', strtotime((string) $record['archived_at'])) : null,
                 ':created_at' => gmdate('Y-m-d H:i:s', strtotime($record['created_at'])),
                 ':updated_at' => gmdate('Y-m-d H:i:s', strtotime($record['updated_at'])),
             ]);
@@ -797,6 +868,9 @@ function jg_partner_order_analytics(array $orders): array
     $hourlyBuckets = array_fill(0, 24, 0);
 
     foreach ($orders as $order) {
+        if (jg_partner_order_is_archived($order)) {
+            continue;
+        }
         $timestamp = strtotime((string) ($order['order_timestamp'] ?? $order['created_at'] ?? ''));
         if ($timestamp === false) {
             continue;

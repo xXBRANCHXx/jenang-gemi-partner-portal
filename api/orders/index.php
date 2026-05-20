@@ -28,13 +28,17 @@ $partner = jg_partner_current_profile();
 $method = strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET'));
 
 if ($method === 'GET') {
-    $orders = jg_partner_order_list($partnerCode);
-    echo json_encode([
-        'orders' => $orders,
-        'analytics' => jg_partner_order_analytics($orders),
-        'storage' => jg_partner_order_storage_mode(),
-    ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
-    exit;
+    try {
+        $orders = jg_partner_order_list($partnerCode);
+        echo json_encode([
+            'orders' => $orders,
+            'analytics' => jg_partner_order_analytics($orders),
+            'storage' => jg_partner_order_storage_mode(),
+        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+        exit;
+    } catch (Throwable $exception) {
+        jg_order_fail($exception->getMessage() ?: 'Unable to load orders.', 500);
+    }
 }
 
 if ($method !== 'POST') {
@@ -64,6 +68,22 @@ try {
         }
 
         jg_partner_order_cancel($partnerCode, $id);
+        $orders = jg_partner_order_list($partnerCode);
+        echo json_encode([
+            'orders' => $orders,
+            'analytics' => jg_partner_order_analytics($orders),
+            'storage' => jg_partner_order_storage_mode(),
+        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+        exit;
+    }
+
+    if ($action === 'archive' || $action === 'unarchive') {
+        $id = trim((string) ($request['id'] ?? ''));
+        if ($id === '') {
+            jg_order_fail('Order id is required.');
+        }
+
+        jg_partner_order_set_archived($partnerCode, $id, $action === 'archive');
         $orders = jg_partner_order_list($partnerCode);
         echo json_encode([
             'orders' => $orders,

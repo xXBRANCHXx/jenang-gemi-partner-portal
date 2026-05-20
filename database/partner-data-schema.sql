@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS `partner_orders` (
   `status` VARCHAR(32) NOT NULL DEFAULT 'IS_LISTED',
   `order_timestamp` DATETIME NULL DEFAULT NULL,
   `items_json` LONGTEXT NULL DEFAULT NULL,
+  `archived_at` DATETIME NULL DEFAULT NULL,
   `created_at` DATETIME NOT NULL,
   `updated_at` DATETIME NOT NULL,
   PRIMARY KEY (`id`),

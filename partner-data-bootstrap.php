@@ -15,6 +15,12 @@ function jg_partner_data_db_config(): array
     ];
 }
 
+function jg_partner_data_mysql_is_configured(): bool
+{
+    $config = jg_partner_data_db_config();
+    return $config['name'] !== '' && $config['user'] !== '' && $config['pass'] !== '';
+}
+
 function jg_partner_data_last_error(?string $message = null): string
 {
     static $lastError = '';
@@ -116,7 +122,7 @@ function jg_partner_data_status(): array
 
     return [
         'connected' => $pdo instanceof PDO,
-        'storage' => $pdo instanceof PDO ? 'mysql' : 'json',
+        'storage' => $pdo instanceof PDO ? 'mysql' : (jg_partner_data_mysql_is_configured() ? 'unavailable' : 'json'),
         'host' => $config['host'],
         'attempted_hosts' => jg_partner_data_host_candidates($config['host']),
         'port' => $config['port'],
@@ -159,6 +165,7 @@ function jg_partner_data_ensure_schema(PDO $pdo): void
             quantity INT UNSIGNED NOT NULL DEFAULT 1,
             notes VARCHAR(300) NOT NULL DEFAULT "",
             status VARCHAR(32) NOT NULL DEFAULT "IS_LISTED",
+            archived_at DATETIME NULL DEFAULT NULL,
             created_at DATETIME NOT NULL,
             updated_at DATETIME NOT NULL,
             KEY idx_partner_orders_partner_created (partner_code, created_at),
@@ -187,6 +194,7 @@ function jg_partner_data_ensure_schema(PDO $pdo): void
 
     jg_partner_data_ensure_column($pdo, 'partner_orders', 'order_timestamp', 'DATETIME NULL DEFAULT NULL');
     jg_partner_data_ensure_column($pdo, 'partner_orders', 'items_json', 'LONGTEXT NULL DEFAULT NULL');
+    jg_partner_data_ensure_column($pdo, 'partner_orders', 'archived_at', 'DATETIME NULL DEFAULT NULL');
 }
 
 function jg_partner_data_ensure_column(PDO $pdo, string $tableName, string $columnName, string $definition): void

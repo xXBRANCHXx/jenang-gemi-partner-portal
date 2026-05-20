@@ -175,8 +175,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const orderStatusLabel = (order = {}) => {
     const status = String(order.status || 'IS_LISTED').trim().toUpperCase();
-    if (status === 'IS_BEING_FULFILLED' || status === 'PROCESSING') return 'Being processed';
+    if (status === 'IS_BEING_FULFILLED' || status === 'PROCESSING') return 'Processing';
     if (status === 'FULFILLED' || status === 'COMPLETED') return 'Completed';
+    if (status === 'CANCELLED') return 'Cancelled';
     return status || 'IS_LISTED';
   };
 
@@ -368,8 +369,8 @@ document.addEventListener('DOMContentLoaded', () => {
             <div class="partner-table-actions">
               ${editable
                 ? `<button type="button" class="admin-primary-btn" data-edit-order="${escapeHtml(order.id || '')}">Edit</button>`
-                : '<span class="partner-processing-pill">Being processed</span>'}
-              <button type="button" class="admin-ghost-btn" data-delete-order="${escapeHtml(order.id || '')}" ${editable ? '' : 'disabled'}>Delete</button>
+                : `<span class="partner-processing-pill">${escapeHtml(statusLabel)}</span>`}
+              ${editable ? `<button type="button" class="admin-ghost-btn" data-cancel-order="${escapeHtml(order.id || '')}">Cancel</button>` : ''}
             </div>
           </td>
         </tr>
@@ -849,7 +850,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const target = event.target;
     if (!(target instanceof HTMLElement)) return;
     const editId = target.getAttribute('data-edit-order');
-    const deleteId = target.getAttribute('data-delete-order');
+    const cancelId = target.getAttribute('data-cancel-order');
 
     if (editId) {
       const order = state.orders.find((item) => item.id === editId);
@@ -861,15 +862,15 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    if (deleteId) {
+    if (cancelId) {
       try {
         await requestJson(ordersEndpoint, {
           method: 'POST',
-          body: { action: 'delete', id: deleteId }
+          body: { action: 'cancel', id: cancelId }
         });
         await loadOrders();
       } catch (error) {
-        setError(error instanceof Error ? error.message : 'Unable to delete order.');
+        setError(error instanceof Error ? error.message : 'Unable to cancel order.');
       }
     }
   });

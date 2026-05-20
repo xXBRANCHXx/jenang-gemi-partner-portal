@@ -57,13 +57,13 @@ try {
         exit;
     }
 
-    if ($action === 'delete') {
+    if ($action === 'cancel' || $action === 'delete') {
         $id = trim((string) ($request['id'] ?? ''));
         if ($id === '') {
             jg_order_fail('Order id is required.');
         }
 
-        jg_partner_order_delete($partnerCode, $id);
+        jg_partner_order_cancel($partnerCode, $id);
         $orders = jg_partner_order_list($partnerCode);
         echo json_encode([
             'orders' => $orders,

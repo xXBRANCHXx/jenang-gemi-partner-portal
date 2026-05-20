@@ -437,6 +437,51 @@ function jg_partner_order_assert_editable(array $order): void
     }
 }
 
+function jg_partner_order_cancel(string $partnerCode, string $orderId): array
+{
+    $normalizedId = jg_partner_order_normalize_text($orderId, 'Order id');
+    $existing = jg_partner_order_find($partnerCode, $normalizedId);
+    if (!is_array($existing)) {
+        throw new RuntimeException('Order not found.');
+    }
+    jg_partner_order_assert_editable($existing);
+
+    $pdo = jg_partner_data_db();
+    if ($pdo instanceof PDO) {
+        $stmt = $pdo->prepare(
+            'UPDATE partner_orders
+             SET status = :status, updated_at = :updated_at
+             WHERE id = :id AND partner_code = :partner_code'
+        );
+        $stmt->execute([
+            ':status' => 'CANCELLED',
+            ':updated_at' => gmdate('Y-m-d H:i:s'),
+            ':id' => $normalizedId,
+            ':partner_code' => $partnerCode,
+        ]);
+
+        return jg_partner_order_find($partnerCode, $normalizedId) ?? array_merge($existing, [
+            'status' => 'CANCELLED',
+            'updated_at' => gmdate(DATE_ATOM),
+        ]);
+    }
+
+    $database = jg_partner_order_read_json_database();
+    foreach ($database['orders'] as $index => $order) {
+        if ((string) ($order['id'] ?? '') !== $normalizedId || (string) ($order['partner_code'] ?? '') !== $partnerCode) {
+            continue;
+        }
+
+        jg_partner_order_assert_editable($order);
+        $database['orders'][$index]['status'] = 'CANCELLED';
+        $database['orders'][$index]['updated_at'] = gmdate(DATE_ATOM);
+        jg_partner_order_write_json_database($database);
+        return $database['orders'][$index];
+    }
+
+    throw new RuntimeException('Order not found.');
+}
+
 function jg_partner_order_save(string $partnerCode, ?array $partner, array $payload, string $action): array
 {
     if ($action !== 'create' && $action !== 'update') {
@@ -569,7 +614,7 @@ function jg_partner_order_set_status(string $orderId, string $status): bool
 {
     $normalizedId = jg_partner_order_normalize_text($orderId, 'Order id');
     $normalizedStatus = strtoupper(trim($status));
-    if (!in_array($normalizedStatus, ['IS_LISTED', 'IS_BEING_FULFILLED', 'FULFILLED'], true)) {
+    if (!in_array($normalizedStatus, ['IS_LISTED', 'IS_BEING_FULFILLED', 'FULFILLED', 'CANCELLED'], true)) {
         throw new InvalidArgumentException('Order status is invalid.');
     }
 

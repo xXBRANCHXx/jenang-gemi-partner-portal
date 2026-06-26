@@ -25,17 +25,11 @@ $action = trim((string) ($_POST['action'] ?? 'upload')) ?: 'upload';
 
 try {
     if ($action === 'analyze') {
-        if (!isset($_FILES['labels']) || !is_array($_FILES['labels'])) {
-            jg_partner_label_fail('Select one label file.');
-        }
+        jg_partner_label_fail('Label analysis has been retired. Create orders by selecting approved SKUs.', 410);
+    }
 
-        $analysis = jg_partner_order_analyze_uploaded_labels(jg_partner_current_profile(), $_FILES['labels']);
-        echo json_encode([
-            'ok' => true,
-            'analysis' => $analysis,
-            'storage' => jg_partner_order_storage_mode(),
-        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
-        exit;
+    if ($action !== 'upload' && $action !== 'delete') {
+        jg_partner_label_fail('Unknown label action.', 400);
     }
 
     $orderId = trim((string) ($_POST['order_id'] ?? ''));

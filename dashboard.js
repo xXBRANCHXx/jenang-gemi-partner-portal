@@ -6,6 +6,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const ordersEndpoint = root.dataset.ordersEndpoint || '../api/orders/';
   const labelsEndpoint = root.dataset.labelsEndpoint || '../api/order-labels/';
   const logoutUrl = root.dataset.logoutUrl || '../logout/';
+  const dashboardBase = root.dataset.dashboardBase || './';
 
   const orderModal = document.querySelector('[data-order-modal]');
   const orderForm = document.querySelector('[data-order-form]');
@@ -34,6 +35,18 @@ document.addEventListener('DOMContentLoaded', () => {
   const analysisItemCount = document.querySelector('[data-analysis-item-count]');
   const orderPreview = document.querySelector('[data-order-preview]');
   const submitOrderButton = document.querySelector('[data-submit-order]');
+  const pageTitle = document.querySelector('[data-page-title]');
+  const sectionLinks = Array.from(document.querySelectorAll('[data-partner-section-link]'));
+  const sections = Array.from(document.querySelectorAll('[data-partner-section]'));
+  const themeSwitches = Array.from(document.querySelectorAll('[data-theme-switch]'));
+  const labelLibrary = document.querySelector('[data-label-library]');
+  const productMix = document.querySelector('[data-product-mix]');
+  const analyticsNodes = {
+    active: document.querySelector('[data-analytics-active]'),
+    fulfilled: document.querySelector('[data-analytics-fulfilled]'),
+    cancelRate: document.querySelector('[data-analytics-cancel-rate]'),
+    revenueOrder: document.querySelector('[data-analytics-revenue-order]')
+  };
 
   const state = {
     partner: null,
@@ -41,10 +54,19 @@ document.addEventListener('DOMContentLoaded', () => {
     skuIndex: {},
     orders: [],
     selectedTimeframe: '30d',
+    activeSection: root.dataset.activeSection || 'overview',
+    theme: window.localStorage.getItem('partner-theme') || 'system',
     labelFile: null,
     labelAnalysis: null,
     analyzing: false,
     submitting: false
+  };
+  const sectionLabels = {
+    overview: 'Overview',
+    orders: 'Orders',
+    labels: 'Labels',
+    analytics: 'Analytics',
+    settings: 'Settings'
   };
 
   const escapeHtml = (value) => String(value)
@@ -129,6 +151,48 @@ document.addEventListener('DOMContentLoaded', () => {
     state.skuIndex = skuIndex;
   };
 
+  const sectionUrl = (section) => {
+    const base = dashboardBase.endsWith('/') ? dashboardBase : `${dashboardBase}/`;
+    return section === 'overview' ? base : `${base}${section}/`;
+  };
+
+  const sectionFromLocation = () => {
+    const parts = window.location.pathname.split('/').filter(Boolean);
+    const dashboardIndex = parts.indexOf('dashboard');
+    const section = dashboardIndex >= 0 ? parts[dashboardIndex + 1] : '';
+    return sectionLabels[section] ? section : 'overview';
+  };
+
+  const normalizeTheme = (theme) => ['system', 'light', 'dark'].includes(theme) ? theme : 'system';
+
+  const applyTheme = (theme = state.theme) => {
+    state.theme = normalizeTheme(theme);
+    root.dataset.partnerTheme = state.theme;
+    document.body.dataset.partnerTheme = state.theme;
+    window.localStorage.setItem('partner-theme', state.theme);
+    themeSwitches.forEach((switcher) => {
+      switcher.querySelectorAll('[data-theme-option]').forEach((button) => {
+        button.classList.toggle('is-active', button.getAttribute('data-theme-option') === state.theme);
+      });
+    });
+  };
+
+  const setActiveSection = (section, push = false) => {
+    const next = sectionLabels[section] ? section : 'overview';
+    state.activeSection = next;
+    root.dataset.activeSection = next;
+    sections.forEach((panel) => {
+      panel.classList.toggle('is-active', panel.getAttribute('data-partner-section') === next);
+    });
+    sectionLinks.forEach((link) => {
+      link.classList.toggle('is-active', link.getAttribute('data-partner-section-link') === next);
+    });
+    if (pageTitle) pageTitle.textContent = sectionLabels[next];
+    if (push) {
+      window.history.pushState({ section: next }, '', sectionUrl(next));
+    }
+  };
+
   const orderUnits = (order = {}) => (order.items || []).reduce((sum, item) => sum + Number(item.quantity || 0), 0);
   const orderRevenue = (order = {}) => Number(order.revenue_total || (order.items || []).reduce((sum, item) => sum + Number(item.line_revenue || 0), 0));
   const isArchived = (order = {}) => String(order.archived_at || '').trim() !== '';
@@ -188,6 +252,64 @@ document.addEventListener('DOMContentLoaded', () => {
     if (nodes.orders) nodes.orders.textContent = String(last30.length);
     if (nodes.average) nodes.average.textContent = last30.length ? (units / last30.length).toFixed(1) : '0.0';
     if (nodes.revenue) nodes.revenue.textContent = formatCurrency(revenue);
+  };
+
+  const renderAnalytics = () => {
+    const total = state.orders.length;
+    const active = state.orders.filter((order) => !isArchived(order) && !['CANCELLED', 'CANCELED'].includes(String(order.status || '').toUpperCase())).length;
+    const fulfilled = state.orders.filter((order) => ['FULFILLED', 'COMPLETED', 'SHIPPED'].includes(String(order.status || '').toUpperCase())).length;
+    const cancelled = state.orders.filter((order) => ['CANCELLED', 'CANCELED'].includes(String(order.status || '').toUpperCase())).length;
+    const revenue = state.orders.reduce((sum, order) => sum + orderRevenue(order), 0);
+
+    if (analyticsNodes.active) analyticsNodes.active.textContent = String(active);
+    if (analyticsNodes.fulfilled) analyticsNodes.fulfilled.textContent = String(fulfilled);
+    if (analyticsNodes.cancelRate) analyticsNodes.cancelRate.textContent = total ? `${Math.round((cancelled / total) * 100)}%` : '0%';
+    if (analyticsNodes.revenueOrder) analyticsNodes.revenueOrder.textContent = formatCurrency(total ? revenue / total : 0);
+
+    if (!productMix) return;
+    const productUnits = new Map();
+    state.orders.forEach((order) => {
+      if (isArchived(order) || ['CANCELLED', 'CANCELED'].includes(String(order.status || '').toUpperCase())) return;
+      (order.items || []).forEach((item) => {
+        const label = item.product || item.sku_label || item.sku_code || 'Product';
+        productUnits.set(label, (productUnits.get(label) || 0) + Number(item.quantity || 0));
+      });
+    });
+
+    const rows = [...productUnits.entries()].sort((left, right) => right[1] - left[1]).slice(0, 12);
+    const max = Math.max(1, ...rows.map((row) => row[1]));
+    productMix.innerHTML = rows.length ? rows.map(([label, units]) => `
+      <article class="partner-product-row">
+        <div>
+          <strong>${escapeHtml(label)}</strong>
+          <span>${escapeHtml(units)} units</span>
+        </div>
+        <i style="--value:${Math.max(5, Math.round((units / max) * 100))}%"></i>
+      </article>
+    `).join('') : '<p class="admin-empty">No product data yet.</p>';
+  };
+
+  const renderLabelLibrary = () => {
+    if (!labelLibrary) return;
+    const labels = [];
+    state.orders.forEach((order) => {
+      (order.labels || []).forEach((label) => {
+        labels.push({ order, label });
+      });
+    });
+
+    labelLibrary.innerHTML = labels.length ? labels.map(({ order, label }) => `
+      <article class="partner-label-library-row">
+        <div>
+          <strong>${escapeHtml(label.name || 'Shipping label')}</strong>
+          <span>${escapeHtml(order.id || '')} · ${escapeHtml(order.marketplace_platform || 'Partner')}</span>
+        </div>
+        <div>
+          <span>${escapeHtml(formatTimestamp(label.created_at || order.created_at || ''))}</span>
+          ${label.url ? `<a href="${escapeHtml(label.url)}" target="_blank" rel="noopener">Open</a>` : '<span>No file URL</span>'}
+        </div>
+      </article>
+    `).join('') : '<p class="admin-empty">No labels uploaded yet.</p>';
   };
 
   const buildBuckets = (orders) => {
@@ -279,6 +401,8 @@ document.addEventListener('DOMContentLoaded', () => {
       renderRecentOrders();
       renderMetrics();
       renderChart();
+      renderAnalytics();
+      renderLabelLibrary();
       return;
     }
 
@@ -315,6 +439,8 @@ document.addEventListener('DOMContentLoaded', () => {
     renderRecentOrders();
     renderMetrics();
     renderChart();
+    renderAnalytics();
+    renderLabelLibrary();
   };
 
   const renderDeadline = () => {
@@ -353,21 +479,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (analysisPlatform) analysisPlatform.textContent = platformName;
     if (analysisConfidence) analysisConfidence.textContent = `${confidence}%`;
-    if (analysisReasons) analysisReasons.textContent = (platform.reasons || []).length ? `Signals found: ${(platform.reasons || []).join(', ')}` : 'No label analyzed yet.';
-    if (analysisItemCount) analysisItemCount.textContent = `${items.length} SKU${items.length === 1 ? '' : 's'}`;
+    if (analysisReasons) analysisReasons.textContent = (platform.reasons || []).length ? `Platform evidence: ${(platform.reasons || []).join(', ')}` : 'No label analyzed yet.';
+    if (analysisItemCount) analysisItemCount.textContent = `${items.length} product${items.length === 1 ? '' : 's'}`;
 
     if (analysisItems) {
       analysisItems.innerHTML = items.length ? items.map((item) => `
         <article class="partner-match-row">
           <div>
             <strong>${escapeHtml(item.product || item.sku_label || item.sku_code || 'Product')}</strong>
-            <span>${escapeHtml(item.matched_alias || item.flavor || item.size || 'Matched from label')}</span>
+            <span>${escapeHtml(item.matched_alias || item.flavor || item.size || 'Matched from product text')}</span>
           </div>
-          <code>${escapeHtml(item.sku_code || '')}</code>
+          <code>${escapeHtml((item.match_evidence || []).map((entry) => entry.phrase).filter(Boolean).slice(0, 2).join(' / ') || item.flavor || 'Product evidence')}</code>
           <b>x${escapeHtml(item.quantity || 1)}</b>
           <span>${escapeHtml(Math.round(Number(item.match_confidence || 0) * 100))}%</span>
         </article>
-      `).join('') : '<p class="admin-empty">No SKU tags matched this label.</p>';
+      `).join('') : '<p class="admin-empty">No products matched this label.</p>';
     }
 
     renderPreview();
@@ -388,7 +514,7 @@ document.addEventListener('DOMContentLoaded', () => {
       orderPreview.innerHTML = `
         <article><span>Platform</span><strong>${escapeHtml(analysis.platform?.platform || 'Waiting for label')}</strong></article>
         <article><span>Customer</span><strong>${escapeHtml(analysis.customer_name || 'Label recipient')}</strong></article>
-        <article><span>Items</span><strong>${escapeHtml(items.length)} matched SKU${items.length === 1 ? '' : 's'}</strong></article>
+        <article><span>Items</span><strong>${escapeHtml(items.length)} matched product${items.length === 1 ? '' : 's'}</strong></article>
         <article><span>Deadline</span><strong>${escapeHtml(deadlineRange?.value || 24)}h</strong></article>
         <article><span>Revenue</span><strong>${escapeHtml(formatCurrency(revenue))}</strong></article>
       `;
@@ -533,7 +659,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setError('', modalErrorNode);
 
     if (!canSubmitCurrentOrder()) {
-      setError('Upload a label with a detected platform and at least one matched SKU.', modalErrorNode);
+      setError('Upload a label with a detected platform and at least one matched product.', modalErrorNode);
       return;
     }
 
@@ -558,7 +684,8 @@ document.addEventListener('DOMContentLoaded', () => {
             line_revenue: item.line_revenue,
             match_confidence: item.match_confidence,
             match_score: item.match_score,
-            matched_alias: item.matched_alias
+            matched_alias: item.matched_alias,
+            match_evidence: item.match_evidence || []
           })),
           inference: analysis
         }
@@ -622,6 +749,28 @@ document.addEventListener('DOMContentLoaded', () => {
     renderChart();
   });
 
+  sectionLinks.forEach((link) => {
+    link.addEventListener('click', (event) => {
+      const section = link.getAttribute('data-partner-section-link');
+      if (!section) return;
+      event.preventDefault();
+      setActiveSection(section, true);
+    });
+  });
+
+  window.addEventListener('popstate', (event) => {
+    const section = event.state?.section || sectionFromLocation();
+    setActiveSection(section, false);
+  });
+
+  themeSwitches.forEach((switcher) => {
+    switcher.addEventListener('click', (event) => {
+      const target = event.target instanceof Element ? event.target.closest('[data-theme-option]') : null;
+      if (!(target instanceof HTMLButtonElement)) return;
+      applyTheme(target.getAttribute('data-theme-option') || 'system');
+    });
+  });
+
   document.querySelector('[data-refresh-orders]')?.addEventListener('click', () => {
     loadOrders().catch((error) => setError(error instanceof Error ? error.message : 'Unable to refresh orders.'));
   });
@@ -670,6 +819,10 @@ document.addEventListener('DOMContentLoaded', () => {
   window.setInterval(() => {
     loadOrders().catch(() => {});
   }, 15000);
+
+  applyTheme(state.theme);
+  window.history.replaceState({ section: state.activeSection }, '', window.location.href);
+  setActiveSection(state.activeSection, false);
 
   Promise.all([loadSession(), loadOrders()]).catch((error) => {
     setError(error instanceof Error ? error.message : 'Unable to load dashboard.');

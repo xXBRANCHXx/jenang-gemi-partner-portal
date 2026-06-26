@@ -25,6 +25,20 @@ $ordersEndpoint = $workspaceBase . '/api/orders/';
 $labelsEndpoint = $workspaceBase . '/api/order-labels/';
 $logoutUrl = $workspaceBase . '/logout/';
 $partnerName = (string) ($partner['name'] ?? 'Partner Dashboard');
+$dashboardSections = ['overview', 'orders', 'labels', 'analytics', 'settings'];
+$dashboardRouteParts = $requestPath === '' ? [] : explode('/', $requestPath);
+$dashboardIndex = array_search('dashboard', $dashboardRouteParts, true);
+$activeSection = 'overview';
+if ($dashboardIndex !== false) {
+    $candidate = trim((string) ($dashboardRouteParts[$dashboardIndex + 1] ?? ''));
+    if (in_array($candidate, $dashboardSections, true)) {
+        $activeSection = $candidate;
+    }
+}
+$dashboardPath = $workspaceBase . '/dashboard/';
+$sectionUrl = static function (string $section) use ($dashboardPath): string {
+    return $section === 'overview' ? $dashboardPath : $dashboardPath . rawurlencode($section) . '/';
+};
 ?>
 <!DOCTYPE html>
 <html lang="id">
@@ -48,6 +62,9 @@ $partnerName = (string) ($partner['name'] ?? 'Partner Dashboard');
         data-orders-endpoint="<?php echo htmlspecialchars($ordersEndpoint, ENT_QUOTES); ?>"
         data-labels-endpoint="<?php echo htmlspecialchars($labelsEndpoint, ENT_QUOTES); ?>"
         data-logout-url="<?php echo htmlspecialchars($logoutUrl, ENT_QUOTES); ?>"
+        data-dashboard-base="<?php echo htmlspecialchars($dashboardPath, ENT_QUOTES); ?>"
+        data-active-section="<?php echo htmlspecialchars($activeSection, ENT_QUOTES); ?>"
+        data-partner-theme="system"
     >
         <aside class="partner-sidebar">
             <div class="partner-sidebar-brand">
@@ -57,14 +74,20 @@ $partnerName = (string) ($partner['name'] ?? 'Partner Dashboard');
             </div>
 
             <nav class="partner-sidebar-nav" aria-label="Partner navigation">
-                <button type="button" class="is-active" data-partner-nav="overview">Overview</button>
-                <button type="button" data-partner-nav="orders">Orders</button>
-                <button type="button" data-partner-nav="history">History</button>
-                <button type="button" data-partner-nav="labels">Labels</button>
-                <button type="button" data-partner-nav="analytics">Analytics</button>
+                <a href="<?php echo htmlspecialchars($sectionUrl('overview'), ENT_QUOTES); ?>" class="<?php echo $activeSection === 'overview' ? 'is-active' : ''; ?>" data-partner-section-link="overview">Overview</a>
+                <a href="<?php echo htmlspecialchars($sectionUrl('orders'), ENT_QUOTES); ?>" class="<?php echo $activeSection === 'orders' ? 'is-active' : ''; ?>" data-partner-section-link="orders">Orders</a>
+                <a href="<?php echo htmlspecialchars($sectionUrl('labels'), ENT_QUOTES); ?>" class="<?php echo $activeSection === 'labels' ? 'is-active' : ''; ?>" data-partner-section-link="labels">Labels</a>
+                <a href="<?php echo htmlspecialchars($sectionUrl('analytics'), ENT_QUOTES); ?>" class="<?php echo $activeSection === 'analytics' ? 'is-active' : ''; ?>" data-partner-section-link="analytics">Analytics</a>
+                <a href="<?php echo htmlspecialchars($sectionUrl('settings'), ENT_QUOTES); ?>" class="<?php echo $activeSection === 'settings' ? 'is-active' : ''; ?>" data-partner-section-link="settings">Settings</a>
             </nav>
 
             <button type="button" class="partner-sidebar-primary" data-open-order-modal>New Label Order</button>
+
+            <div class="partner-theme-switch" data-theme-switch aria-label="Theme preference">
+                <button type="button" data-theme-option="system">System</button>
+                <button type="button" data-theme-option="light">Light</button>
+                <button type="button" data-theme-option="dark">Dark</button>
+            </div>
 
             <div class="partner-sidebar-profile">
                 <strong><?php echo htmlspecialchars($partnerName, ENT_QUOTES); ?></strong>
@@ -78,64 +101,134 @@ $partnerName = (string) ($partner['name'] ?? 'Partner Dashboard');
         </aside>
 
         <main class="partner-main">
-            <header class="partner-page-head">
+            <header class="partner-page-head" data-section-title>
                 <div>
                     <span>Partner portal</span>
-                    <h2>Overview</h2>
+                    <h2 data-page-title><?php echo htmlspecialchars(ucfirst($activeSection), ENT_QUOTES); ?></h2>
                 </div>
-                <button type="button" class="admin-primary-btn" data-open-order-modal>Upload Label</button>
+                <button type="button" class="admin-primary-btn" data-open-order-modal>Reconstruct Order</button>
             </header>
 
-            <section class="partner-metric-grid">
-                <article><span>30D units</span><strong data-metric-units>0</strong><small>Recent sell-through</small></article>
-                <article><span>Orders reconstructed</span><strong data-metric-orders>0</strong><small>This window</small></article>
-                <article><span>Avg. units/order</span><strong data-metric-average>0.0</strong><small>Last 30 days</small></article>
-                <article><span>Revenue</span><strong data-metric-revenue>Rp0</strong><small>Partner pricing</small></article>
+            <section class="partner-section <?php echo $activeSection === 'overview' ? 'is-active' : ''; ?>" data-partner-section="overview">
+                <section class="partner-metric-grid">
+                    <article><span>30D units</span><strong data-metric-units>0</strong><small>Recent sell-through</small></article>
+                    <article><span>Orders reconstructed</span><strong data-metric-orders>0</strong><small>This window</small></article>
+                    <article><span>Avg. units/order</span><strong data-metric-average>0.0</strong><small>Last 30 days</small></article>
+                    <article><span>Revenue</span><strong data-metric-revenue>Rp0</strong><small>Partner pricing</small></article>
+                </section>
+
+                <section class="partner-overview-grid">
+                    <article class="partner-panel partner-chart-panel">
+                        <div class="partner-panel-head">
+                            <div>
+                                <span>Sales window</span>
+                                <h3 data-sales-chart-title>Units sold by timeframe</h3>
+                            </div>
+                            <button type="button" class="admin-ghost-btn" data-refresh-orders>Refresh</button>
+                        </div>
+                        <div class="partner-timeframe-toggle" data-timeframe-toggle>
+                            <button type="button" data-timeframe="24h">24H</button>
+                            <button type="button" data-timeframe="7d">7D</button>
+                            <button type="button" data-timeframe="30d">30D</button>
+                            <button type="button" data-timeframe="90d">90D</button>
+                            <button type="button" data-timeframe="year">Year</button>
+                            <button type="button" data-timeframe="all">All</button>
+                        </div>
+                        <div class="partner-bars" data-sales-chart></div>
+                    </article>
+
+                    <article class="partner-panel">
+                        <div class="partner-panel-head">
+                            <div>
+                                <span>Recent orders</span>
+                                <h3>Reconstructed history</h3>
+                            </div>
+                        </div>
+                        <div class="partner-recent-list" data-recent-orders></div>
+                    </article>
+                </section>
             </section>
 
-            <section class="partner-overview-grid">
-                <article class="partner-panel partner-chart-panel">
+            <section class="partner-section <?php echo $activeSection === 'orders' ? 'is-active' : ''; ?>" data-partner-section="orders">
+                <section class="partner-panel partner-orders-panel">
                     <div class="partner-panel-head">
                         <div>
-                            <span>Sales window</span>
-                            <h3 data-sales-chart-title>Units sold by timeframe</h3>
+                            <span>Orders</span>
+                            <h3>Order history</h3>
                         </div>
-                        <button type="button" class="admin-ghost-btn" data-refresh-orders>Refresh</button>
+                        <button type="button" class="admin-primary-btn" data-open-order-modal>New Label Order</button>
                     </div>
-                    <div class="partner-timeframe-toggle" data-timeframe-toggle>
-                        <button type="button" data-timeframe="24h">24H</button>
-                        <button type="button" data-timeframe="7d">7D</button>
-                        <button type="button" data-timeframe="30d">30D</button>
-                        <button type="button" data-timeframe="90d">90D</button>
-                        <button type="button" data-timeframe="year">Year</button>
-                        <button type="button" data-timeframe="all">All</button>
+                    <p class="admin-form-error" data-order-error hidden></p>
+                    <div class="partner-order-card-list" data-order-list>
+                        <p class="admin-empty">No orders yet.</p>
                     </div>
-                    <div class="partner-bars" data-sales-chart></div>
-                </article>
-
-                <article class="partner-panel">
-                    <div class="partner-panel-head">
-                        <div>
-                            <span>Recent orders</span>
-                            <h3>Reconstructed history</h3>
-                        </div>
-                    </div>
-                    <div class="partner-recent-list" data-recent-orders></div>
-                </article>
+                </section>
             </section>
 
-            <section class="partner-panel partner-orders-panel">
-                <div class="partner-panel-head">
-                    <div>
-                        <span>Orders</span>
-                        <h3>Order history</h3>
+            <section class="partner-section <?php echo $activeSection === 'labels' ? 'is-active' : ''; ?>" data-partner-section="labels">
+                <section class="partner-panel">
+                    <div class="partner-panel-head">
+                        <div>
+                            <span>Labels</span>
+                            <h3>Shipping label archive</h3>
+                        </div>
+                        <button type="button" class="admin-primary-btn" data-open-order-modal>Upload Label</button>
                     </div>
-                    <button type="button" class="admin-primary-btn" data-open-order-modal>New Label Order</button>
-                </div>
-                <p class="admin-form-error" data-order-error hidden></p>
-                <div class="partner-order-card-list" data-order-list>
-                    <p class="admin-empty">No orders yet.</p>
-                </div>
+                    <div class="partner-label-library" data-label-library>
+                        <p class="admin-empty">No labels uploaded yet.</p>
+                    </div>
+                </section>
+            </section>
+
+            <section class="partner-section <?php echo $activeSection === 'analytics' ? 'is-active' : ''; ?>" data-partner-section="analytics">
+                <section class="partner-metric-grid">
+                    <article><span>Active orders</span><strong data-analytics-active>0</strong><small>Not canceled or archived</small></article>
+                    <article><span>Fulfilled</span><strong data-analytics-fulfilled>0</strong><small>Completed orders</small></article>
+                    <article><span>Cancel rate</span><strong data-analytics-cancel-rate>0%</strong><small>All reconstructed orders</small></article>
+                    <article><span>Revenue/order</span><strong data-analytics-revenue-order>Rp0</strong><small>Partner pricing average</small></article>
+                </section>
+                <section class="partner-panel">
+                    <div class="partner-panel-head">
+                        <div>
+                            <span>Product mix</span>
+                            <h3>Matched product units</h3>
+                        </div>
+                    </div>
+                    <div class="partner-product-mix" data-product-mix>
+                        <p class="admin-empty">No product data yet.</p>
+                    </div>
+                </section>
+            </section>
+
+            <section class="partner-section <?php echo $activeSection === 'settings' ? 'is-active' : ''; ?>" data-partner-section="settings">
+                <section class="partner-settings-grid">
+                    <article class="partner-panel">
+                        <div class="partner-panel-head">
+                            <div>
+                                <span>Appearance</span>
+                                <h3>Theme</h3>
+                            </div>
+                        </div>
+                        <div class="partner-settings-row">
+                            <span>Default follows your device. Choose Light or Dark to override it on this browser.</span>
+                            <div class="partner-theme-switch is-inline" data-theme-switch aria-label="Theme preference">
+                                <button type="button" data-theme-option="system">System</button>
+                                <button type="button" data-theme-option="light">Light</button>
+                                <button type="button" data-theme-option="dark">Dark</button>
+                            </div>
+                        </div>
+                    </article>
+
+                    <article class="partner-panel">
+                        <div class="partner-panel-head">
+                            <div>
+                                <span>Security</span>
+                                <h3>Password</h3>
+                            </div>
+                        </div>
+                        <button type="button" class="admin-ghost-btn" data-open-password-modal>Change Password</button>
+                    </article>
+                </section>
             </section>
         </main>
     </div>
@@ -190,12 +283,12 @@ $partnerName = (string) ($partner['name'] ?? 'Partner Dashboard');
                     <div class="partner-analysis-card">
                         <div class="partner-analysis-head">
                             <div>
-                                <span>Matched item tags</span>
-                                <strong data-analysis-item-count>0 SKUs</strong>
+                                <span>Matched products</span>
+                                <strong data-analysis-item-count>0 products</strong>
                             </div>
                         </div>
                         <div class="partner-match-list" data-analysis-items>
-                            <p class="admin-empty">Upload a label to detect SKUs.</p>
+                            <p class="admin-empty">Upload a label to detect products.</p>
                         </div>
                     </div>
                 </div>

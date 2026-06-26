@@ -96,6 +96,7 @@ function jg_partner_order_allowed_sku_index(?array $partner): array
             'base_product_name' => trim((string) ($sku['base_product_name'] ?? $sku['product_name'] ?? '')),
             'flavor_name' => trim((string) ($sku['flavor_name'] ?? '')),
             'size_label' => trim((string) ($sku['size_label'] ?? '')),
+            'item_tags' => array_values(array_filter((array) ($sku['item_tags'] ?? $sku['online_tags'] ?? $sku['aliases'] ?? []), static fn ($value): bool => trim((string) $value) !== '')),
             'current_stock' => (int) ($sku['current_stock'] ?? 0),
             'partner_price' => (float) ($sku['partner_price'] ?? $pricing[$skuCode] ?? 0),
         ];
@@ -108,12 +109,12 @@ function jg_partner_order_validate_sku(?array $partner, mixed $skuCode): array
 {
     $normalized = trim((string) $skuCode);
     if ($normalized === '') {
-        throw new InvalidArgumentException('SKU is required.');
+        throw new InvalidArgumentException('Matched product is required.');
     }
 
     $allowed = jg_partner_order_allowed_sku_index($partner);
     if (!isset($allowed[$normalized])) {
-        throw new InvalidArgumentException('That SKU is not enabled for this partner.');
+        throw new InvalidArgumentException('That matched product is not enabled for this partner.');
     }
 
     return $allowed[$normalized];
@@ -133,45 +134,227 @@ function jg_partner_order_tokenize(mixed $value): array
         return [];
     }
 
-    return array_values(array_unique(array_filter(explode(' ', $normalized), static fn (string $token): bool => strlen($token) >= 2)));
-}
-
-function jg_partner_order_sku_aliases(array $sku): array
-{
-    $aliases = [];
-    $fields = [
-        'sku' => 10,
-        'tag' => 9,
-        'label' => 7,
-        'product_name' => 6,
-        'base_product_name' => 6,
-        'flavor_name' => 3,
-        'size_label' => 2,
-        'brand_name' => 2,
+    $stopwords = [
+        'A' => true,
+        'AN' => true,
+        'AND' => true,
+        'AT' => true,
+        'BY' => true,
+        'DAN' => true,
+        'DI' => true,
+        'FOR' => true,
+        'FROM' => true,
+        'IN' => true,
+        'KE' => true,
+        'OF' => true,
+        'ON' => true,
+        'OR' => true,
+        'THE' => true,
+        'TO' => true,
+        'UNTUK' => true,
+        'WITH' => true,
+        'YANG' => true,
+        'ORDER' => true,
+        'PESANAN' => true,
+        'RESI' => true,
+        'AWB' => true,
+        'QTY' => true,
+        'QUANTITY' => true,
+        'JUMLAH' => true,
+        'PCS' => true,
+        'PC' => true,
+        'PACK' => true,
+        'SHOPEE' => true,
+        'SPX' => true,
+        'TIKTOK' => true,
+        'SHOP' => true,
+        'EXPRESS' => true,
+        'PENERIMA' => true,
+        'RECIPIENT' => true,
+        'BUYER' => true,
+        'CUSTOMER' => true,
+        'NAMA' => true,
     ];
 
-    foreach ($fields as $field => $weight) {
-        $raw = trim((string) ($sku[$field] ?? ''));
-        if ($raw === '') {
+    return array_values(array_unique(array_filter(explode(' ', $normalized), static function (string $token) use ($stopwords): bool {
+        return strlen($token) >= 2 && !isset($stopwords[$token]);
+    })));
+}
+
+function jg_partner_order_token_positions(string $text): array
+{
+    $positions = [];
+    foreach (jg_partner_order_tokenize($text) as $index => $token) {
+        $positions[$token][] = $index;
+    }
+
+    return $positions;
+}
+
+function jg_partner_order_add_phrase(array &$phrases, string $kind, mixed $value, float $weight, bool $core = true): void
+{
+    $normalized = jg_partner_order_normalize_search_text($value);
+    $tokens = jg_partner_order_tokenize($normalized);
+    if ($normalized === '' || $tokens === []) {
+        return;
+    }
+
+    $key = $kind . ':' . $normalized;
+    $currentWeight = (float) ($phrases[$key]['weight'] ?? 0);
+    if ($currentWeight >= $weight) {
+        return;
+    }
+
+    $phrases[$key] = [
+        'kind' => $kind,
+        'text' => $normalized,
+        'tokens' => $tokens,
+        'weight' => $weight,
+        'core' => $core,
+    ];
+}
+
+function jg_partner_order_sku_phrases(array $sku): array
+{
+    $phrases = [];
+    $product = trim((string) ($sku['product_name'] ?? ''));
+    $baseProduct = trim((string) ($sku['base_product_name'] ?? ''));
+    $flavor = trim((string) ($sku['flavor_name'] ?? ''));
+    $brand = trim((string) ($sku['brand_name'] ?? ''));
+    $size = trim((string) ($sku['size_label'] ?? ''));
+
+    jg_partner_order_add_phrase($phrases, 'product', $product, 12, true);
+    jg_partner_order_add_phrase($phrases, 'base_product', $baseProduct, 11, true);
+    if ($product !== '' && $flavor !== '' && stripos($product, $flavor) === false) {
+        jg_partner_order_add_phrase($phrases, 'product_flavor', $product . ' ' . $flavor, 14, true);
+    }
+    if ($baseProduct !== '' && $flavor !== '' && stripos($baseProduct, $flavor) === false) {
+        jg_partner_order_add_phrase($phrases, 'product_flavor', $baseProduct . ' ' . $flavor, 13, true);
+    }
+    jg_partner_order_add_phrase($phrases, 'flavor', $flavor, 7, true);
+    jg_partner_order_add_phrase($phrases, 'size', $size, 5, false);
+    jg_partner_order_add_phrase($phrases, 'brand', $brand, 2, false);
+
+    foreach ((array) ($sku['item_tags'] ?? []) as $tag) {
+        jg_partner_order_add_phrase($phrases, 'item_tag', $tag, 13, true);
+    }
+
+    $skuTag = trim((string) ($sku['tag'] ?? ''));
+    if ($skuTag !== '') {
+        jg_partner_order_add_phrase($phrases, 'item_tag', str_replace('_', ' ', $skuTag), 8, true);
+    }
+
+    // Weak fallbacks only. Shipping labels usually do not contain internal SKUs,
+    // so these never satisfy the core match gate by themselves.
+    jg_partner_order_add_phrase($phrases, 'sku_fallback', $sku['sku'] ?? '', 1.2, false);
+    jg_partner_order_add_phrase($phrases, 'label_fallback', $sku['label'] ?? '', 1.2, false);
+
+    return array_values($phrases);
+}
+
+function jg_partner_order_phrase_match_score(array $phrase, string $normalizedText, array $labelTokens): array
+{
+    $tokens = array_values((array) ($phrase['tokens'] ?? []));
+    if ($tokens === []) {
+        return ['score' => 0.0, 'coverage' => 0.0, 'exact' => false];
+    }
+
+    $hits = 0;
+    foreach ($tokens as $token) {
+        if (isset($labelTokens[$token])) {
+            $hits++;
+        }
+    }
+
+    $coverage = $hits / max(1, count($tokens));
+    $weight = (float) ($phrase['weight'] ?? 0);
+    $phraseText = (string) ($phrase['text'] ?? '');
+    $exact = $phraseText !== '' && str_contains($normalizedText, $phraseText);
+
+    if ($exact) {
+        return [
+            'score' => $weight * (1.35 + (0.28 * count($tokens))),
+            'coverage' => 1.0,
+            'exact' => true,
+        ];
+    }
+
+    if ($coverage >= 0.72 && count($tokens) >= 2) {
+        return [
+            'score' => $weight * $coverage,
+            'coverage' => $coverage,
+            'exact' => false,
+        ];
+    }
+
+    if ($coverage >= 1.0 && count($tokens) === 1 && ($phrase['core'] ?? false)) {
+        return [
+            'score' => $weight * 0.64,
+            'coverage' => $coverage,
+            'exact' => false,
+        ];
+    }
+
+    return ['score' => 0.0, 'coverage' => $coverage, 'exact' => false];
+}
+
+function jg_partner_order_match_sku_against_label(array $sku, string $normalizedText, array $labelTokens): array
+{
+    $score = 0.0;
+    $coreScore = 0.0;
+    $bestPhrase = '';
+    $bestPhraseScore = 0.0;
+    $evidence = [];
+    $profileWeights = [];
+
+    foreach (jg_partner_order_sku_phrases($sku) as $phrase) {
+        foreach ((array) ($phrase['tokens'] ?? []) as $token) {
+            $profileWeights[$token] = max((float) ($profileWeights[$token] ?? 0), (float) ($phrase['weight'] ?? 0));
+        }
+
+        $match = jg_partner_order_phrase_match_score($phrase, $normalizedText, $labelTokens);
+        $phraseScore = (float) ($match['score'] ?? 0);
+        if ($phraseScore <= 0) {
             continue;
         }
 
-        $normalized = jg_partner_order_normalize_search_text($raw);
-        if ($normalized !== '') {
-            $aliases[$normalized] = max((int) ($aliases[$normalized] ?? 0), $weight);
+        $score += $phraseScore;
+        if (($phrase['core'] ?? false) && !in_array((string) ($phrase['kind'] ?? ''), ['sku_fallback', 'label_fallback'], true)) {
+            $coreScore += $phraseScore;
         }
+
+        if ($phraseScore > $bestPhraseScore) {
+            $bestPhrase = (string) ($phrase['text'] ?? '');
+            $bestPhraseScore = $phraseScore;
+        }
+
+        $evidence[] = [
+            'kind' => (string) ($phrase['kind'] ?? 'phrase'),
+            'phrase' => (string) ($phrase['text'] ?? ''),
+            'coverage' => round((float) ($match['coverage'] ?? 0), 2),
+            'exact' => (bool) ($match['exact'] ?? false),
+        ];
     }
 
-    $product = trim((string) ($sku['product_name'] ?? $sku['base_product_name'] ?? ''));
-    $flavor = trim((string) ($sku['flavor_name'] ?? ''));
-    if ($product !== '' && $flavor !== '' && stripos($product, $flavor) === false) {
-        $combined = jg_partner_order_normalize_search_text($product . ' ' . $flavor);
-        if ($combined !== '') {
-            $aliases[$combined] = max((int) ($aliases[$combined] ?? 0), 8);
+    $weightedHits = 0.0;
+    $totalWeight = 0.0;
+    foreach ($profileWeights as $token => $weight) {
+        $totalWeight += $weight;
+        if (isset($labelTokens[$token])) {
+            $weightedHits += $weight;
         }
     }
+    if ($totalWeight > 0 && $weightedHits > 0) {
+        $coverage = $weightedHits / $totalWeight;
+        $score += $weightedHits * 0.45 + ($coverage * 7);
+    }
 
-    return $aliases;
+    return [
+        'score' => $score,
+        'core_score' => $coreScore,
+        'matched_phrase' => $bestPhrase,
+        'evidence' => $evidence,
+    ];
 }
 
 function jg_partner_order_infer_platform(string $text): array
@@ -255,14 +438,17 @@ function jg_partner_order_quantity_near_alias(string $normalizedText, string $al
         return 1;
     }
 
-    $window = substr($normalizedText, max(0, $position - 36), strlen($alias) + 72);
+    $before = substr($normalizedText, max(0, $position - 42), 42);
+    $after = substr($normalizedText, $position + strlen($alias), 64);
     $patterns = [
-        '/(?:QTY|JUMLAH|QUANTITY)\s*([0-9]{1,3})/',
-        '/(?:X|x)\s*([0-9]{1,3})/',
-        '/([0-9]{1,3})\s*(?:PCS|PC|PCK|PACK|X)\b/',
+        [$after, '/^\s*(?:X|\*)\s*([0-9]{1,3})\b/'],
+        [$after, '/^\s*(?:QTY|JUMLAH|QUANTITY)\s*[:\-]?\s*([0-9]{1,3})\b/'],
+        [$after, '/^\s*([0-9]{1,3})\s*(?:PCS|PC|PCK|PACK)\b/'],
+        [$before, '/(?:QTY|JUMLAH|QUANTITY)\s*[:\-]?\s*([0-9]{1,3})\s*$/'],
+        [$before, '/\b([0-9]{1,3})\s*(?:PCS|PC|PCK|PACK)\s*$/'],
     ];
 
-    foreach ($patterns as $pattern) {
+    foreach ($patterns as [$window, $pattern]) {
         if (preg_match($pattern, $window, $matches)) {
             return max(1, min(999, (int) $matches[1]));
         }
@@ -303,50 +489,16 @@ function jg_partner_order_infer_items(?array $partner, string $text): array
 {
     $allowed = jg_partner_order_allowed_sku_index($partner);
     $normalizedText = jg_partner_order_normalize_search_text($text);
-    $labelTokens = array_flip(jg_partner_order_tokenize($text));
+    $labelTokens = jg_partner_order_token_positions($text);
     $matches = [];
 
     foreach ($allowed as $skuCode => $sku) {
-        $score = 0.0;
-        $matchedAlias = '';
-        $matchedWeight = 0;
-        foreach (jg_partner_order_sku_aliases($sku) as $alias => $weight) {
-            if ($alias === '') {
-                continue;
-            }
+        $match = jg_partner_order_match_sku_against_label($sku, $normalizedText, $labelTokens);
+        $score = (float) ($match['score'] ?? 0);
+        $coreScore = (float) ($match['core_score'] ?? 0);
+        $matchedAlias = (string) ($match['matched_phrase'] ?? '');
 
-            if (str_contains($normalizedText, $alias)) {
-                $score += $weight * max(1, count(explode(' ', $alias)));
-                if ($weight > $matchedWeight || strlen($alias) > strlen($matchedAlias)) {
-                    $matchedAlias = $alias;
-                    $matchedWeight = $weight;
-                }
-                continue;
-            }
-
-            $tokens = jg_partner_order_tokenize($alias);
-            if ($tokens === []) {
-                continue;
-            }
-
-            $hits = 0;
-            foreach ($tokens as $token) {
-                if (isset($labelTokens[$token])) {
-                    $hits++;
-                }
-            }
-
-            $ratio = $hits / max(1, count($tokens));
-            if ($ratio >= 0.58) {
-                $score += $weight * $ratio;
-                if ($weight > $matchedWeight) {
-                    $matchedAlias = $alias;
-                    $matchedWeight = $weight;
-                }
-            }
-        }
-
-        if ($score < 5.8) {
+        if ($score < 12 || $coreScore < 7) {
             continue;
         }
 
@@ -363,8 +515,9 @@ function jg_partner_order_infer_items(?array $partner, string $text): array
             'unit_revenue' => $unitRevenue,
             'line_revenue' => $unitRevenue * $quantity,
             'match_score' => round($score, 2),
-            'match_confidence' => min(0.99, round(0.46 + ($score / 30), 2)),
+            'match_confidence' => min(0.99, round(0.38 + ($score / 36) + min(0.2, $coreScore / 60), 2)),
             'matched_alias' => $matchedAlias,
+            'match_evidence' => array_slice((array) ($match['evidence'] ?? []), 0, 5),
         ];
     }
 
@@ -452,7 +605,7 @@ function jg_partner_order_normalize_inference(mixed $value): array
 function jg_partner_order_normalize_items(?array $partner, mixed $value): array
 {
     if (!is_array($value)) {
-        throw new InvalidArgumentException('Upload a label that matches at least one partner SKU.');
+        throw new InvalidArgumentException('Upload a label that matches at least one partner product.');
     }
 
     $items = [];
@@ -478,11 +631,12 @@ function jg_partner_order_normalize_items(?array $partner, mixed $value): array
             'match_confidence' => max(0.0, min(1.0, (float) ($item['match_confidence'] ?? 0))),
             'match_score' => max(0.0, (float) ($item['match_score'] ?? 0)),
             'matched_alias' => trim((string) ($item['matched_alias'] ?? '')),
+            'match_evidence' => array_slice(array_values(array_filter((array) ($item['match_evidence'] ?? []), 'is_array')), 0, 5),
         ];
     }
 
     if ($items === []) {
-        throw new InvalidArgumentException('Upload a label that matches at least one partner SKU.');
+        throw new InvalidArgumentException('Upload a label that matches at least one partner product.');
     }
 
     return $items;

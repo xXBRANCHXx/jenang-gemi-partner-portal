@@ -165,6 +165,11 @@ function jg_partner_data_ensure_schema(PDO $pdo): void
             quantity INT UNSIGNED NOT NULL DEFAULT 1,
             notes VARCHAR(300) NOT NULL DEFAULT "",
             status VARCHAR(32) NOT NULL DEFAULT "IS_LISTED",
+            marketplace_platform VARCHAR(32) NOT NULL DEFAULT "",
+            deadline_hours TINYINT UNSIGNED NOT NULL DEFAULT 24,
+            deadline_at DATETIME NULL DEFAULT NULL,
+            revenue_total DECIMAL(14,2) NOT NULL DEFAULT 0.00,
+            inference_json LONGTEXT NULL DEFAULT NULL,
             archived_at DATETIME NULL DEFAULT NULL,
             created_at DATETIME NOT NULL,
             updated_at DATETIME NOT NULL,
@@ -195,6 +200,11 @@ function jg_partner_data_ensure_schema(PDO $pdo): void
     jg_partner_data_ensure_column($pdo, 'partner_orders', 'order_timestamp', 'DATETIME NULL DEFAULT NULL');
     jg_partner_data_ensure_column($pdo, 'partner_orders', 'items_json', 'LONGTEXT NULL DEFAULT NULL');
     jg_partner_data_ensure_column($pdo, 'partner_orders', 'archived_at', 'DATETIME NULL DEFAULT NULL');
+    jg_partner_data_ensure_column($pdo, 'partner_orders', 'marketplace_platform', 'VARCHAR(32) NOT NULL DEFAULT ""');
+    jg_partner_data_ensure_column($pdo, 'partner_orders', 'deadline_hours', 'TINYINT UNSIGNED NOT NULL DEFAULT 24');
+    jg_partner_data_ensure_column($pdo, 'partner_orders', 'deadline_at', 'DATETIME NULL DEFAULT NULL');
+    jg_partner_data_ensure_column($pdo, 'partner_orders', 'revenue_total', 'DECIMAL(14,2) NOT NULL DEFAULT 0.00');
+    jg_partner_data_ensure_column($pdo, 'partner_orders', 'inference_json', 'LONGTEXT NULL DEFAULT NULL');
 }
 
 function jg_partner_data_ensure_column(PDO $pdo, string $tableName, string $columnName, string $definition): void

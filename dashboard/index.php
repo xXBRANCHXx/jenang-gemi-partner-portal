@@ -24,6 +24,7 @@ $sessionEndpoint = $workspaceBase . '/api/session/';
 $ordersEndpoint = $workspaceBase . '/api/orders/';
 $labelsEndpoint = $workspaceBase . '/api/order-labels/';
 $logoutUrl = $workspaceBase . '/logout/';
+$partnerName = (string) ($partner['name'] ?? 'Partner Dashboard');
 ?>
 <!DOCTYPE html>
 <html lang="id">
@@ -39,112 +40,101 @@ $logoutUrl = $workspaceBase . '/logout/';
     <link rel="stylesheet" href="/admin.css?v=<?php echo urlencode($adminCssVersion ?: '1'); ?>">
 </head>
 <body class="admin-body is-dashboard">
-    <div class="admin-build-badge" aria-label="Partner portal build version">Build 1.00.06</div>
-    <div class="admin-app partner-dashboard-app" data-partner-dashboard data-session-endpoint="<?php echo htmlspecialchars($sessionEndpoint, ENT_QUOTES); ?>" data-orders-endpoint="<?php echo htmlspecialchars($ordersEndpoint, ENT_QUOTES); ?>" data-labels-endpoint="<?php echo htmlspecialchars($labelsEndpoint, ENT_QUOTES); ?>" data-logout-url="<?php echo htmlspecialchars($logoutUrl, ENT_QUOTES); ?>">
-        <div class="admin-backdrop admin-backdrop-a"></div>
-        <div class="admin-backdrop admin-backdrop-b"></div>
-        <header class="admin-topbar">
-            <div class="admin-topbar-brand">
-                <span class="admin-chip" data-partner-code>Partner Workspace</span>
-                <h1 data-partner-name><?php echo htmlspecialchars((string) ($partner['name'] ?? 'Partner Dashboard'), ENT_QUOTES); ?></h1>
+    <div class="admin-build-badge" aria-label="Partner portal build version">Build 1.01.00</div>
+    <div
+        class="partner-dashboard-app partner-workspace"
+        data-partner-dashboard
+        data-session-endpoint="<?php echo htmlspecialchars($sessionEndpoint, ENT_QUOTES); ?>"
+        data-orders-endpoint="<?php echo htmlspecialchars($ordersEndpoint, ENT_QUOTES); ?>"
+        data-labels-endpoint="<?php echo htmlspecialchars($labelsEndpoint, ENT_QUOTES); ?>"
+        data-logout-url="<?php echo htmlspecialchars($logoutUrl, ENT_QUOTES); ?>"
+    >
+        <aside class="partner-sidebar">
+            <div class="partner-sidebar-brand">
+                <span class="partner-sidebar-kicker">Partner Workspace</span>
+                <h1 data-partner-name><?php echo htmlspecialchars($partnerName, ENT_QUOTES); ?></h1>
+                <p data-partner-code>Direct ordering portal</p>
             </div>
-            <div class="admin-topbar-actions">
-                <button type="button" class="admin-primary-btn" data-open-order-modal>New Order</button>
-                <button type="button" class="admin-ghost-btn" data-open-password-modal>Change Password</button>
-                <button type="button" class="admin-ghost-btn" data-partner-logout>Logout</button>
-            </div>
-        </header>
 
-        <main class="admin-layout">
-            <section class="partner-analytics-toolbar admin-panel admin-panel-affiliates">
+            <nav class="partner-sidebar-nav" aria-label="Partner navigation">
+                <button type="button" class="is-active" data-partner-nav="overview">Overview</button>
+                <button type="button" data-partner-nav="orders">Orders</button>
+                <button type="button" data-partner-nav="history">History</button>
+                <button type="button" data-partner-nav="labels">Labels</button>
+                <button type="button" data-partner-nav="analytics">Analytics</button>
+            </nav>
+
+            <button type="button" class="partner-sidebar-primary" data-open-order-modal>New Label Order</button>
+
+            <div class="partner-sidebar-profile">
+                <strong><?php echo htmlspecialchars($partnerName, ENT_QUOTES); ?></strong>
+                <span>Active partner</span>
+            </div>
+
+            <div class="partner-sidebar-actions">
+                <button type="button" data-open-password-modal>Change Password</button>
+                <button type="button" data-partner-logout>Logout</button>
+            </div>
+        </aside>
+
+        <main class="partner-main">
+            <header class="partner-page-head">
                 <div>
-                    <span class="admin-panel-kicker">Sales Window</span>
-                    <h3>Units sold by timeframe</h3>
+                    <span>Partner portal</span>
+                    <h2>Overview</h2>
                 </div>
-                <div class="partner-timeframe-toggle" data-timeframe-toggle>
-                    <button type="button" data-timeframe="24h">24H</button>
-                    <button type="button" data-timeframe="7d">7D</button>
-                    <button type="button" data-timeframe="30d">30D</button>
-                    <button type="button" data-timeframe="90d">90D</button>
-                    <button type="button" data-timeframe="year">Year</button>
-                    <button type="button" data-timeframe="all">All</button>
-                </div>
+                <button type="button" class="admin-primary-btn" data-open-order-modal>Upload Label</button>
+            </header>
+
+            <section class="partner-metric-grid">
+                <article><span>30D units</span><strong data-metric-units>0</strong><small>Recent sell-through</small></article>
+                <article><span>Orders reconstructed</span><strong data-metric-orders>0</strong><small>This window</small></article>
+                <article><span>Avg. units/order</span><strong data-metric-average>0.0</strong><small>Last 30 days</small></article>
+                <article><span>Revenue</span><strong data-metric-revenue>Rp0</strong><small>Partner pricing</small></article>
             </section>
 
-            <section class="partner-analytics-dashboard">
-                <section class="admin-panel admin-panel-affiliates partner-chart-panel">
-                    <div class="admin-panel-head">
+            <section class="partner-overview-grid">
+                <article class="partner-panel partner-chart-panel">
+                    <div class="partner-panel-head">
                         <div>
-                            <span class="admin-panel-kicker">Sales Analytics</span>
-                            <h3 data-sales-chart-title>Sales by timeframe</h3>
+                            <span>Sales window</span>
+                            <h3 data-sales-chart-title>Units sold by timeframe</h3>
                         </div>
-                        <span class="partner-hero-chip" data-sales-summary>0 units</span>
+                        <button type="button" class="admin-ghost-btn" data-refresh-orders>Refresh</button>
                     </div>
-                    <div class="partner-chart" data-sales-chart></div>
-                </section>
+                    <div class="partner-timeframe-toggle" data-timeframe-toggle>
+                        <button type="button" data-timeframe="24h">24H</button>
+                        <button type="button" data-timeframe="7d">7D</button>
+                        <button type="button" data-timeframe="30d">30D</button>
+                        <button type="button" data-timeframe="90d">90D</button>
+                        <button type="button" data-timeframe="year">Year</button>
+                        <button type="button" data-timeframe="all">All</button>
+                    </div>
+                    <div class="partner-bars" data-sales-chart></div>
+                </article>
 
-                <section class="admin-panel admin-panel-affiliates partner-chart-panel">
-                    <div class="admin-panel-head">
+                <article class="partner-panel">
+                    <div class="partner-panel-head">
                         <div>
-                            <span class="admin-panel-kicker">Time Activity</span>
-                            <h3>Most busy hours</h3>
+                            <span>Recent orders</span>
+                            <h3>Reconstructed history</h3>
                         </div>
-                        <span class="partner-hero-chip" data-busiest-hour>00:00</span>
                     </div>
-                    <div class="partner-chart partner-hour-chart" data-hourly-chart></div>
-                </section>
+                    <div class="partner-recent-list" data-recent-orders></div>
+                </article>
             </section>
 
-            <section class="partner-analytics-dashboard">
-                <section class="admin-panel admin-panel-affiliates partner-chart-panel">
-                    <div class="admin-panel-head">
-                        <div>
-                            <span class="admin-panel-kicker">Product Insights</span>
-                            <h3>Share of selected sales</h3>
-                        </div>
-                    </div>
-                    <div class="partner-insight-list" data-product-insights></div>
-                </section>
-
-                <section class="admin-panel admin-panel-affiliates partner-chart-panel">
-                    <div class="admin-panel-head">
-                        <div>
-                            <span class="admin-panel-kicker">Flavor Breakdown</span>
-                            <h3>
-                                Units sold by product flavor
-                                <span class="partner-info-badge" title="Shows which product and flavor combinations account for the selected timeframe's unit sales.">i</span>
-                            </h3>
-                        </div>
-                    </div>
-                    <div class="partner-insight-list" data-flavor-insights></div>
-                </section>
-            </section>
-
-            <section class="admin-panel admin-panel-affiliates">
-                <div class="admin-panel-head">
+            <section class="partner-panel partner-orders-panel">
+                <div class="partner-panel-head">
                     <div>
-                        <span class="admin-panel-kicker">Orders</span>
+                        <span>Orders</span>
                         <h3>Order history</h3>
                     </div>
-                    <button type="button" class="admin-primary-btn" data-open-order-modal>New Order</button>
+                    <button type="button" class="admin-primary-btn" data-open-order-modal>New Label Order</button>
                 </div>
-                <div class="partner-order-table-wrap">
-                    <table class="partner-order-table">
-                        <thead>
-                            <tr>
-                                <th>Order</th>
-                                <th>Customer</th>
-                                <th>Invoice</th>
-                                <th>Qty</th>
-                                <th>Label</th>
-                                <th>Time</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody data-order-list>
-                            <tr><td colspan="7" class="partner-order-empty">No orders yet.</td></tr>
-                        </tbody>
-                    </table>
+                <p class="admin-form-error" data-order-error hidden></p>
+                <div class="partner-order-card-list" data-order-list>
+                    <p class="admin-empty">No orders yet.</p>
                 </div>
             </section>
         </main>
@@ -152,68 +142,72 @@ $logoutUrl = $workspaceBase . '/logout/';
 
     <div class="admin-modal-shell partner-order-modal-shell" data-order-modal hidden>
         <div class="admin-modal-backdrop" data-close-order-modal></div>
-        <div class="admin-modal-card partner-order-modal" role="dialog" aria-modal="true" aria-labelledby="order-modal-title">
-            <div class="admin-modal-head">
-                <div>
-                    <span class="admin-panel-kicker">Order</span>
-                    <h3 id="order-modal-title">Create order</h3>
-                </div>
-                <button type="button" class="admin-ghost-btn" data-close-order-modal>Close</button>
-            </div>
-            <form class="admin-affiliate-editor partner-order-form" data-order-form>
-                <input type="hidden" name="order_id">
-                <section class="partner-order-modal-step">
-                    <label class="admin-affiliate-field">
-                        <span class="admin-control-label">Customer name</span>
-                        <input type="text" name="customer_name" maxlength="160" placeholder="Customer full name" required>
-                    </label>
-                    <label class="admin-affiliate-field">
-                        <span class="admin-control-label">Timestamp</span>
-                        <input type="datetime-local" name="order_timestamp" required>
-                    </label>
-                </section>
-
-                <section class="partner-invoice-builder">
-                    <div class="admin-panel-head">
+        <form class="admin-modal-card partner-order-modal partner-label-form" data-order-form role="dialog" aria-modal="true" aria-labelledby="order-modal-title">
+            <section class="partner-label-workbench">
+                <div class="partner-label-main">
+                    <div class="admin-modal-head">
                         <div>
-                            <span class="admin-panel-kicker">Invoice</span>
-                            <h3>Add products</h3>
+                            <span class="admin-panel-kicker">New label order</span>
+                            <h3 id="order-modal-title">Reconstruct order from shipping label</h3>
                         </div>
-                        <button type="button" class="admin-ghost-btn" data-add-invoice-item>Add Product</button>
+                        <button type="button" class="admin-ghost-btn" data-close-order-modal>Close</button>
                     </div>
-                    <div class="partner-invoice-items" data-invoice-items></div>
-                </section>
 
-                <section class="partner-upload-card">
-                    <div class="partner-upload-head">
-                        <div>
-                            <span class="admin-panel-kicker">Shipping Label</span>
-                            <h4>One label per order</h4>
-                        </div>
-                        <p>Upload one PDF, image, ZPL, TXT, or PRN file. Delete the current label before replacing it.</p>
+                    <div class="partner-label-controls">
+                        <label class="partner-label-field">
+                            <span>Creation time</span>
+                            <input type="datetime-local" name="order_timestamp" data-order-timestamp required>
+                        </label>
+                        <label class="partner-label-field">
+                            <span>Deadline</span>
+                            <strong data-deadline-value>24h</strong>
+                            <input type="range" name="deadline_hours" min="1" max="48" value="24" data-deadline-range>
+                        </label>
                     </div>
-                    <button type="button" class="partner-upload-dropzone" data-label-dropzone>
+
+                    <button type="button" class="partner-upload-dropzone partner-label-dropzone" data-label-dropzone>
                         <span class="partner-upload-plus" aria-hidden="true">+</span>
-                        <strong>Upload shipping label</strong>
-                        <span data-label-dropzone-copy>Add one label after the order is saved.</span>
+                        <strong data-label-dropzone-copy>Upload shipping label</strong>
+                        <span>Shopee, TikTok Shop, PDF, image, ZPL, TXT, or PRN</span>
                     </button>
                     <input type="file" name="labels" data-label-input hidden accept=".pdf,.png,.jpg,.jpeg,.webp,.gif,.svg,.zpl,.txt,.prn">
-                    <div class="partner-upload-queue" data-label-queue>
-                        <p class="admin-empty">No label file queued.</p>
-                    </div>
-                </section>
 
-                <label class="admin-affiliate-field">
-                    <span class="admin-control-label">Notes</span>
-                    <input type="text" name="notes" maxlength="300" placeholder="Optional internal note">
-                </label>
-                <p class="admin-form-error" data-order-error hidden></p>
-                <div class="admin-modal-actions">
-                    <button type="button" class="admin-ghost-btn" data-close-order-modal>Cancel</button>
-                    <button type="submit" class="admin-primary-btn">Create Order</button>
+                    <div class="partner-upload-queue" data-label-queue>
+                        <p class="admin-empty">No label file selected.</p>
+                    </div>
+
+                    <div class="partner-analysis-card" data-analysis-card>
+                        <div class="partner-analysis-head">
+                            <div>
+                                <span>Source detection</span>
+                                <strong data-analysis-platform>Waiting for label</strong>
+                            </div>
+                            <b data-analysis-confidence>0%</b>
+                        </div>
+                        <p data-analysis-reasons>No label analyzed yet.</p>
+                    </div>
+
+                    <div class="partner-analysis-card">
+                        <div class="partner-analysis-head">
+                            <div>
+                                <span>Matched item tags</span>
+                                <strong data-analysis-item-count>0 SKUs</strong>
+                            </div>
+                        </div>
+                        <div class="partner-match-list" data-analysis-items>
+                            <p class="admin-empty">Upload a label to detect SKUs.</p>
+                        </div>
+                    </div>
                 </div>
-            </form>
-        </div>
+
+                <aside class="partner-label-preview">
+                    <span>Order preview</span>
+                    <div class="partner-preview-stack" data-order-preview></div>
+                    <p class="admin-form-error" data-modal-order-error hidden></p>
+                    <button type="submit" class="admin-primary-btn" data-submit-order disabled>Submit Reconstructed Order</button>
+                </aside>
+            </section>
+        </form>
     </div>
 
     <div class="admin-modal-shell" data-password-modal hidden>

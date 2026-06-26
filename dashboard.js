@@ -6,52 +6,46 @@ document.addEventListener('DOMContentLoaded', () => {
   const ordersEndpoint = root.dataset.ordersEndpoint || '../api/orders/';
   const labelsEndpoint = root.dataset.labelsEndpoint || '../api/order-labels/';
   const logoutUrl = root.dataset.logoutUrl || '../logout/';
+
   const orderModal = document.querySelector('[data-order-modal]');
-  const passwordModal = document.querySelector('[data-password-modal]');
   const orderForm = document.querySelector('[data-order-form]');
+  const passwordModal = document.querySelector('[data-password-modal]');
   const passwordForm = document.querySelector('[data-password-form]');
   const orderList = document.querySelector('[data-order-list]');
+  const recentOrders = document.querySelector('[data-recent-orders]');
   const errorNode = document.querySelector('[data-order-error]');
+  const modalErrorNode = document.querySelector('[data-modal-order-error]');
   const passwordErrorNode = document.querySelector('[data-password-error]');
   const partnerNameNode = document.querySelector('[data-partner-name]');
   const partnerCodeNode = document.querySelector('[data-partner-code]');
-  const busiestHourNode = document.querySelector('[data-busiest-hour]');
   const timeframeToggle = document.querySelector('[data-timeframe-toggle]');
   const salesChart = document.querySelector('[data-sales-chart]');
   const salesChartTitle = document.querySelector('[data-sales-chart-title]');
-  const salesSummary = document.querySelector('[data-sales-summary]');
-  const hourlyChart = document.querySelector('[data-hourly-chart]');
-  const productInsights = document.querySelector('[data-product-insights]');
-  const flavorInsights = document.querySelector('[data-flavor-insights]');
-  const invoiceItemsNode = document.querySelector('[data-invoice-items]');
   const labelDropzone = document.querySelector('[data-label-dropzone]');
   const labelDropzoneCopy = document.querySelector('[data-label-dropzone-copy]');
   const labelInput = document.querySelector('[data-label-input]');
   const labelQueue = document.querySelector('[data-label-queue]');
+  const deadlineRange = document.querySelector('[data-deadline-range]');
+  const deadlineValue = document.querySelector('[data-deadline-value]');
+  const analysisPlatform = document.querySelector('[data-analysis-platform]');
+  const analysisConfidence = document.querySelector('[data-analysis-confidence]');
+  const analysisReasons = document.querySelector('[data-analysis-reasons]');
+  const analysisItems = document.querySelector('[data-analysis-items]');
+  const analysisItemCount = document.querySelector('[data-analysis-item-count]');
+  const orderPreview = document.querySelector('[data-order-preview]');
+  const submitOrderButton = document.querySelector('[data-submit-order]');
 
   const state = {
     partner: null,
     catalog: {},
     skuIndex: {},
-    productOptions: [],
     orders: [],
-    analytics: {
-      years: [],
-      monthly_by_year: {},
-      hourly_distribution: Array.from({ length: 24 }, () => 0),
-      busiest_hour: '00:00',
-      total_orders: 0
-    },
-    editingId: '',
     selectedTimeframe: '30d',
-    visibleOrderCount: 5,
-    queuedFile: null,
-    currentLabels: [],
-    openMenuOrderId: ''
+    labelFile: null,
+    labelAnalysis: null,
+    analyzing: false,
+    submitting: false
   };
-
-  const orderHistoryBatchSize = 5;
-  const flavorChartColors = ['#7cffb2', '#38bdf8', '#fbbf24', '#fb7185', '#a78bfa', '#34d399', '#f97316', '#94a3b8'];
 
   const escapeHtml = (value) => String(value)
     .replace(/&/g, '&amp;')
@@ -85,37 +79,16 @@ document.addEventListener('DOMContentLoaded', () => {
     return payload;
   };
 
-  const uploadLabel = async (orderId, file) => {
-    const formData = new window.FormData();
-    formData.append('order_id', orderId);
-    formData.append('labels[]', file);
-    return postLabelForm(formData);
-  };
-
-  const deleteLabel = async (orderId) => {
-    const formData = new window.FormData();
-    formData.append('action', 'delete');
-    formData.append('order_id', orderId);
-    return postLabelForm(formData);
-  };
-
-  const setError = (message) => {
-    if (!errorNode) return;
-    errorNode.hidden = !message;
-    errorNode.textContent = message || '';
-  };
-
-  const setPasswordError = (message) => {
-    if (!passwordErrorNode) return;
-    passwordErrorNode.hidden = !message;
-    passwordErrorNode.textContent = message || '';
+  const setError = (message, target = errorNode) => {
+    if (!target) return;
+    target.hidden = !message;
+    target.textContent = message || '';
   };
 
   const formatTimestamp = (value) => {
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return '--';
     return date.toLocaleString('en-US', {
-      year: 'numeric',
       month: 'short',
       day: 'numeric',
       hour: '2-digit',
@@ -130,6 +103,12 @@ document.addEventListener('DOMContentLoaded', () => {
     return offsetDate.toISOString().slice(0, 16);
   };
 
+  const formatCurrency = (value) => new Intl.NumberFormat('id-ID', {
+    style: 'currency',
+    currency: 'IDR',
+    maximumFractionDigits: 0
+  }).format(Number(value || 0));
+
   const formatFileSize = (bytes) => {
     const size = Number(bytes || 0);
     if (size >= 1024 * 1024) return `${(size / (1024 * 1024)).toFixed(1)} MB`;
@@ -138,283 +117,28 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   const flattenCatalog = () => {
-    const options = [];
     const skuIndex = {};
-    Object.entries(state.catalog || {}).forEach(([brand, products]) => {
-      Object.entries(products || {}).forEach(([product, productData]) => {
+    Object.values(state.catalog || {}).forEach((products) => {
+      Object.values(products || {}).forEach((productData) => {
         (productData.skus || []).forEach((sku) => {
           if (!sku?.sku) return;
-          const meta = [sku.size, sku.flavor].filter(Boolean).join(' • ');
-          const option = {
-            sku_code: sku.sku,
-            label: product,
-            brand,
-            product,
-            flavor: sku.flavor || '',
-            size: sku.size || '',
-            meta
-          };
-          options.push(option);
-          skuIndex[sku.sku] = option;
+          skuIndex[sku.sku] = sku;
         });
       });
     });
-    state.productOptions = options.sort((left, right) => left.label.localeCompare(right.label));
     state.skuIndex = skuIndex;
   };
 
-  const catalogItem = (item = {}) => state.skuIndex[item.sku_code] || null;
-
-  const itemProductName = (item = {}) => catalogItem(item)?.product || item.product || item.sku_label || item.sku_code || 'Product';
-
-  const itemFlavorName = (item = {}) => catalogItem(item)?.flavor || item.flavor || 'Unspecified flavor';
-
-  const isOrderArchived = (order = {}) => String(order.archived_at || '').trim() !== '';
-
-  const closeOrderMenu = () => {
-    state.openMenuOrderId = '';
-    document.querySelectorAll('[data-order-menu-panel]').forEach((panel) => {
-      panel.hidden = true;
-    });
-    document.querySelectorAll('[data-order-menu-trigger]').forEach((button) => {
-      button.setAttribute('aria-expanded', 'false');
-    });
-  };
-
-  const toggleOrderMenu = (orderId) => {
-    const nextOpenId = state.openMenuOrderId === orderId ? '' : orderId;
-    closeOrderMenu();
-    if (!nextOpenId) return;
-    state.openMenuOrderId = nextOpenId;
-    const button = document.querySelector(`[data-order-menu-trigger="${orderId}"]`);
-    const panel = document.querySelector(`[data-order-menu-panel="${orderId}"]`);
-    if (button instanceof HTMLButtonElement) button.setAttribute('aria-expanded', 'true');
-    if (panel instanceof HTMLElement) panel.hidden = false;
-  };
-
-  const isOrderEditable = (order = {}) => {
-    const status = String(order.status || 'IS_LISTED').trim().toUpperCase();
-    return status === '' || ['DRAFT', 'READY', 'SUBMITTED', 'LISTED', 'IS_LISTED'].includes(status);
-  };
-
-  const orderStatusLabel = (order = {}) => {
+  const orderUnits = (order = {}) => (order.items || []).reduce((sum, item) => sum + Number(item.quantity || 0), 0);
+  const orderRevenue = (order = {}) => Number(order.revenue_total || (order.items || []).reduce((sum, item) => sum + Number(item.line_revenue || 0), 0));
+  const isArchived = (order = {}) => String(order.archived_at || '').trim() !== '';
+  const canCancel = (order = {}) => ['IS_LISTED', 'LISTED', ''].includes(String(order.status || 'IS_LISTED').trim().toUpperCase());
+  const statusLabel = (order = {}) => {
     const status = String(order.status || 'IS_LISTED').trim().toUpperCase();
     if (status === 'IS_BEING_FULFILLED' || status === 'PROCESSING') return 'Processing';
-    if (status === 'FULFILLED' || status === 'COMPLETED') return 'Completed';
+    if (status === 'FULFILLED' || status === 'COMPLETED') return 'Fulfilled';
     if (status === 'CANCELLED') return 'Cancelled';
-    return status || 'IS_LISTED';
-  };
-
-  const invoiceItemMarkup = (item = {}, index = 0) => `
-    <article class="partner-invoice-item" data-invoice-item>
-      <label class="admin-affiliate-field">
-        <span class="admin-control-label">Product</span>
-        <div class="partner-picker" data-product-picker>
-          <input type="hidden" value="${escapeHtml(item.sku_code || '')}" data-invoice-product required>
-          <button type="button" class="partner-picker-trigger" data-picker-trigger>${escapeHtml((state.productOptions.find((option) => option.sku_code === (item.sku_code || '')) || {}).label || 'Select product')}</button>
-          <div class="partner-picker-panel" data-picker-panel hidden>
-            <div class="partner-picker-options" data-picker-options></div>
-            <div class="partner-picker-search-shell">
-              <input type="search" class="partner-picker-search" placeholder="Search products" data-picker-search>
-            </div>
-          </div>
-        </div>
-      </label>
-      <label class="admin-affiliate-field partner-invoice-qty">
-        <span class="admin-control-label">QTY</span>
-        <input type="number" min="1" step="1" value="${escapeHtml(item.quantity || 1)}" data-invoice-quantity required>
-      </label>
-      <button type="button" class="admin-ghost-btn" data-remove-invoice-item="${index}">Remove</button>
-    </article>
-  `;
-
-  const renderInvoiceItems = (items = []) => {
-    if (!invoiceItemsNode) return;
-    const normalized = items.length ? items : [{ quantity: 1 }];
-    invoiceItemsNode.innerHTML = normalized.map((item, index) => invoiceItemMarkup(item, index)).join('');
-    document.querySelectorAll('[data-product-picker]').forEach((picker) => {
-      renderPickerOptions(picker);
-    });
-  };
-
-  const renderPickerOptions = (picker, query = '') => {
-    const optionsNode = picker.querySelector('[data-picker-options]');
-    const hiddenInput = picker.querySelector('[data-invoice-product]');
-    const trigger = picker.querySelector('[data-picker-trigger]');
-    if (!(optionsNode instanceof HTMLElement) || !(hiddenInput instanceof HTMLInputElement) || !(trigger instanceof HTMLButtonElement)) return;
-
-    const selected = state.productOptions.find((option) => option.sku_code === hiddenInput.value) || null;
-    trigger.textContent = selected?.label || 'Select product';
-
-    const filtered = state.productOptions.filter((option) => {
-      const needle = query.trim().toLowerCase();
-      if (!needle) return true;
-      return [option.label, option.brand, option.meta].some((value) => String(value || '').toLowerCase().includes(needle));
-    });
-
-    optionsNode.innerHTML = filtered.length ? filtered.map((option) => `
-      <button type="button" class="partner-picker-option ${option.sku_code === hiddenInput.value ? 'is-active' : ''}" data-picker-option="${escapeHtml(option.sku_code)}">
-        <strong>${escapeHtml(option.label)}</strong>
-        <span>${escapeHtml(option.meta || '')}</span>
-      </button>
-    `).join('') : '<p class="partner-picker-empty">No products match that search.</p>';
-  };
-
-  const collectInvoiceItems = () => {
-    const items = [];
-    document.querySelectorAll('[data-invoice-item]').forEach((itemNode) => {
-      const select = itemNode.querySelector('[data-invoice-product]');
-      const quantity = itemNode.querySelector('[data-invoice-quantity]');
-      if (!(select instanceof HTMLInputElement) || !(quantity instanceof HTMLInputElement)) return;
-      if (!select.value) return;
-      items.push({
-        sku_code: select.value,
-        quantity: Math.max(1, Number.parseInt(quantity.value || '1', 10))
-      });
-    });
-    return items;
-  };
-
-  const renderLabelQueue = () => {
-    if (!labelQueue) return;
-
-    if (state.currentLabels.length) {
-      const label = state.currentLabels[0];
-      labelQueue.innerHTML = `
-        <article class="partner-upload-item">
-          <div>
-            <strong>${escapeHtml(label.name || 'Shipping label')}</strong>
-            <span>${escapeHtml(formatFileSize(label.size_bytes || 0))}</span>
-          </div>
-          <button type="button" class="admin-danger-btn" data-delete-current-label>Delete Label</button>
-        </article>
-      `;
-      if (labelDropzone) labelDropzone.disabled = true;
-      if (labelDropzoneCopy) labelDropzoneCopy.textContent = 'Delete the current label before uploading another.';
-      return;
-    }
-
-    if (state.queuedFile) {
-      labelQueue.innerHTML = `
-        <article class="partner-upload-item">
-          <div>
-            <strong>${escapeHtml(state.queuedFile.name)}</strong>
-            <span>${escapeHtml(formatFileSize(state.queuedFile.size))}</span>
-          </div>
-          <button type="button" class="admin-ghost-btn" data-remove-queued-file>Remove</button>
-        </article>
-      `;
-      if (labelDropzone) labelDropzone.disabled = false;
-      if (labelDropzoneCopy) labelDropzoneCopy.textContent = 'One label is queued for this order.';
-      return;
-    }
-
-    labelQueue.innerHTML = '<p class="admin-empty">No label file queued.</p>';
-    if (labelDropzone) labelDropzone.disabled = false;
-    if (labelDropzoneCopy) labelDropzoneCopy.textContent = 'Add one label after the order is saved.';
-  };
-
-  const openOrderModal = (order = null) => {
-    if (!(orderModal instanceof HTMLElement) || !(orderForm instanceof HTMLFormElement)) return;
-    state.editingId = order?.id || '';
-    state.queuedFile = null;
-    state.currentLabels = [...(order?.labels || [])];
-    orderModal.hidden = false;
-    setError('');
-    orderForm.reset();
-    orderForm.elements.order_id.value = order?.id || '';
-    orderForm.elements.customer_name.value = order?.customer_name || '';
-    orderForm.elements.order_timestamp.value = datetimeLocalValue(order?.order_timestamp || order?.created_at || '');
-    orderForm.elements.notes.value = order?.notes || '';
-    renderInvoiceItems(order?.items || []);
-    renderLabelQueue();
-    const submit = orderForm.querySelector('[type="submit"]');
-    if (submit) submit.textContent = state.editingId ? 'Save Order' : 'Create Order';
-  };
-
-  const closeOrderModal = () => {
-    if (!(orderModal instanceof HTMLElement) || !(orderForm instanceof HTMLFormElement)) return;
-    orderModal.hidden = true;
-    state.editingId = '';
-    state.queuedFile = null;
-    state.currentLabels = [];
-    orderForm.reset();
-    setError('');
-  };
-
-  const openPasswordModal = () => {
-    if (!(passwordModal instanceof HTMLElement) || !(passwordForm instanceof HTMLFormElement)) return;
-    passwordModal.hidden = false;
-    passwordForm.reset();
-    setPasswordError('');
-    passwordForm.elements.current_password.focus();
-  };
-
-  const closePasswordModal = () => {
-    if (!(passwordModal instanceof HTMLElement) || !(passwordForm instanceof HTMLFormElement)) return;
-    passwordModal.hidden = true;
-    passwordForm.reset();
-    setPasswordError('');
-  };
-
-  const renderOrders = () => {
-    if (!orderList) return;
-    state.openMenuOrderId = '';
-    if (!state.orders.length) {
-      orderList.innerHTML = '<tr><td colspan="7" class="partner-order-empty">No orders yet.</td></tr>';
-      return;
-    }
-
-    const visibleCount = Math.min(Math.max(orderHistoryBatchSize, state.visibleOrderCount), state.orders.length);
-    state.visibleOrderCount = visibleCount;
-    orderList.innerHTML = state.orders.slice(0, visibleCount).map((order) => {
-      const items = order.items || [];
-      const itemSummary = items.map((item) => `${escapeHtml(itemProductName(item))} x${escapeHtml(item.quantity || 1)}`).join('<br>');
-      const totalQuantity = items.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
-      const label = (order.labels || [])[0] || null;
-      const editable = isOrderEditable(order);
-      const statusLabel = orderStatusLabel(order);
-      const archived = isOrderArchived(order);
-      const archiveLabel = archived ? 'Restore to charts' : 'Archive from charts';
-      const archiveAction = archived ? 'unarchive' : 'archive';
-
-      return `
-        <tr>
-          <td>
-            <strong>${escapeHtml(order.id || '')}</strong>
-            <span>${escapeHtml(statusLabel)}</span>
-            ${archived ? '<span class="partner-archived-note">Archived from charts</span>' : ''}
-          </td>
-          <td>${escapeHtml(order.customer_name || '')}</td>
-          <td>${itemSummary || '--'}</td>
-          <td>${escapeHtml(totalQuantity || order.quantity || 0)}</td>
-          <td>
-            <div class="partner-label-list">
-              ${label ? `<a href="${escapeHtml(label.url || '#')}" target="_blank" rel="noopener">${escapeHtml(label.name || 'Label')}</a>` : '<span>No label</span>'}
-            </div>
-          </td>
-          <td>${escapeHtml(formatTimestamp(order.order_timestamp || order.created_at || ''))}</td>
-          <td>
-            <div class="partner-table-actions">
-              ${editable
-                ? `<button type="button" class="admin-primary-btn" data-edit-order="${escapeHtml(order.id || '')}">Edit</button>`
-                : `<span class="partner-processing-pill">${escapeHtml(statusLabel)}</span>`}
-              <div class="admin-menu-shell partner-order-menu-shell">
-                <button type="button" class="admin-ghost-btn admin-menu-trigger partner-order-menu-trigger" data-order-menu-trigger="${escapeHtml(order.id || '')}" aria-expanded="false" aria-label="Order actions">...</button>
-                <div class="admin-menu-panel partner-order-menu-panel" data-order-menu-panel="${escapeHtml(order.id || '')}" hidden>
-                  <button type="button" class="admin-menu-item" data-order-archive-action="${escapeHtml(archiveAction)}" data-order-archive-id="${escapeHtml(order.id || '')}">${escapeHtml(archiveLabel)}</button>
-                  ${editable ? `<button type="button" class="admin-menu-item" data-cancel-order="${escapeHtml(order.id || '')}">Cancel order</button>` : ''}
-                </div>
-              </div>
-            </div>
-          </td>
-        </tr>
-      `;
-    }).join('') + (visibleCount < state.orders.length ? `
-      <tr class="partner-order-load-row">
-        <td colspan="7">Scroll for more orders</td>
-      </tr>
-    ` : '');
+    return 'IS_LISTED';
   };
 
   const orderTime = (order = {}) => {
@@ -432,14 +156,13 @@ document.addEventListener('DOMContentLoaded', () => {
     return null;
   };
 
-  const filteredOrders = () => {
-    const start = timeframeStart(state.selectedTimeframe);
-    const chartOrders = state.orders.filter((order) => !isOrderArchived(order));
-    if (!start) return chartOrders;
-    return chartOrders.filter((order) => {
+  const filteredOrders = (range = state.selectedTimeframe) => {
+    const start = timeframeStart(range);
+    const chartOrders = state.orders.filter((order) => !isArchived(order) && String(order.status || '').toUpperCase() !== 'CANCELLED');
+    return start ? chartOrders.filter((order) => {
       const timestamp = orderTime(order);
       return timestamp && timestamp >= start;
-    });
+    }) : chartOrders;
   };
 
   const timeframeLabel = () => ({
@@ -451,274 +174,308 @@ document.addEventListener('DOMContentLoaded', () => {
     all: 'All time'
   })[state.selectedTimeframe] || 'Last 30 days';
 
-  const orderUnits = (order = {}) => (order.items || []).reduce((sum, item) => sum + Number(item.quantity || 0), 0);
+  const renderMetrics = () => {
+    const last30 = filteredOrders('30d');
+    const units = last30.reduce((sum, order) => sum + orderUnits(order), 0);
+    const revenue = last30.reduce((sum, order) => sum + orderRevenue(order), 0);
+    const nodes = {
+      units: document.querySelector('[data-metric-units]'),
+      orders: document.querySelector('[data-metric-orders]'),
+      average: document.querySelector('[data-metric-average]'),
+      revenue: document.querySelector('[data-metric-revenue]')
+    };
+    if (nodes.units) nodes.units.textContent = String(units);
+    if (nodes.orders) nodes.orders.textContent = String(last30.length);
+    if (nodes.average) nodes.average.textContent = last30.length ? (units / last30.length).toFixed(1) : '0.0';
+    if (nodes.revenue) nodes.revenue.textContent = formatCurrency(revenue);
+  };
 
-  const buildSalesBuckets = (orders) => {
+  const buildBuckets = (orders) => {
     const range = state.selectedTimeframe;
     const now = new Date();
+    const makeDay = (date) => ({
+      key: `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`,
+      label: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+      value: 0
+    });
+
     if (range === '24h') {
       return Array.from({ length: 24 }, (_, index) => {
         const date = new Date(now.getTime() - (23 - index) * 60 * 60 * 1000);
-        return {
-          key: `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}-${date.getHours()}`,
-          label: `${String(date.getHours()).padStart(2, '0')}:00`,
-          value: 0
-        };
+        return { key: `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}-${date.getHours()}`, label: `${String(date.getHours()).padStart(2, '0')}:00`, value: 0 };
       });
     }
 
     if (range === '7d' || range === '30d' || range === '90d') {
       const days = range === '7d' ? 7 : range === '30d' ? 30 : 90;
-      return Array.from({ length: days }, (_, index) => {
-        const date = new Date(now.getFullYear(), now.getMonth(), now.getDate() - (days - 1 - index));
-        return {
-          key: `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`,
-          label: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-          value: 0
-        };
-      });
+      return Array.from({ length: days }, (_, index) => makeDay(new Date(now.getFullYear(), now.getMonth(), now.getDate() - (days - 1 - index))));
     }
 
-    if (range === 'all') {
-      const timestamps = orders.map(orderTime).filter(Boolean);
-      const firstOrder = timestamps.length
-        ? new Date(Math.min(...timestamps.map((date) => date.getTime())))
-        : now;
-      const first = new Date(firstOrder.getFullYear(), firstOrder.getMonth(), 1);
-      const last = new Date(now.getFullYear(), now.getMonth(), 1);
-      const months = ((last.getFullYear() - first.getFullYear()) * 12) + (last.getMonth() - first.getMonth()) + 1;
-      return Array.from({ length: months }, (_, index) => {
-        const date = new Date(first.getFullYear(), first.getMonth() + index, 1);
-        return {
-          key: `${date.getFullYear()}-${date.getMonth()}`,
-          label: date.toLocaleDateString('en-US', { month: 'short', year: months > 12 ? '2-digit' : undefined }),
-          value: 0
-        };
-      });
-    }
-
-    const months = now.getMonth() + 1;
-    const first = new Date(now.getFullYear(), 0, 1);
+    const timestamps = orders.map(orderTime).filter(Boolean);
+    const firstOrder = range === 'all' && timestamps.length ? new Date(Math.min(...timestamps.map((date) => date.getTime()))) : new Date(now.getFullYear(), 0, 1);
+    const first = new Date(firstOrder.getFullYear(), firstOrder.getMonth(), 1);
+    const last = new Date(now.getFullYear(), now.getMonth(), 1);
+    const months = ((last.getFullYear() - first.getFullYear()) * 12) + (last.getMonth() - first.getMonth()) + 1;
     return Array.from({ length: months }, (_, index) => {
       const date = new Date(first.getFullYear(), first.getMonth() + index, 1);
-      return {
-        key: `${date.getFullYear()}-${date.getMonth()}`,
-        label: date.toLocaleDateString('en-US', { month: 'short' }),
-        value: 0
-      };
+      return { key: `${date.getFullYear()}-${date.getMonth()}`, label: date.toLocaleDateString('en-US', { month: 'short' }), value: 0 };
     });
   };
 
-  const renderInsightList = (node, rows, emptyText) => {
-    if (!node) return;
-    const total = rows.reduce((sum, row) => sum + row.value, 0);
-    node.innerHTML = rows.length ? rows.map((row) => {
-      const percent = total ? Math.round((row.value / total) * 100) : 0;
-      return `
-        <article class="partner-insight-row">
-          <div class="partner-insight-copy">
-            <strong>${escapeHtml(row.label)}</strong>
-            <span>${escapeHtml(row.value)} units • ${escapeHtml(percent)}%</span>
-          </div>
-          <div class="partner-insight-track"><i style="width:${Math.max(4, percent)}%"></i></div>
-        </article>
-      `;
-    }).join('') : `<p class="admin-empty">${escapeHtml(emptyText)}</p>`;
-  };
-
-  const renderFlavorPieChart = (node, rows, emptyText) => {
-    if (!node) return;
-    const total = rows.reduce((sum, row) => sum + row.value, 0);
-    if (!rows.length || !total) {
-      node.innerHTML = `<p class="admin-empty">${escapeHtml(emptyText)}</p>`;
-      return;
-    }
-
-    const primaryRows = rows.slice(0, 7);
-    const otherValue = rows.slice(7).reduce((sum, row) => sum + row.value, 0);
-    const chartRows = otherValue > 0 ? [...primaryRows, { label: 'Other flavors', value: otherValue }] : primaryRows;
-    let cursor = 0;
-    const segments = chartRows.map((row, index) => {
-      const start = cursor;
-      const end = cursor + (row.value / total) * 100;
-      cursor = end;
-      return `${flavorChartColors[index % flavorChartColors.length]} ${start.toFixed(2)}% ${end.toFixed(2)}%`;
-    }).join(', ');
-
-    node.innerHTML = `
-      <div class="partner-pie-chart-wrap">
-        <div class="partner-pie-chart" style="background: conic-gradient(${segments});" role="img" aria-label="Units sold by product flavor"></div>
-        <div class="partner-pie-legend">
-          ${chartRows.map((row, index) => {
-            const percent = Math.round((row.value / total) * 100);
-            return `
-              <article class="partner-pie-row">
-                <i style="background:${flavorChartColors[index % flavorChartColors.length]}"></i>
-                <div>
-                  <strong>${escapeHtml(row.label)}</strong>
-                  <span>${escapeHtml(row.value)} units • ${escapeHtml(percent)}%</span>
-                </div>
-              </article>
-            `;
-          }).join('')}
-        </div>
-      </div>
-    `;
-  };
-
-  const renderSalesLineChart = (buckets) => {
+  const renderChart = () => {
     if (!salesChart) return;
-    const width = 920;
-    const height = 300;
-    const padX = 44;
-    const padTop = 28;
-    const padBottom = 58;
-    const chartWidth = width - padX * 2;
-    const chartHeight = height - padTop - padBottom;
-    const maxValue = Math.max(1, ...buckets.map((bucket) => bucket.value));
-    const points = buckets.map((bucket, index) => {
-      const x = buckets.length === 1 ? width / 2 : padX + (index / (buckets.length - 1)) * chartWidth;
-      const y = padTop + chartHeight - (bucket.value / maxValue) * chartHeight;
-      return { ...bucket, x, y };
-    });
-    const linePath = points.map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x.toFixed(2)} ${point.y.toFixed(2)}`).join(' ');
-    const areaPath = points.length
-      ? `${linePath} L ${points[points.length - 1].x.toFixed(2)} ${height - padBottom} L ${points[0].x.toFixed(2)} ${height - padBottom} Z`
-      : '';
-    const labelModulo = buckets.length > 18 ? Math.ceil(buckets.length / 9) : 1;
-    const hoverWidth = buckets.length <= 1 ? chartWidth : chartWidth / (buckets.length - 1);
-
-    salesChart.innerHTML = `
-      <svg class="partner-line-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="${escapeHtml(timeframeLabel())} sales line chart">
-        <defs>
-          <linearGradient id="partner-line-fill" x1="0" x2="0" y1="0" y2="1">
-            <stop offset="0%" stop-color="#78ffb1" stop-opacity="0.32"></stop>
-            <stop offset="100%" stop-color="#0f8d4d" stop-opacity="0"></stop>
-          </linearGradient>
-        </defs>
-        <line x1="${padX}" y1="${height - padBottom}" x2="${width - padX}" y2="${height - padBottom}" class="partner-line-axis"></line>
-        ${areaPath ? `<path d="${areaPath}" class="partner-line-area"></path>` : ''}
-        ${linePath ? `<path d="${linePath}" class="partner-line-path"></path>` : ''}
-        ${points.map((point) => `
-          <g class="partner-line-point">
-            <circle cx="${point.x.toFixed(2)}" cy="${point.y.toFixed(2)}" r="5"></circle>
-            <text x="${point.x.toFixed(2)}" y="${Math.max(14, point.y - 12).toFixed(2)}">${escapeHtml(point.value)}</text>
-          </g>
-        `).join('')}
-        ${points.map((point, index) => index % labelModulo === 0 || index === points.length - 1 ? `
-          <text class="partner-line-label" x="${point.x.toFixed(2)}" y="${height - 22}" text-anchor="middle">${escapeHtml(point.label)}</text>
-        ` : '').join('')}
-        ${points.map((point) => {
-          const tooltipX = Math.min(width - 92, Math.max(92, point.x));
-          const tooltipY = point.y < 82 ? point.y + 46 : point.y - 46;
-          return `
-            <g class="partner-line-hover">
-              <rect class="partner-line-hover-zone" x="${(point.x - hoverWidth / 2).toFixed(2)}" y="${padTop}" width="${hoverWidth.toFixed(2)}" height="${chartHeight}" tabindex="0" aria-label="${escapeHtml(point.label)}: ${escapeHtml(point.value)} units"></rect>
-              <line class="partner-line-guide" x1="${point.x.toFixed(2)}" y1="${padTop}" x2="${point.x.toFixed(2)}" y2="${height - padBottom}"></line>
-              <circle class="partner-line-hover-dot" cx="${point.x.toFixed(2)}" cy="${point.y.toFixed(2)}" r="7"></circle>
-              <g class="partner-line-tooltip" transform="translate(${tooltipX.toFixed(2)} ${tooltipY.toFixed(2)})">
-                <rect x="-78" y="-26" width="156" height="52" rx="14"></rect>
-                <text class="partner-line-tooltip-label" x="0" y="-5">${escapeHtml(point.label)}</text>
-                <text class="partner-line-tooltip-value" x="0" y="15">${escapeHtml(point.value)} units</text>
-              </g>
-            </g>
-          `;
-        }).join('')}
-      </svg>
-    `;
-  };
-
-  const renderAnalytics = () => {
-    const visibleOrders = filteredOrders();
-    const totalUnits = visibleOrders.reduce((sum, order) => sum + orderUnits(order), 0);
-
     if (timeframeToggle) {
       timeframeToggle.querySelectorAll('[data-timeframe]').forEach((button) => {
         button.classList.toggle('is-active', button.getAttribute('data-timeframe') === state.selectedTimeframe);
       });
     }
-
     if (salesChartTitle) salesChartTitle.textContent = timeframeLabel();
-    if (salesSummary) salesSummary.textContent = `${totalUnits} units`;
 
-    if (salesChart) {
-      const buckets = buildSalesBuckets(visibleOrders);
-      const bucketIndex = new Map(buckets.map((bucket) => [bucket.key, bucket]));
-      visibleOrders.forEach((order) => {
-        const timestamp = orderTime(order);
-        if (!timestamp) return;
-        const key = state.selectedTimeframe === '24h'
-          ? `${timestamp.getFullYear()}-${timestamp.getMonth()}-${timestamp.getDate()}-${timestamp.getHours()}`
-          : (state.selectedTimeframe === '7d' || state.selectedTimeframe === '30d' || state.selectedTimeframe === '90d')
-            ? `${timestamp.getFullYear()}-${timestamp.getMonth()}-${timestamp.getDate()}`
-            : `${timestamp.getFullYear()}-${timestamp.getMonth()}`;
-        const bucket = bucketIndex.get(key);
-        if (bucket) bucket.value += orderUnits(order);
-      });
-
-      renderSalesLineChart(buckets);
-    }
-
-    if (hourlyChart) {
-      const hourly = Array.from({ length: 24 }, () => 0);
-      visibleOrders.forEach((order) => {
-        const timestamp = orderTime(order);
-        if (!timestamp) return;
-        hourly[timestamp.getHours()] += orderUnits(order);
-      });
-      const maxValue = Math.max(1, ...hourly);
-      let busiestHour = 0;
-      let busiestCount = -1;
-      hourly.forEach((count, hour) => {
-        if (count > busiestCount) {
-          busiestCount = count;
-          busiestHour = hour;
-        }
-      });
-
-      hourlyChart.innerHTML = hourly.map((count, hour) => `
-        <div class="partner-hour-row">
-          <span>${escapeHtml(String(hour).padStart(2, '0'))}:00</span>
-          <div class="partner-hour-track"><i style="width:${Math.max(8, Math.round((count / maxValue) * 100))}%"></i></div>
-          <strong>${escapeHtml(count)}</strong>
-        </div>
-      `).join('');
-
-      if (busiestHourNode) busiestHourNode.textContent = `${String(busiestHour).padStart(2, '0')}:00`;
-    }
-
-    const productRows = new Map();
-    const flavorRows = new Map();
-    visibleOrders.forEach((order) => {
-      (order.items || []).forEach((item) => {
-        const quantity = Number(item.quantity || 0);
-        const product = itemProductName(item);
-        const flavor = itemFlavorName(item);
-        const productFlavor = `${product} - ${flavor}`;
-        productRows.set(product, (productRows.get(product) || 0) + quantity);
-        flavorRows.set(productFlavor, (flavorRows.get(productFlavor) || 0) + quantity);
-      });
+    const orders = filteredOrders();
+    const buckets = buildBuckets(orders);
+    const bucketMap = new Map(buckets.map((bucket) => [bucket.key, bucket]));
+    orders.forEach((order) => {
+      const timestamp = orderTime(order);
+      if (!timestamp) return;
+      const key = state.selectedTimeframe === '24h'
+        ? `${timestamp.getFullYear()}-${timestamp.getMonth()}-${timestamp.getDate()}-${timestamp.getHours()}`
+        : (state.selectedTimeframe === '7d' || state.selectedTimeframe === '30d' || state.selectedTimeframe === '90d')
+          ? `${timestamp.getFullYear()}-${timestamp.getMonth()}-${timestamp.getDate()}`
+          : `${timestamp.getFullYear()}-${timestamp.getMonth()}`;
+      const bucket = bucketMap.get(key);
+      if (bucket) bucket.value += orderUnits(order);
     });
 
-    const sortedProducts = [...productRows.entries()]
-      .map(([label, value]) => ({ label, value }))
-      .sort((left, right) => right.value - left.value);
-    const sortedFlavors = [...flavorRows.entries()]
-      .map(([label, value]) => ({ label, value }))
-      .sort((left, right) => right.value - left.value);
+    const maxValue = Math.max(1, ...buckets.map((bucket) => bucket.value));
+    salesChart.innerHTML = buckets.map((bucket) => `
+      <div class="partner-bar" title="${escapeHtml(bucket.label)}: ${escapeHtml(bucket.value)} units">
+        <i style="height:${Math.max(4, Math.round((bucket.value / maxValue) * 100))}%"></i>
+        <span>${escapeHtml(bucket.label)}</span>
+      </div>
+    `).join('');
+  };
 
-    renderInsightList(productInsights, sortedProducts, 'No product sales in this timeframe.');
-    renderFlavorPieChart(flavorInsights, sortedFlavors, 'No flavor sales in this timeframe.');
+  const renderRecentOrders = () => {
+    if (!recentOrders) return;
+    const rows = state.orders.slice(0, 4);
+    recentOrders.innerHTML = rows.length ? rows.map((order) => `
+      <article class="partner-recent-order">
+        <div>
+          <strong>${escapeHtml(order.id || '')}</strong>
+          <span>${escapeHtml(order.marketplace_platform || 'Needs review')} · ${escapeHtml(orderUnits(order))} qty</span>
+        </div>
+        <div>
+          <b>${escapeHtml(statusLabel(order))}</b>
+          <span>${escapeHtml(formatTimestamp(order.order_timestamp || order.created_at || ''))}</span>
+        </div>
+      </article>
+    `).join('') : '<p class="admin-empty">No reconstructed orders yet.</p>';
+  };
 
+  const renderOrders = () => {
+    if (!orderList) return;
+    if (!state.orders.length) {
+      orderList.innerHTML = '<p class="admin-empty">No orders yet.</p>';
+      renderRecentOrders();
+      renderMetrics();
+      renderChart();
+      return;
+    }
+
+    orderList.innerHTML = state.orders.map((order) => {
+      const label = (order.labels || [])[0] || null;
+      const archiveAction = isArchived(order) ? 'unarchive' : 'archive';
+      const archiveLabel = isArchived(order) ? 'Restore' : 'Archive';
+      const items = (order.items || []).map((item) => `
+        <span>${escapeHtml(item.product || item.sku_label || item.sku_code || 'Product')} <b>x${escapeHtml(item.quantity || 1)}</b></span>
+      `).join('');
+
+      return `
+        <article class="partner-order-card ${isArchived(order) ? 'is-archived' : ''}">
+          <div class="partner-order-card-main">
+            <strong>${escapeHtml(order.id || '')}</strong>
+            <span>${escapeHtml(order.marketplace_platform || 'Needs review')} · ${escapeHtml(statusLabel(order))}</span>
+            ${isArchived(order) ? '<em>Archived from charts</em>' : ''}
+          </div>
+          <div class="partner-order-card-items">${items || '<span>No matched items</span>'}</div>
+          <div class="partner-order-card-meta">
+            <span>${escapeHtml(formatTimestamp(order.order_timestamp || order.created_at || ''))}</span>
+            <span>${escapeHtml(order.deadline_hours || 24)}h deadline</span>
+            <span>${escapeHtml(formatCurrency(orderRevenue(order)))}</span>
+            ${label ? `<a href="${escapeHtml(label.url || '#')}" target="_blank" rel="noopener">${escapeHtml(label.name || 'Label')}</a>` : '<span>No label</span>'}
+          </div>
+          <div class="partner-order-card-actions">
+            <button type="button" class="admin-ghost-btn" data-order-archive-action="${escapeHtml(archiveAction)}" data-order-archive-id="${escapeHtml(order.id || '')}">${escapeHtml(archiveLabel)}</button>
+            ${canCancel(order) ? `<button type="button" class="admin-danger-btn" data-cancel-order="${escapeHtml(order.id || '')}">Cancel</button>` : ''}
+          </div>
+        </article>
+      `;
+    }).join('');
+
+    renderRecentOrders();
+    renderMetrics();
+    renderChart();
+  };
+
+  const renderDeadline = () => {
+    if (deadlineValue && deadlineRange) {
+      deadlineValue.textContent = `${deadlineRange.value || 24}h`;
+    }
+    renderPreview();
+  };
+
+  const renderLabelQueue = () => {
+    if (!labelQueue) return;
+    if (!state.labelFile) {
+      labelQueue.innerHTML = '<p class="admin-empty">No label file selected.</p>';
+      if (labelDropzoneCopy) labelDropzoneCopy.textContent = 'Upload shipping label';
+      return;
+    }
+
+    labelQueue.innerHTML = `
+      <article class="partner-upload-item">
+        <div>
+          <strong>${escapeHtml(state.labelFile.name)}</strong>
+          <span>${escapeHtml(formatFileSize(state.labelFile.size))}</span>
+        </div>
+        <button type="button" class="admin-ghost-btn" data-remove-queued-file>Remove</button>
+      </article>
+    `;
+    if (labelDropzoneCopy) labelDropzoneCopy.textContent = state.analyzing ? 'Analyzing label' : 'Label selected';
+  };
+
+  const renderAnalysis = () => {
+    const analysis = state.labelAnalysis || {};
+    const platform = analysis.platform || {};
+    const items = Array.isArray(analysis.items) ? analysis.items : [];
+    const platformName = platform.platform || (state.analyzing ? 'Analyzing label' : 'Waiting for label');
+    const confidence = Math.round(Number(platform.confidence || 0) * 100);
+
+    if (analysisPlatform) analysisPlatform.textContent = platformName;
+    if (analysisConfidence) analysisConfidence.textContent = `${confidence}%`;
+    if (analysisReasons) analysisReasons.textContent = (platform.reasons || []).length ? `Signals found: ${(platform.reasons || []).join(', ')}` : 'No label analyzed yet.';
+    if (analysisItemCount) analysisItemCount.textContent = `${items.length} SKU${items.length === 1 ? '' : 's'}`;
+
+    if (analysisItems) {
+      analysisItems.innerHTML = items.length ? items.map((item) => `
+        <article class="partner-match-row">
+          <div>
+            <strong>${escapeHtml(item.product || item.sku_label || item.sku_code || 'Product')}</strong>
+            <span>${escapeHtml(item.matched_alias || item.flavor || item.size || 'Matched from label')}</span>
+          </div>
+          <code>${escapeHtml(item.sku_code || '')}</code>
+          <b>x${escapeHtml(item.quantity || 1)}</b>
+          <span>${escapeHtml(Math.round(Number(item.match_confidence || 0) * 100))}%</span>
+        </article>
+      `).join('') : '<p class="admin-empty">No SKU tags matched this label.</p>';
+    }
+
+    renderPreview();
+  };
+
+  const canSubmitCurrentOrder = () => {
+    const analysis = state.labelAnalysis || {};
+    const items = Array.isArray(analysis.items) ? analysis.items : [];
+    const platform = String(analysis.platform?.platform || '');
+    return Boolean(state.labelFile && items.length && platform !== '' && platform !== 'Needs review' && !state.analyzing && !state.submitting);
+  };
+
+  const renderPreview = () => {
+    const analysis = state.labelAnalysis || {};
+    const items = Array.isArray(analysis.items) ? analysis.items : [];
+    const revenue = items.reduce((sum, item) => sum + Number(item.line_revenue || 0), 0);
+    if (orderPreview) {
+      orderPreview.innerHTML = `
+        <article><span>Platform</span><strong>${escapeHtml(analysis.platform?.platform || 'Waiting for label')}</strong></article>
+        <article><span>Customer</span><strong>${escapeHtml(analysis.customer_name || 'Label recipient')}</strong></article>
+        <article><span>Items</span><strong>${escapeHtml(items.length)} matched SKU${items.length === 1 ? '' : 's'}</strong></article>
+        <article><span>Deadline</span><strong>${escapeHtml(deadlineRange?.value || 24)}h</strong></article>
+        <article><span>Revenue</span><strong>${escapeHtml(formatCurrency(revenue))}</strong></article>
+      `;
+    }
+    if (submitOrderButton instanceof HTMLButtonElement) {
+      submitOrderButton.disabled = !canSubmitCurrentOrder();
+      submitOrderButton.textContent = state.submitting ? 'Submitting...' : 'Submit Reconstructed Order';
+    }
+  };
+
+  const analyzeLabel = async (file) => {
+    state.labelFile = file;
+    state.labelAnalysis = null;
+    state.analyzing = true;
+    setError('', modalErrorNode);
+    renderLabelQueue();
+    renderAnalysis();
+
+    try {
+      const formData = new window.FormData();
+      formData.append('action', 'analyze');
+      formData.append('labels[]', file);
+      const payload = await postLabelForm(formData);
+      state.labelAnalysis = payload.analysis || null;
+    } catch (error) {
+      state.labelAnalysis = null;
+      setError(error instanceof Error ? error.message : 'Unable to analyze label.', modalErrorNode);
+    } finally {
+      state.analyzing = false;
+      renderLabelQueue();
+      renderAnalysis();
+    }
+  };
+
+  const uploadLabel = async (orderId, file) => {
+    const formData = new window.FormData();
+    formData.append('order_id', orderId);
+    formData.append('labels[]', file);
+    return postLabelForm(formData);
+  };
+
+  const openOrderModal = () => {
+    if (!(orderModal instanceof HTMLElement) || !(orderForm instanceof HTMLFormElement)) return;
+    state.labelFile = null;
+    state.labelAnalysis = null;
+    state.analyzing = false;
+    state.submitting = false;
+    orderModal.hidden = false;
+    orderForm.reset();
+    if (orderForm.elements.order_timestamp) orderForm.elements.order_timestamp.value = datetimeLocalValue();
+    if (deadlineRange instanceof HTMLInputElement) deadlineRange.value = '24';
+    setError('', modalErrorNode);
+    renderDeadline();
+    renderLabelQueue();
+    renderAnalysis();
+  };
+
+  const closeOrderModal = () => {
+    if (!(orderModal instanceof HTMLElement) || !(orderForm instanceof HTMLFormElement)) return;
+    orderModal.hidden = true;
+    state.labelFile = null;
+    state.labelAnalysis = null;
+    state.analyzing = false;
+    state.submitting = false;
+    orderForm.reset();
+    setError('', modalErrorNode);
+  };
+
+  const openPasswordModal = () => {
+    if (!(passwordModal instanceof HTMLElement) || !(passwordForm instanceof HTMLFormElement)) return;
+    passwordModal.hidden = false;
+    passwordForm.reset();
+    setError('', passwordErrorNode);
+    passwordForm.elements.current_password.focus();
+  };
+
+  const closePasswordModal = () => {
+    if (!(passwordModal instanceof HTMLElement) || !(passwordForm instanceof HTMLFormElement)) return;
+    passwordModal.hidden = true;
+    passwordForm.reset();
+    setError('', passwordErrorNode);
   };
 
   const loadOrders = async () => {
     const payload = await requestJson(ordersEndpoint);
     state.orders = payload.orders || [];
-    state.visibleOrderCount = Math.min(Math.max(orderHistoryBatchSize, state.visibleOrderCount), Math.max(orderHistoryBatchSize, state.orders.length));
-    state.analytics = payload.analytics || state.analytics;
     renderOrders();
-    renderAnalytics();
   };
 
   const loadSession = async () => {
@@ -726,147 +483,158 @@ document.addEventListener('DOMContentLoaded', () => {
     state.partner = payload.partner || null;
     state.catalog = payload.catalog || {};
     flattenCatalog();
-    if (state.orders.length) {
-      renderOrders();
-      renderAnalytics();
-    }
     if (partnerNameNode) partnerNameNode.textContent = state.partner?.name || 'Partner';
-    if (partnerCodeNode) partnerCodeNode.textContent = 'Partner Workspace';
+    if (partnerCodeNode) partnerCodeNode.textContent = state.partner?.code ? `Workspace ${state.partner.code}` : 'Direct ordering portal';
   };
 
   document.querySelectorAll('[data-open-order-modal]').forEach((button) => {
-    button.addEventListener('click', () => openOrderModal());
+    button.addEventListener('click', openOrderModal);
   });
-
   document.querySelectorAll('[data-close-order-modal]').forEach((button) => {
     button.addEventListener('click', closeOrderModal);
   });
-
   document.querySelector('[data-open-password-modal]')?.addEventListener('click', openPasswordModal);
-
   document.querySelectorAll('[data-close-password-modal]').forEach((button) => {
     button.addEventListener('click', closePasswordModal);
   });
 
-  document.querySelector('[data-add-invoice-item]')?.addEventListener('click', () => {
-    const current = collectInvoiceItems();
-    current.push({ quantity: 1 });
-    renderInvoiceItems(current);
+  deadlineRange?.addEventListener('input', renderDeadline);
+
+  labelDropzone?.addEventListener('click', () => labelInput?.click());
+  labelDropzone?.addEventListener('dragover', (event) => {
+    event.preventDefault();
+    labelDropzone.classList.add('is-dragover');
   });
-
-  invoiceItemsNode?.addEventListener('click', (event) => {
-    const target = event.target;
-    if (!(target instanceof HTMLElement)) return;
-    const pickerTrigger = target.closest('[data-picker-trigger]');
-    if (pickerTrigger instanceof HTMLButtonElement) {
-      const picker = pickerTrigger.closest('[data-product-picker]');
-      if (!(picker instanceof HTMLElement)) return;
-      document.querySelectorAll('[data-picker-panel]').forEach((panel) => {
-        if (panel !== picker.querySelector('[data-picker-panel]')) panel.hidden = true;
-      });
-      const panel = picker.querySelector('[data-picker-panel]');
-      const search = picker.querySelector('[data-picker-search]');
-      if (panel instanceof HTMLElement) {
-        panel.hidden = !panel.hidden;
-        if (!panel.hidden && search instanceof HTMLInputElement) search.focus();
-      }
-      return;
-    }
-
-    const pickerOption = target.closest('[data-picker-option]');
-    if (pickerOption instanceof HTMLButtonElement) {
-      const picker = pickerOption.closest('[data-product-picker]');
-      const hiddenInput = picker?.querySelector('[data-invoice-product]');
-      const panel = picker?.querySelector('[data-picker-panel]');
-      const search = picker?.querySelector('[data-picker-search]');
-      if (hiddenInput instanceof HTMLInputElement) {
-        hiddenInput.value = pickerOption.getAttribute('data-picker-option') || '';
-      }
-      if (search instanceof HTMLInputElement) {
-        search.value = '';
-      }
-      if (panel instanceof HTMLElement) {
-        panel.hidden = true;
-      }
-      if (picker instanceof HTMLElement) {
-        renderPickerOptions(picker);
-      }
-      return;
-    }
-
-    if (!target.matches('[data-remove-invoice-item]')) return;
-    const current = collectInvoiceItems();
-    const index = Number(target.getAttribute('data-remove-invoice-item') || 0);
-    current.splice(index, 1);
-    renderInvoiceItems(current);
+  labelDropzone?.addEventListener('dragleave', () => {
+    labelDropzone.classList.remove('is-dragover');
   });
-
-  invoiceItemsNode?.addEventListener('input', (event) => {
-    const target = event.target;
-    if (!(target instanceof HTMLInputElement) || !target.matches('[data-picker-search]')) return;
-    const picker = target.closest('[data-product-picker]');
-    if (!(picker instanceof HTMLElement)) return;
-    renderPickerOptions(picker, target.value);
+  labelDropzone?.addEventListener('drop', (event) => {
+    event.preventDefault();
+    labelDropzone.classList.remove('is-dragover');
+    const file = event.dataTransfer?.files?.[0] || null;
+    if (file) analyzeLabel(file);
   });
-
-  document.addEventListener('click', (event) => {
+  labelInput?.addEventListener('change', () => {
+    const file = labelInput.files?.[0] || null;
+    labelInput.value = '';
+    if (file) analyzeLabel(file);
+  });
+  labelQueue?.addEventListener('click', (event) => {
     const target = event.target;
-    if (!(target instanceof Element)) return;
-    if (!target.closest('[data-product-picker]')) {
-      document.querySelectorAll('[data-picker-panel]').forEach((panel) => {
-        panel.hidden = true;
-      });
-    }
-    if (!target.closest('[data-order-menu-panel]') && !target.closest('[data-order-menu-trigger]')) {
-      closeOrderMenu();
-    }
+    if (!(target instanceof HTMLElement) || !target.matches('[data-remove-queued-file]')) return;
+    state.labelFile = null;
+    state.labelAnalysis = null;
+    renderLabelQueue();
+    renderAnalysis();
   });
 
   orderForm?.addEventListener('submit', async (event) => {
     event.preventDefault();
-    setError('');
+    setError('', modalErrorNode);
 
-    const items = collectInvoiceItems();
-    if (!items.length) {
-      setError('Add at least one product to the invoice.');
+    if (!canSubmitCurrentOrder()) {
+      setError('Upload a label with a detected platform and at least one matched SKU.', modalErrorNode);
       return;
     }
 
+    state.submitting = true;
+    renderPreview();
+
     try {
       const formData = new window.FormData(orderForm);
+      const analysis = state.labelAnalysis || {};
       const payload = await requestJson(ordersEndpoint, {
         method: 'POST',
         body: {
-          action: state.editingId ? 'update' : 'create',
-          id: formData.get('order_id'),
-          customer_name: formData.get('customer_name'),
+          action: 'create',
           order_timestamp: formData.get('order_timestamp'),
-          items,
-          notes: formData.get('notes')
+          deadline_hours: formData.get('deadline_hours'),
+          marketplace_platform: analysis.platform?.platform || 'Needs review',
+          customer_name: analysis.customer_name || '',
+          items: (analysis.items || []).map((item) => ({
+            sku_code: item.sku_code,
+            quantity: item.quantity,
+            unit_revenue: item.unit_revenue,
+            line_revenue: item.line_revenue,
+            match_confidence: item.match_confidence,
+            match_score: item.match_score,
+            matched_alias: item.matched_alias
+          })),
+          inference: analysis
         }
       });
 
       const savedOrder = payload.order || null;
-      if (savedOrder?.id && state.queuedFile) {
-        await uploadLabel(savedOrder.id, state.queuedFile);
+      if (savedOrder?.id && state.labelFile) {
+        await uploadLabel(savedOrder.id, state.labelFile);
       }
 
       closeOrderModal();
       await loadOrders();
     } catch (error) {
-      setError(error instanceof Error ? error.message : 'Unable to save order.');
+      setError(error instanceof Error ? error.message : 'Unable to submit order.', modalErrorNode);
+    } finally {
+      state.submitting = false;
+      renderPreview();
     }
+  });
+
+  orderList?.addEventListener('click', async (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) return;
+
+    const cancelId = target.getAttribute('data-cancel-order');
+    const archiveId = target.getAttribute('data-order-archive-id');
+    const archiveAction = target.getAttribute('data-order-archive-action');
+
+    if (archiveId && archiveAction) {
+      try {
+        await requestJson(ordersEndpoint, {
+          method: 'POST',
+          body: { action: archiveAction, id: archiveId }
+        });
+        await loadOrders();
+      } catch (error) {
+        setError(error instanceof Error ? error.message : 'Unable to update archive state.');
+      }
+      return;
+    }
+
+    if (cancelId) {
+      try {
+        await requestJson(ordersEndpoint, {
+          method: 'POST',
+          body: { action: 'cancel', id: cancelId }
+        });
+        await loadOrders();
+      } catch (error) {
+        setError(error instanceof Error ? error.message : 'Unable to cancel order.');
+      }
+    }
+  });
+
+  timeframeToggle?.addEventListener('click', (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) return;
+    const nextTimeframe = target.getAttribute('data-timeframe');
+    if (!nextTimeframe) return;
+    state.selectedTimeframe = nextTimeframe;
+    renderChart();
+  });
+
+  document.querySelector('[data-refresh-orders]')?.addEventListener('click', () => {
+    loadOrders().catch((error) => setError(error instanceof Error ? error.message : 'Unable to refresh orders.'));
   });
 
   passwordForm?.addEventListener('submit', async (event) => {
     event.preventDefault();
-    setPasswordError('');
+    setError('', passwordErrorNode);
 
     const formData = new window.FormData(passwordForm);
     const newPassword = String(formData.get('new_password') || '');
     const confirmPassword = String(formData.get('confirm_password') || '');
     if (newPassword !== confirmPassword) {
-      setPasswordError('New passwords do not match.');
+      setError('New passwords do not match.', passwordErrorNode);
       return;
     }
 
@@ -882,130 +650,8 @@ document.addEventListener('DOMContentLoaded', () => {
       });
       closePasswordModal();
     } catch (error) {
-      setPasswordError(error instanceof Error ? error.message : 'Unable to update password.');
+      setError(error instanceof Error ? error.message : 'Unable to update password.', passwordErrorNode);
     }
-  });
-
-  orderList?.addEventListener('click', async (event) => {
-    const target = event.target;
-    if (!(target instanceof HTMLElement)) return;
-    const editId = target.getAttribute('data-edit-order');
-    const cancelId = target.getAttribute('data-cancel-order');
-    const menuTriggerId = target.getAttribute('data-order-menu-trigger');
-    const archiveId = target.getAttribute('data-order-archive-id');
-    const archiveAction = target.getAttribute('data-order-archive-action');
-
-    if (menuTriggerId) {
-      toggleOrderMenu(menuTriggerId);
-      return;
-    }
-
-    if (editId) {
-      const order = state.orders.find((item) => item.id === editId);
-      if (order && !isOrderEditable(order)) {
-        setError('This order is already being processed and can no longer be edited.');
-        return;
-      }
-      if (order) openOrderModal(order);
-      return;
-    }
-
-    if (archiveId && archiveAction) {
-      try {
-        await requestJson(ordersEndpoint, {
-          method: 'POST',
-          body: { action: archiveAction, id: archiveId }
-        });
-        closeOrderMenu();
-        await loadOrders();
-      } catch (error) {
-        setError(error instanceof Error ? error.message : 'Unable to update archive state.');
-      }
-      return;
-    }
-
-    if (cancelId) {
-      try {
-        await requestJson(ordersEndpoint, {
-          method: 'POST',
-          body: { action: 'cancel', id: cancelId }
-        });
-        closeOrderMenu();
-        await loadOrders();
-      } catch (error) {
-        setError(error instanceof Error ? error.message : 'Unable to cancel order.');
-      }
-    }
-  });
-
-  document.querySelector('.partner-order-table-wrap')?.addEventListener('scroll', (event) => {
-    const target = event.currentTarget;
-    if (!(target instanceof HTMLElement)) return;
-    const distanceFromBottom = target.scrollHeight - target.scrollTop - target.clientHeight;
-    if (distanceFromBottom > 80 || state.visibleOrderCount >= state.orders.length) return;
-    state.visibleOrderCount = Math.min(state.orders.length, state.visibleOrderCount + orderHistoryBatchSize);
-    renderOrders();
-  });
-
-  labelDropzone?.addEventListener('click', () => {
-    if (state.currentLabels.length) return;
-    labelInput?.click();
-  });
-  labelDropzone?.addEventListener('dragover', (event) => {
-    event.preventDefault();
-    if (!state.currentLabels.length) labelDropzone.classList.add('is-dragover');
-  });
-  labelDropzone?.addEventListener('dragleave', () => {
-    labelDropzone.classList.remove('is-dragover');
-  });
-  labelDropzone?.addEventListener('drop', (event) => {
-    event.preventDefault();
-    labelDropzone.classList.remove('is-dragover');
-    if (state.currentLabels.length) return;
-    const file = event.dataTransfer?.files?.[0] || null;
-    if (file) {
-      state.queuedFile = file;
-      renderLabelQueue();
-    }
-  });
-  labelInput?.addEventListener('change', () => {
-    const file = labelInput.files?.[0] || null;
-    if (file) {
-      state.queuedFile = file;
-      renderLabelQueue();
-      labelInput.value = '';
-    }
-  });
-  labelQueue?.addEventListener('click', async (event) => {
-    const target = event.target;
-    if (!(target instanceof HTMLElement)) return;
-
-    if (target.matches('[data-remove-queued-file]')) {
-      state.queuedFile = null;
-      renderLabelQueue();
-      return;
-    }
-
-    if (target.matches('[data-delete-current-label]')) {
-      if (!state.editingId) return;
-      try {
-        await deleteLabel(state.editingId);
-        state.currentLabels = [];
-        renderLabelQueue();
-        await loadOrders();
-      } catch (error) {
-        setError(error instanceof Error ? error.message : 'Unable to delete label.');
-      }
-    }
-  });
-
-  timeframeToggle?.addEventListener('click', (event) => {
-    const target = event.target;
-    if (!(target instanceof HTMLElement)) return;
-    const nextTimeframe = target.getAttribute('data-timeframe');
-    if (!nextTimeframe) return;
-    state.selectedTimeframe = nextTimeframe;
-    renderAnalytics();
   });
 
   document.querySelector('[data-partner-logout]')?.addEventListener('click', async () => {

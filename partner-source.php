@@ -167,6 +167,7 @@ function jg_partner_source_catalog(?array $partner = null): array
     }
 
     $catalog = [];
+    $pricing = is_array($partner['pricing'] ?? null) ? $partner['pricing'] : [];
     foreach ((array) ($partner['selected_sku_records'] ?? []) as $sku) {
         if (!is_array($sku)) {
             continue;
@@ -195,6 +196,8 @@ function jg_partner_source_catalog(?array $partner = null): array
             'flavor' => trim((string) ($sku['flavor_name'] ?? '')),
             'size' => trim((string) ($sku['size_label'] ?? '')),
             'stock' => (int) ($sku['current_stock'] ?? 0),
+            'tag' => trim((string) ($sku['tag'] ?? '')),
+            'partner_price' => (float) ($sku['partner_price'] ?? $pricing[$skuCode] ?? 0),
         ];
     }
 

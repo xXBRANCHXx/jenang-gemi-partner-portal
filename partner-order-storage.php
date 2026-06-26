@@ -75,6 +75,7 @@ function jg_partner_order_write_json_database(array $database): void
 function jg_partner_order_allowed_sku_index(?array $partner): array
 {
     $index = [];
+    $pricing = is_array($partner['pricing'] ?? null) ? $partner['pricing'] : [];
 
     foreach ((array) ($partner['selected_sku_records'] ?? []) as $sku) {
         if (!is_array($sku)) {
@@ -89,11 +90,14 @@ function jg_partner_order_allowed_sku_index(?array $partner): array
         $index[$skuCode] = [
             'sku' => $skuCode,
             'label' => trim((string) ($sku['label'] ?? '')) ?: $skuCode,
+            'tag' => trim((string) ($sku['tag'] ?? '')),
             'brand_name' => trim((string) ($sku['brand_name'] ?? '')),
             'product_name' => trim((string) ($sku['product_name'] ?? $sku['base_product_name'] ?? '')),
+            'base_product_name' => trim((string) ($sku['base_product_name'] ?? $sku['product_name'] ?? '')),
             'flavor_name' => trim((string) ($sku['flavor_name'] ?? '')),
             'size_label' => trim((string) ($sku['size_label'] ?? '')),
             'current_stock' => (int) ($sku['current_stock'] ?? 0),
+            'partner_price' => (float) ($sku['partner_price'] ?? $pricing[$skuCode] ?? 0),
         ];
     }
 
@@ -115,6 +119,269 @@ function jg_partner_order_validate_sku(?array $partner, mixed $skuCode): array
     return $allowed[$normalized];
 }
 
+function jg_partner_order_normalize_search_text(mixed $value): string
+{
+    $text = strtoupper((string) $value);
+    $text = preg_replace('/[^A-Z0-9]+/', ' ', $text) ?? '';
+    return trim(preg_replace('/\s+/', ' ', $text) ?? '');
+}
+
+function jg_partner_order_tokenize(mixed $value): array
+{
+    $normalized = jg_partner_order_normalize_search_text($value);
+    if ($normalized === '') {
+        return [];
+    }
+
+    return array_values(array_unique(array_filter(explode(' ', $normalized), static fn (string $token): bool => strlen($token) >= 2)));
+}
+
+function jg_partner_order_sku_aliases(array $sku): array
+{
+    $aliases = [];
+    $fields = [
+        'sku' => 10,
+        'tag' => 9,
+        'label' => 7,
+        'product_name' => 6,
+        'base_product_name' => 6,
+        'flavor_name' => 3,
+        'size_label' => 2,
+        'brand_name' => 2,
+    ];
+
+    foreach ($fields as $field => $weight) {
+        $raw = trim((string) ($sku[$field] ?? ''));
+        if ($raw === '') {
+            continue;
+        }
+
+        $normalized = jg_partner_order_normalize_search_text($raw);
+        if ($normalized !== '') {
+            $aliases[$normalized] = max((int) ($aliases[$normalized] ?? 0), $weight);
+        }
+    }
+
+    $product = trim((string) ($sku['product_name'] ?? $sku['base_product_name'] ?? ''));
+    $flavor = trim((string) ($sku['flavor_name'] ?? ''));
+    if ($product !== '' && $flavor !== '' && stripos($product, $flavor) === false) {
+        $combined = jg_partner_order_normalize_search_text($product . ' ' . $flavor);
+        if ($combined !== '') {
+            $aliases[$combined] = max((int) ($aliases[$combined] ?? 0), 8);
+        }
+    }
+
+    return $aliases;
+}
+
+function jg_partner_order_infer_platform(string $text): array
+{
+    $upper = jg_partner_order_normalize_search_text($text);
+    $signals = [
+        'Shopee' => [
+            'SHOPEE' => 5,
+            'SPX' => 3,
+            'SHOPEE EXPRESS' => 5,
+            'NO RESI' => 2,
+            'NO PESANAN' => 2,
+            'PESANAN' => 1,
+            'AIR WAYBILL' => 2,
+            'AWB' => 2,
+        ],
+        'TikTok Shop' => [
+            'TIKTOK' => 5,
+            'TIKTOK SHOP' => 6,
+            'SELLER SKU' => 3,
+            'SKU ID' => 3,
+            'PACKAGE ID' => 3,
+            'ORDER ID' => 2,
+            'TTS' => 2,
+        ],
+    ];
+
+    $scores = [];
+    $reasons = [];
+    foreach ($signals as $platform => $platformSignals) {
+        $scores[$platform] = 0;
+        foreach ($platformSignals as $signal => $weight) {
+            if (str_contains($upper, $signal)) {
+                $scores[$platform] += $weight;
+                $reasons[] = $signal;
+            }
+        }
+    }
+
+    arsort($scores);
+    $bestPlatform = (string) array_key_first($scores);
+    $bestScore = (int) ($scores[$bestPlatform] ?? 0);
+    $secondScore = 0;
+    foreach ($scores as $platform => $score) {
+        if ($platform !== $bestPlatform) {
+            $secondScore = (int) $score;
+            break;
+        }
+    }
+
+    if ($bestScore <= 0) {
+        return [
+            'platform' => 'Needs review',
+            'confidence' => 0.28,
+            'score' => 0,
+            'reasons' => ['No marketplace keyword found'],
+        ];
+    }
+
+    if ($bestScore === $secondScore) {
+        return [
+            'platform' => 'Needs review',
+            'confidence' => 0.52,
+            'score' => $bestScore,
+            'reasons' => array_values(array_unique($reasons)),
+        ];
+    }
+
+    return [
+        'platform' => $bestPlatform,
+        'confidence' => min(0.98, 0.48 + ($bestScore * 0.06) + (($bestScore - $secondScore) * 0.025)),
+        'score' => $bestScore,
+        'reasons' => array_values(array_unique($reasons)),
+    ];
+}
+
+function jg_partner_order_quantity_near_alias(string $normalizedText, string $alias): int
+{
+    $position = strpos($normalizedText, $alias);
+    if ($position === false) {
+        return 1;
+    }
+
+    $window = substr($normalizedText, max(0, $position - 36), strlen($alias) + 72);
+    $patterns = [
+        '/(?:QTY|JUMLAH|QUANTITY)\s*([0-9]{1,3})/',
+        '/(?:X|x)\s*([0-9]{1,3})/',
+        '/([0-9]{1,3})\s*(?:PCS|PC|PCK|PACK|X)\b/',
+    ];
+
+    foreach ($patterns as $pattern) {
+        if (preg_match($pattern, $window, $matches)) {
+            return max(1, min(999, (int) $matches[1]));
+        }
+    }
+
+    return 1;
+}
+
+function jg_partner_order_infer_customer_name(string $text): string
+{
+    $flat = trim(preg_replace('/\s+/', ' ', $text) ?? '');
+    if ($flat === '') {
+        return '';
+    }
+
+    $patterns = [
+        '/(?:PENERIMA|RECIPIENT|BUYER|CUSTOMER|NAMA)\s*[:\-]?\s*([A-Z0-9][A-Z0-9 ._\-]{2,48})/i',
+        '/(?:TO|KEPADA)\s*[:\-]?\s*([A-Z0-9][A-Z0-9 ._\-]{2,48})/i',
+    ];
+
+    foreach ($patterns as $pattern) {
+        if (!preg_match($pattern, $flat, $matches)) {
+            continue;
+        }
+
+        $candidate = trim((string) ($matches[1] ?? ''));
+        $candidate = preg_replace('/\b(?:TEL|PHONE|HP|ALAMAT|ADDRESS|ORDER|SKU|QTY)\b.*$/i', '', $candidate) ?? $candidate;
+        $candidate = trim($candidate, " \t\n\r\0\x0B-:");
+        if ($candidate !== '') {
+            return mb_substr($candidate, 0, 80);
+        }
+    }
+
+    return '';
+}
+
+function jg_partner_order_infer_items(?array $partner, string $text): array
+{
+    $allowed = jg_partner_order_allowed_sku_index($partner);
+    $normalizedText = jg_partner_order_normalize_search_text($text);
+    $labelTokens = array_flip(jg_partner_order_tokenize($text));
+    $matches = [];
+
+    foreach ($allowed as $skuCode => $sku) {
+        $score = 0.0;
+        $matchedAlias = '';
+        $matchedWeight = 0;
+        foreach (jg_partner_order_sku_aliases($sku) as $alias => $weight) {
+            if ($alias === '') {
+                continue;
+            }
+
+            if (str_contains($normalizedText, $alias)) {
+                $score += $weight * max(1, count(explode(' ', $alias)));
+                if ($weight > $matchedWeight || strlen($alias) > strlen($matchedAlias)) {
+                    $matchedAlias = $alias;
+                    $matchedWeight = $weight;
+                }
+                continue;
+            }
+
+            $tokens = jg_partner_order_tokenize($alias);
+            if ($tokens === []) {
+                continue;
+            }
+
+            $hits = 0;
+            foreach ($tokens as $token) {
+                if (isset($labelTokens[$token])) {
+                    $hits++;
+                }
+            }
+
+            $ratio = $hits / max(1, count($tokens));
+            if ($ratio >= 0.58) {
+                $score += $weight * $ratio;
+                if ($weight > $matchedWeight) {
+                    $matchedAlias = $alias;
+                    $matchedWeight = $weight;
+                }
+            }
+        }
+
+        if ($score < 5.8) {
+            continue;
+        }
+
+        $quantity = $matchedAlias !== '' ? jg_partner_order_quantity_near_alias($normalizedText, $matchedAlias) : 1;
+        $unitRevenue = max(0.0, (float) ($sku['partner_price'] ?? 0));
+        $matches[] = [
+            'sku_code' => $skuCode,
+            'sku_label' => $sku['label'],
+            'brand' => $sku['brand_name'],
+            'product' => $sku['product_name'],
+            'flavor' => $sku['flavor_name'],
+            'size' => $sku['size_label'],
+            'quantity' => $quantity,
+            'unit_revenue' => $unitRevenue,
+            'line_revenue' => $unitRevenue * $quantity,
+            'match_score' => round($score, 2),
+            'match_confidence' => min(0.99, round(0.46 + ($score / 30), 2)),
+            'matched_alias' => $matchedAlias,
+        ];
+    }
+
+    usort($matches, static fn (array $left, array $right): int => ($right['match_score'] <=> $left['match_score']) ?: strcmp((string) $left['sku_code'], (string) $right['sku_code']));
+
+    $deduped = [];
+    foreach ($matches as $match) {
+        $skuCode = (string) ($match['sku_code'] ?? '');
+        if ($skuCode === '' || isset($deduped[$skuCode])) {
+            continue;
+        }
+        $deduped[$skuCode] = $match;
+    }
+
+    return array_values($deduped);
+}
+
 function jg_partner_order_normalize_timestamp(mixed $value): string
 {
     $raw = trim((string) $value);
@@ -130,10 +397,62 @@ function jg_partner_order_normalize_timestamp(mixed $value): string
     return gmdate(DATE_ATOM, $timestamp);
 }
 
+function jg_partner_order_normalize_deadline_hours(mixed $value): int
+{
+    $hours = (int) $value;
+    if ($hours <= 0) {
+        return 24;
+    }
+
+    return max(1, min(48, $hours));
+}
+
+function jg_partner_order_deadline_at(string $orderTimestamp, int $deadlineHours): string
+{
+    $timestamp = strtotime($orderTimestamp);
+    if ($timestamp === false) {
+        $timestamp = time();
+    }
+
+    return gmdate(DATE_ATOM, $timestamp + ($deadlineHours * 3600));
+}
+
+function jg_partner_order_normalize_marketplace_platform(mixed $value): string
+{
+    $raw = trim((string) $value);
+    $normalized = strtolower(preg_replace('/\s+/', ' ', $raw) ?? '');
+    if ($normalized === '') {
+        return 'Needs review';
+    }
+    if (str_contains($normalized, 'shopee') || $normalized === 'spx') {
+        return 'Shopee';
+    }
+    if (str_contains($normalized, 'tiktok') || str_contains($normalized, 'tik tok')) {
+        return 'TikTok Shop';
+    }
+
+    return mb_substr($raw, 0, 32);
+}
+
+function jg_partner_order_normalize_inference(mixed $value): array
+{
+    if (!is_array($value)) {
+        return [];
+    }
+
+    return [
+        'platform' => is_array($value['platform'] ?? null) ? $value['platform'] : [],
+        'items' => array_values(array_filter((array) ($value['items'] ?? []), 'is_array')),
+        'customer_name' => mb_substr(trim((string) ($value['customer_name'] ?? '')), 0, 120),
+        'label_excerpt' => mb_substr(trim((string) ($value['label_excerpt'] ?? '')), 0, 900),
+        'analyzed_at' => trim((string) ($value['analyzed_at'] ?? gmdate(DATE_ATOM))) ?: gmdate(DATE_ATOM),
+    ];
+}
+
 function jg_partner_order_normalize_items(?array $partner, mixed $value): array
 {
     if (!is_array($value)) {
-        throw new InvalidArgumentException('Add at least one product to the invoice.');
+        throw new InvalidArgumentException('Upload a label that matches at least one partner SKU.');
     }
 
     $items = [];
@@ -144,6 +463,7 @@ function jg_partner_order_normalize_items(?array $partner, mixed $value): array
 
         $sku = jg_partner_order_validate_sku($partner, $item['sku_code'] ?? null);
         $quantity = max(1, (int) ($item['quantity'] ?? 1));
+        $unitRevenue = max(0.0, (float) ($item['unit_revenue'] ?? $item['partner_price'] ?? $sku['partner_price'] ?? 0));
 
         $items[] = [
             'sku_code' => $sku['sku'],
@@ -153,11 +473,16 @@ function jg_partner_order_normalize_items(?array $partner, mixed $value): array
             'flavor' => $sku['flavor_name'],
             'size' => $sku['size_label'],
             'quantity' => $quantity,
+            'unit_revenue' => $unitRevenue,
+            'line_revenue' => $unitRevenue * $quantity,
+            'match_confidence' => max(0.0, min(1.0, (float) ($item['match_confidence'] ?? 0))),
+            'match_score' => max(0.0, (float) ($item['match_score'] ?? 0)),
+            'matched_alias' => trim((string) ($item['matched_alias'] ?? '')),
         ];
     }
 
     if ($items === []) {
-        throw new InvalidArgumentException('Add at least one product to the invoice.');
+        throw new InvalidArgumentException('Upload a label that matches at least one partner SKU.');
     }
 
     return $items;
@@ -207,11 +532,19 @@ function jg_partner_order_build_record(string $partnerCode, ?array $partner, arr
     $createdAt = (string) ($existing['created_at'] ?? gmdate(DATE_ATOM));
     $labelRecords = array_values(array_filter((array) ($existing['labels'] ?? []), 'is_array'));
     $orderTimestamp = jg_partner_order_normalize_timestamp($payload['order_timestamp'] ?? ($existing['order_timestamp'] ?? $createdAt));
+    $deadlineHours = jg_partner_order_normalize_deadline_hours($payload['deadline_hours'] ?? ($existing['deadline_hours'] ?? 24));
+    $deadlineAt = jg_partner_order_deadline_at($orderTimestamp, $deadlineHours);
+    $inference = jg_partner_order_normalize_inference($payload['inference'] ?? ($existing['inference'] ?? []));
+    $customerName = jg_partner_order_normalize_text($payload['customer_name'] ?? ($inference['customer_name'] ?? ''), 'Customer name', 160, false);
+    if ($customerName === '') {
+        $customerName = 'Label recipient';
+    }
+    $revenueTotal = array_reduce($items, static fn (float $sum, array $item): float => $sum + max(0.0, (float) ($item['line_revenue'] ?? 0)), 0.0);
 
     return [
-        'id' => (string) ($existing['id'] ?? ('order-' . substr(sha1($partnerCode . microtime(true) . random_int(1000, 9999)), 0, 12))),
+        'id' => (string) ($existing['id'] ?? ('PO' . gmdate('ymd') . strtoupper(substr(sha1($partnerCode . microtime(true) . random_int(1000, 9999)), 0, 8)))),
         'partner_code' => $partnerCode,
-        'customer_name' => jg_partner_order_normalize_text($payload['customer_name'] ?? '', 'Customer name'),
+        'customer_name' => $customerName,
         'brand' => $summary['brand'],
         'product' => $summary['product'],
         'sku_code' => $summary['sku_code'],
@@ -221,6 +554,11 @@ function jg_partner_order_build_record(string $partnerCode, ?array $partner, arr
         'quantity' => $summary['quantity'],
         'items' => $items,
         'order_timestamp' => $orderTimestamp,
+        'deadline_hours' => $deadlineHours,
+        'deadline_at' => $deadlineAt,
+        'marketplace_platform' => jg_partner_order_normalize_marketplace_platform($payload['marketplace_platform'] ?? ($inference['platform']['platform'] ?? $existing['marketplace_platform'] ?? 'Needs review')),
+        'revenue_total' => $revenueTotal,
+        'inference' => $inference,
         'notes' => jg_partner_order_normalize_text($payload['notes'] ?? '', 'Notes', 300, false),
         'status' => trim((string) ($existing['status'] ?? 'IS_LISTED')) ?: 'IS_LISTED',
         'archived_at' => (string) ($existing['archived_at'] ?? ''),
@@ -280,7 +618,7 @@ function jg_partner_order_list(string $partnerCode): array
     $pdo = jg_partner_data_db();
     if ($pdo instanceof PDO) {
         $stmt = $pdo->prepare(
-            'SELECT id, partner_code, customer_name, brand_name, product_name, sku_code, sku_label, quantity, notes, status, order_timestamp, items_json, archived_at, created_at, updated_at
+            'SELECT id, partner_code, customer_name, brand_name, product_name, sku_code, sku_label, quantity, notes, status, order_timestamp, marketplace_platform, deadline_hours, deadline_at, revenue_total, inference_json, items_json, archived_at, created_at, updated_at
              FROM partner_orders
              WHERE partner_code = :partner_code
              ORDER BY created_at DESC, id DESC'
@@ -300,6 +638,7 @@ function jg_partner_order_list(string $partnerCode): array
                     'quantity' => (int) ($row['quantity'] ?? 1),
                 ]];
             }
+            $inference = json_decode((string) ($row['inference_json'] ?? ''), true);
 
             $orders[] = [
                 'id' => (string) ($row['id'] ?? ''),
@@ -312,6 +651,11 @@ function jg_partner_order_list(string $partnerCode): array
                 'quantity' => (int) ($row['quantity'] ?? 1),
                 'items' => $items,
                 'order_timestamp' => (string) ($row['order_timestamp'] ?? ''),
+                'deadline_hours' => (int) ($row['deadline_hours'] ?? 24),
+                'deadline_at' => (string) ($row['deadline_at'] ?? ''),
+                'marketplace_platform' => (string) ($row['marketplace_platform'] ?? ''),
+                'revenue_total' => (float) ($row['revenue_total'] ?? 0),
+                'inference' => is_array($inference) ? $inference : [],
                 'notes' => (string) ($row['notes'] ?? ''),
                 'status' => (string) ($row['status'] ?? 'IS_LISTED'),
                 'archived_at' => (string) ($row['archived_at'] ?? ''),
@@ -340,6 +684,11 @@ function jg_partner_order_list(string $partnerCode): array
             ]];
         }
         $order['order_timestamp'] = (string) ($order['order_timestamp'] ?? $order['created_at'] ?? '');
+        $order['deadline_hours'] = (int) ($order['deadline_hours'] ?? 24);
+        $order['deadline_at'] = (string) ($order['deadline_at'] ?? jg_partner_order_deadline_at((string) $order['order_timestamp'], (int) $order['deadline_hours']));
+        $order['marketplace_platform'] = (string) ($order['marketplace_platform'] ?? '');
+        $order['revenue_total'] = (float) ($order['revenue_total'] ?? 0);
+        $order['inference'] = is_array($order['inference'] ?? null) ? $order['inference'] : [];
         $order['archived_at'] = (string) ($order['archived_at'] ?? '');
     }
     unset($order);
@@ -383,7 +732,7 @@ function jg_partner_order_list_all(): array
     $pdo = jg_partner_data_db();
     if ($pdo instanceof PDO) {
         $stmt = $pdo->query(
-            'SELECT id, partner_code, customer_name, brand_name, product_name, sku_code, sku_label, quantity, notes, status, order_timestamp, items_json, archived_at, created_at, updated_at
+            'SELECT id, partner_code, customer_name, brand_name, product_name, sku_code, sku_label, quantity, notes, status, order_timestamp, marketplace_platform, deadline_hours, deadline_at, revenue_total, inference_json, items_json, archived_at, created_at, updated_at
              FROM partner_orders
              ORDER BY created_at DESC, id DESC'
         );
@@ -401,6 +750,7 @@ function jg_partner_order_list_all(): array
                     'quantity' => (int) ($row['quantity'] ?? 1),
                 ]];
             }
+            $inference = json_decode((string) ($row['inference_json'] ?? ''), true);
 
             $orders[] = [
                 'id' => (string) ($row['id'] ?? ''),
@@ -413,6 +763,11 @@ function jg_partner_order_list_all(): array
                 'quantity' => (int) ($row['quantity'] ?? 1),
                 'items' => $items,
                 'order_timestamp' => (string) ($row['order_timestamp'] ?? ''),
+                'deadline_hours' => (int) ($row['deadline_hours'] ?? 24),
+                'deadline_at' => (string) ($row['deadline_at'] ?? ''),
+                'marketplace_platform' => (string) ($row['marketplace_platform'] ?? ''),
+                'revenue_total' => (float) ($row['revenue_total'] ?? 0),
+                'inference' => is_array($inference) ? $inference : [],
                 'notes' => (string) ($row['notes'] ?? ''),
                 'status' => (string) ($row['status'] ?? 'IS_LISTED'),
                 'archived_at' => (string) ($row['archived_at'] ?? ''),
@@ -426,6 +781,15 @@ function jg_partner_order_list_all(): array
 
     $database = jg_partner_order_read_json_database();
     $orders = array_values(array_filter($database['orders'], 'is_array'));
+    foreach ($orders as &$order) {
+        $order['order_timestamp'] = (string) ($order['order_timestamp'] ?? $order['created_at'] ?? '');
+        $order['deadline_hours'] = (int) ($order['deadline_hours'] ?? 24);
+        $order['deadline_at'] = (string) ($order['deadline_at'] ?? jg_partner_order_deadline_at((string) $order['order_timestamp'], (int) $order['deadline_hours']));
+        $order['marketplace_platform'] = (string) ($order['marketplace_platform'] ?? '');
+        $order['revenue_total'] = (float) ($order['revenue_total'] ?? 0);
+        $order['inference'] = is_array($order['inference'] ?? null) ? $order['inference'] : [];
+    }
+    unset($order);
     return jg_partner_order_attach_labels($orders, []);
 }
 
@@ -448,7 +812,7 @@ function jg_partner_order_find(string $partnerCode, string $orderId): ?array
 function jg_partner_order_is_editable(array $order): bool
 {
     $status = strtoupper(trim((string) ($order['status'] ?? 'IS_LISTED')));
-    return $status === '' || in_array($status, ['DRAFT', 'READY', 'SUBMITTED', 'LISTED', 'IS_LISTED'], true);
+    return $status === '' || in_array($status, ['LISTED', 'IS_LISTED'], true);
 }
 
 function jg_partner_order_is_archived(array $order): bool
@@ -459,7 +823,7 @@ function jg_partner_order_is_archived(array $order): bool
 function jg_partner_order_assert_editable(array $order): void
 {
     if (!jg_partner_order_is_editable($order)) {
-        throw new InvalidArgumentException('This order is already being processed and can no longer be edited.');
+        throw new InvalidArgumentException('Only IS_LISTED partner orders can be canceled.');
     }
 }
 
@@ -557,6 +921,9 @@ function jg_partner_order_save(string $partnerCode, ?array $partner, array $payl
     if ($action !== 'create' && $action !== 'update') {
         throw new InvalidArgumentException('Unknown action.');
     }
+    if ($action === 'update') {
+        throw new InvalidArgumentException('Partner orders cannot be edited after creation. Cancel the IS_LISTED order and upload a new label.');
+    }
 
     $pdo = jg_partner_data_db();
     if ($pdo instanceof PDO) {
@@ -564,9 +931,9 @@ function jg_partner_order_save(string $partnerCode, ?array $partner, array $payl
             $record = jg_partner_order_build_record($partnerCode, $partner, $payload);
             $stmt = $pdo->prepare(
                 'INSERT INTO partner_orders
-                    (id, partner_code, customer_name, brand_name, product_name, sku_code, sku_label, quantity, notes, status, order_timestamp, items_json, archived_at, created_at, updated_at)
+                    (id, partner_code, customer_name, brand_name, product_name, sku_code, sku_label, quantity, notes, status, order_timestamp, marketplace_platform, deadline_hours, deadline_at, revenue_total, inference_json, items_json, archived_at, created_at, updated_at)
                  VALUES
-                    (:id, :partner_code, :customer_name, :brand_name, :product_name, :sku_code, :sku_label, :quantity, :notes, :status, :order_timestamp, :items_json, :archived_at, :created_at, :updated_at)'
+                    (:id, :partner_code, :customer_name, :brand_name, :product_name, :sku_code, :sku_label, :quantity, :notes, :status, :order_timestamp, :marketplace_platform, :deadline_hours, :deadline_at, :revenue_total, :inference_json, :items_json, :archived_at, :created_at, :updated_at)'
             );
             $stmt->execute([
                 ':id' => $record['id'],
@@ -580,6 +947,11 @@ function jg_partner_order_save(string $partnerCode, ?array $partner, array $payl
                 ':notes' => $record['notes'],
                 ':status' => $record['status'],
                 ':order_timestamp' => gmdate('Y-m-d H:i:s', strtotime($record['order_timestamp'])),
+                ':marketplace_platform' => $record['marketplace_platform'],
+                ':deadline_hours' => $record['deadline_hours'],
+                ':deadline_at' => gmdate('Y-m-d H:i:s', strtotime($record['deadline_at'])),
+                ':revenue_total' => number_format((float) ($record['revenue_total'] ?? 0), 2, '.', ''),
+                ':inference_json' => json_encode($record['inference'], JSON_UNESCAPED_SLASHES),
                 ':items_json' => json_encode($record['items'], JSON_UNESCAPED_SLASHES),
                 ':archived_at' => trim((string) ($record['archived_at'] ?? '')) !== '' ? gmdate('Y-m-d H:i:s', strtotime((string) $record['archived_at'])) : null,
                 ':created_at' => gmdate('Y-m-d H:i:s', strtotime($record['created_at'])),
@@ -748,6 +1120,90 @@ function jg_partner_order_allowed_extensions(): array
     return ['pdf', 'png', 'jpg', 'jpeg', 'webp', 'gif', 'svg', 'zpl', 'txt', 'prn'];
 }
 
+function jg_partner_order_normalize_uploaded_files(array $files): array
+{
+    $names = $files['name'] ?? [];
+    if (!is_array($names)) {
+        return [[
+            'name' => (string) ($files['name'] ?? ''),
+            'type' => (string) ($files['type'] ?? ''),
+            'tmp_name' => (string) ($files['tmp_name'] ?? ''),
+            'error' => (int) ($files['error'] ?? UPLOAD_ERR_NO_FILE),
+            'size' => (int) ($files['size'] ?? 0),
+        ]];
+    }
+
+    $normalized = [];
+    foreach ($names as $index => $name) {
+        $normalized[] = [
+            'name' => (string) $name,
+            'type' => (string) (($files['type'] ?? [])[$index] ?? ''),
+            'tmp_name' => (string) (($files['tmp_name'] ?? [])[$index] ?? ''),
+            'error' => (int) (($files['error'] ?? [])[$index] ?? UPLOAD_ERR_NO_FILE),
+            'size' => (int) (($files['size'] ?? [])[$index] ?? 0),
+        ];
+    }
+
+    return $normalized;
+}
+
+function jg_partner_order_extract_readable_text(string $path, string $originalName): string
+{
+    $parts = [$originalName];
+    $raw = @file_get_contents($path, false, null, 0, 2 * 1024 * 1024);
+    if (is_string($raw) && $raw !== '') {
+        if (preg_match_all('/[A-Za-z0-9][A-Za-z0-9 .,:;_\/#()@+\-]{2,}/', $raw, $matches)) {
+            $parts[] = implode(' ', array_slice($matches[0], 0, 1200));
+        }
+    }
+
+    return trim(preg_replace('/\s+/', ' ', implode(' ', $parts)) ?? '');
+}
+
+function jg_partner_order_analyze_label_text(?array $partner, string $labelText): array
+{
+    $platform = jg_partner_order_infer_platform($labelText);
+    $items = jg_partner_order_infer_items($partner, $labelText);
+    $customerName = jg_partner_order_infer_customer_name($labelText);
+
+    return [
+        'platform' => $platform,
+        'items' => $items,
+        'customer_name' => $customerName,
+        'label_excerpt' => mb_substr($labelText, 0, 900),
+        'analyzed_at' => gmdate(DATE_ATOM),
+    ];
+}
+
+function jg_partner_order_analyze_uploaded_labels(?array $partner, array $files): array
+{
+    $uploadedFiles = jg_partner_order_normalize_uploaded_files($files);
+    $firstFile = null;
+    foreach ($uploadedFiles as $file) {
+        if ((int) ($file['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_FILE) {
+            continue;
+        }
+        $firstFile = $file;
+        break;
+    }
+
+    if (!is_array($firstFile)) {
+        throw new InvalidArgumentException('Select one label file.');
+    }
+    if ((int) ($firstFile['error'] ?? UPLOAD_ERR_OK) !== UPLOAD_ERR_OK) {
+        throw new RuntimeException('The label failed to upload.');
+    }
+
+    $safeOriginal = trim((string) ($firstFile['name'] ?? ''));
+    $extension = strtolower(pathinfo($safeOriginal, PATHINFO_EXTENSION));
+    if ($safeOriginal === '' || !in_array($extension, jg_partner_order_allowed_extensions(), true)) {
+        throw new RuntimeException('Unsupported file type. Use PDF, image, or label-print file formats.');
+    }
+
+    $labelText = jg_partner_order_extract_readable_text((string) ($firstFile['tmp_name'] ?? ''), $safeOriginal);
+    return jg_partner_order_analyze_label_text($partner, $labelText);
+}
+
 function jg_partner_order_store_uploaded_labels(string $partnerCode, string $orderId, array $files): array
 {
     $existingOrder = jg_partner_order_find($partnerCode, $orderId);
@@ -761,11 +1217,11 @@ function jg_partner_order_store_uploaded_labels(string $partnerCode, string $ord
     $uploadDir = jg_partner_order_upload_directory();
     $savedLabels = [];
 
-    foreach ($files['name'] ?? [] as $index => $originalName) {
+    foreach (jg_partner_order_normalize_uploaded_files($files) as $file) {
         if ($savedLabels !== []) {
             throw new InvalidArgumentException('Upload only one shipping label per order.');
         }
-        $errorCode = (int) (($files['error'][$index] ?? UPLOAD_ERR_NO_FILE));
+        $errorCode = (int) ($file['error'] ?? UPLOAD_ERR_NO_FILE);
         if ($errorCode === UPLOAD_ERR_NO_FILE) {
             continue;
         }
@@ -773,9 +1229,9 @@ function jg_partner_order_store_uploaded_labels(string $partnerCode, string $ord
             throw new RuntimeException('One of the uploaded files failed to upload.');
         }
 
-        $tmpName = (string) ($files['tmp_name'][$index] ?? '');
-        $sizeBytes = (int) ($files['size'][$index] ?? 0);
-        $safeOriginal = trim((string) $originalName);
+        $tmpName = (string) ($file['tmp_name'] ?? '');
+        $sizeBytes = (int) ($file['size'] ?? 0);
+        $safeOriginal = trim((string) ($file['name'] ?? ''));
         $extension = strtolower(pathinfo($safeOriginal, PATHINFO_EXTENSION));
 
         if ($safeOriginal === '') {

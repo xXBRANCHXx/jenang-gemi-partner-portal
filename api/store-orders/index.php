@@ -48,13 +48,23 @@ function jg_store_orders_display_id(string $orderId): string
 
 function jg_store_orders_deadline_at(array $order): int
 {
+    $deadlineRaw = trim((string) ($order['deadline_at'] ?? ''));
+    if ($deadlineRaw !== '') {
+        $deadlineSource = preg_match('/(?:Z|[+-]\d{2}:?\d{2})$/', $deadlineRaw) ? $deadlineRaw : $deadlineRaw . ' UTC';
+        $deadlineTimestamp = strtotime($deadlineSource);
+        if ($deadlineTimestamp !== false) {
+            return $deadlineTimestamp * 1000;
+        }
+    }
+
     $raw = (string) ($order['order_timestamp'] ?? $order['created_at'] ?? $order['updated_at'] ?? '');
     $timestamp = $raw !== '' ? strtotime($raw . ' UTC') : false;
     if ($timestamp === false) {
         $timestamp = time();
     }
 
-    return ($timestamp + 86400) * 1000;
+    $deadlineHours = max(1, min(48, (int) ($order['deadline_hours'] ?? 24)));
+    return ($timestamp + ($deadlineHours * 3600)) * 1000;
 }
 
 function jg_store_orders_items(array $order): array
@@ -79,6 +89,9 @@ function jg_store_orders_items(array $order): array
             'productName' => $productName !== '' ? $productName : ($sku !== '' ? $sku : 'Partner item'),
             'quantity' => max(1, (int) ($item['quantity'] ?? 1)),
             'sourcePlatform' => 'Partner',
+            'unitRevenue' => (float) ($item['unit_revenue'] ?? $item['partner_price'] ?? 0),
+            'lineRevenue' => (float) ($item['line_revenue'] ?? 0),
+            'matchConfidence' => (float) ($item['match_confidence'] ?? 0),
         ];
     }
 
@@ -130,14 +143,19 @@ function jg_store_orders_normalize(array $order): array
         'sourceOrderId' => (string) ($order['id'] ?? ''),
         'platform' => 'Partner',
         'account' => (string) ($order['partner_code'] ?? 'Partner'),
+        'partnerCode' => strtoupper(trim((string) ($order['partner_code'] ?? ''))),
         'status' => (string) ($order['status'] ?? 'IS_LISTED'),
-        'marketplaceStatus' => 'PARTNER_ORDER',
+        'marketplaceStatus' => trim((string) ($order['marketplace_platform'] ?? '')) !== '' ? 'PARTNER_' . strtoupper(preg_replace('/[^A-Z0-9]+/', '_', (string) ($order['marketplace_platform'] ?? ''))) : 'PARTNER_ORDER',
+        'marketplacePlatform' => (string) ($order['marketplace_platform'] ?? ''),
+        'deadlineHours' => (int) ($order['deadline_hours'] ?? 24),
         'instant' => false,
         'deadlineAt' => jg_store_orders_deadline_at($order),
         'createdAt' => $createdAt !== '' ? gmdate(DATE_ATOM, strtotime($createdAt . ' UTC') ?: time()) : null,
         'updatedAt' => $updatedAt !== '' ? gmdate(DATE_ATOM, strtotime($updatedAt . ' UTC') ?: time()) : null,
         'customerName' => (string) ($order['customer_name'] ?? ''),
         'notes' => (string) ($order['notes'] ?? ''),
+        'revenueTotal' => (float) ($order['revenue_total'] ?? 0),
+        'inference' => is_array($order['inference'] ?? null) ? $order['inference'] : [],
         'items' => jg_store_orders_items($order),
         'labels' => jg_store_orders_labels($order),
     ];

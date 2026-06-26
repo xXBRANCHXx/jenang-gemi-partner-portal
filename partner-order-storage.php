@@ -475,7 +475,7 @@ function jg_partner_order_infer_customer_name(string $text): string
         }
 
         $candidate = trim((string) ($matches[1] ?? ''));
-        $candidate = preg_replace('/\b(?:TEL|PHONE|HP|ALAMAT|ADDRESS|ORDER|SKU|QTY)\b.*$/i', '', $candidate) ?? $candidate;
+        $candidate = preg_replace('/\b(?:PENGIRIM|SENDER|TEL|PHONE|HP|ALAMAT|ADDRESS|ORDER|SKU|QTY)\b.*$/i', '', $candidate) ?? $candidate;
         $candidate = trim($candidate, " \t\n\r\0\x0B-:");
         if ($candidate !== '') {
             return mb_substr($candidate, 0, 80);
@@ -1301,11 +1301,318 @@ function jg_partner_order_normalize_uploaded_files(array $files): array
     return $normalized;
 }
 
+function jg_partner_order_run_pdftotext(string $path): string
+{
+    if (!function_exists('proc_open') || !is_file($path)) {
+        return '';
+    }
+
+    $candidates = ['/usr/bin/pdftotext', '/usr/local/bin/pdftotext', 'pdftotext'];
+    foreach ($candidates as $binary) {
+        if ($binary !== 'pdftotext' && !is_executable($binary)) {
+            continue;
+        }
+
+        $command = escapeshellcmd($binary) . ' -layout -enc UTF-8 ' . escapeshellarg($path) . ' -';
+        $descriptorSpec = [
+            0 => ['pipe', 'r'],
+            1 => ['pipe', 'w'],
+            2 => ['pipe', 'w'],
+        ];
+        $process = @proc_open($command, $descriptorSpec, $pipes);
+        if (!is_resource($process)) {
+            continue;
+        }
+
+        fclose($pipes[0]);
+        $stdout = stream_get_contents($pipes[1]);
+        $stderr = stream_get_contents($pipes[2]);
+        fclose($pipes[1]);
+        fclose($pipes[2]);
+        $exitCode = proc_close($process);
+
+        $text = trim((string) $stdout);
+        if ($exitCode === 0 && $text !== '') {
+            return $text;
+        }
+        if ($stderr !== '') {
+            continue;
+        }
+    }
+
+    return '';
+}
+
+function jg_partner_order_pdf_objects(string $raw): array
+{
+    $objects = [];
+    if (!preg_match_all('/(\d+)\s+0\s+obj(.*?)endobj/s', $raw, $matches, PREG_SET_ORDER)) {
+        return $objects;
+    }
+
+    foreach ($matches as $match) {
+        $objects[(int) $match[1]] = (string) $match[2];
+    }
+
+    return $objects;
+}
+
+function jg_partner_order_pdf_stream_bytes(string $objectBody): string
+{
+    if (!preg_match('/stream(?:\r\n|\n|\r)(.*?)endstream/s', $objectBody, $matches)) {
+        return '';
+    }
+
+    return preg_replace('/(?:\r\n|\n|\r)$/', '', (string) $matches[1]) ?? (string) $matches[1];
+}
+
+function jg_partner_order_pdf_decode_stream(string $objectBody): string
+{
+    $stream = jg_partner_order_pdf_stream_bytes($objectBody);
+    if ($stream === '') {
+        return '';
+    }
+
+    if (!str_contains($objectBody, 'FlateDecode')) {
+        return $stream;
+    }
+
+    foreach ([
+        static fn (string $value): string|false => @gzuncompress($value),
+        static fn (string $value): string|false => @gzdecode($value),
+        static fn (string $value): string|false => @gzinflate($value),
+        static fn (string $value): string|false => strlen($value) > 6 ? @gzinflate(substr($value, 2, -4)) : false,
+    ] as $decode) {
+        $decoded = $decode($stream);
+        if (is_string($decoded) && $decoded !== '') {
+            return $decoded;
+        }
+    }
+
+    return '';
+}
+
+function jg_partner_order_pdf_unicode_from_hex(string $hex): string
+{
+    $hex = preg_replace('/[^0-9A-Fa-f]/', '', $hex) ?? '';
+    if ($hex === '') {
+        return '';
+    }
+    if (strlen($hex) % 2 !== 0) {
+        $hex = '0' . $hex;
+    }
+
+    $bytes = @pack('H*', $hex);
+    if (!is_string($bytes) || $bytes === '') {
+        return '';
+    }
+
+    if (function_exists('mb_convert_encoding')) {
+        $converted = @mb_convert_encoding($bytes, 'UTF-8', 'UTF-16BE');
+        if (is_string($converted) && $converted !== '') {
+            return $converted;
+        }
+    }
+
+    $chars = '';
+    for ($index = 0; $index + 1 < strlen($bytes); $index += 2) {
+        $codepoint = (ord($bytes[$index]) << 8) + ord($bytes[$index + 1]);
+        if ($codepoint > 0 && $codepoint < 128) {
+            $chars .= chr($codepoint);
+        }
+    }
+
+    return $chars;
+}
+
+function jg_partner_order_pdf_parse_cmap(string $cmap): array
+{
+    $map = [];
+    if (preg_match_all('/beginbfchar(.*?)endbfchar/s', $cmap, $blocks)) {
+        foreach ($blocks[1] as $block) {
+            if (!preg_match_all('/<([0-9A-Fa-f]+)>\s*<([0-9A-Fa-f]+)>/', (string) $block, $pairs, PREG_SET_ORDER)) {
+                continue;
+            }
+            foreach ($pairs as $pair) {
+                $map[strtoupper(str_pad($pair[1], 4, '0', STR_PAD_LEFT))] = jg_partner_order_pdf_unicode_from_hex($pair[2]);
+            }
+        }
+    }
+
+    if (preg_match_all('/beginbfrange(.*?)endbfrange/s', $cmap, $blocks)) {
+        foreach ($blocks[1] as $block) {
+            if (preg_match_all('/<([0-9A-Fa-f]+)>\s*<([0-9A-Fa-f]+)>\s*<([0-9A-Fa-f]+)>/', (string) $block, $ranges, PREG_SET_ORDER)) {
+                foreach ($ranges as $range) {
+                    $start = hexdec($range[1]);
+                    $end = hexdec($range[2]);
+                    $destination = hexdec($range[3]);
+                    for ($code = $start; $code <= $end; $code++) {
+                        $map[strtoupper(str_pad(dechex($code), 4, '0', STR_PAD_LEFT))] = jg_partner_order_pdf_unicode_from_hex(str_pad(dechex($destination + ($code - $start)), strlen($range[3]), '0', STR_PAD_LEFT));
+                    }
+                }
+            }
+
+            if (preg_match_all('/<([0-9A-Fa-f]+)>\s*<([0-9A-Fa-f]+)>\s*\[(.*?)\]/s', (string) $block, $arrayRanges, PREG_SET_ORDER)) {
+                foreach ($arrayRanges as $range) {
+                    $start = hexdec($range[1]);
+                    if (!preg_match_all('/<([0-9A-Fa-f]+)>/', (string) $range[3], $destinations)) {
+                        continue;
+                    }
+                    foreach ($destinations[1] as $offset => $destination) {
+                        $map[strtoupper(str_pad(dechex($start + $offset), 4, '0', STR_PAD_LEFT))] = jg_partner_order_pdf_unicode_from_hex($destination);
+                    }
+                }
+            }
+        }
+    }
+
+    return $map;
+}
+
+function jg_partner_order_pdf_font_maps(array $objects): array
+{
+    $fontMaps = [];
+    foreach ($objects as $objectBody) {
+        if (!preg_match_all('/\/(F[0-9A-Za-z]+)\s+(\d+)\s+0\s+R/', (string) $objectBody, $matches, PREG_SET_ORDER)) {
+            continue;
+        }
+
+        foreach ($matches as $match) {
+            $fontName = (string) $match[1];
+            $fontObjectId = (int) $match[2];
+            $fontObject = (string) ($objects[$fontObjectId] ?? '');
+            if ($fontObject === '' || !preg_match('/\/ToUnicode\s+(\d+)\s+0\s+R/', $fontObject, $unicodeMatch)) {
+                continue;
+            }
+
+            $cmapObject = (string) ($objects[(int) $unicodeMatch[1]] ?? '');
+            $cmapText = jg_partner_order_pdf_decode_stream($cmapObject);
+            if ($cmapText === '') {
+                continue;
+            }
+            $fontMaps[$fontName] = jg_partner_order_pdf_parse_cmap($cmapText);
+        }
+    }
+
+    return $fontMaps;
+}
+
+function jg_partner_order_pdf_decode_hex_text(string $hex, array $map): string
+{
+    $hex = preg_replace('/[^0-9A-Fa-f]/', '', $hex) ?? '';
+    if ($hex === '') {
+        return '';
+    }
+
+    $output = '';
+    for ($index = 0; $index + 3 < strlen($hex); $index += 4) {
+        $code = strtoupper(substr($hex, $index, 4));
+        $output .= $map[$code] ?? '';
+    }
+
+    return $output;
+}
+
+function jg_partner_order_pdf_decode_literal_text(string $literal): string
+{
+    $literal = trim($literal);
+    if (str_starts_with($literal, '(') && str_ends_with($literal, ')')) {
+        $literal = substr($literal, 1, -1);
+    }
+
+    return stripcslashes($literal);
+}
+
+function jg_partner_order_pdf_extract_text_native(string $path): string
+{
+    $raw = @file_get_contents($path);
+    if (!is_string($raw) || $raw === '') {
+        return '';
+    }
+
+    $objects = jg_partner_order_pdf_objects($raw);
+    $fontMaps = jg_partner_order_pdf_font_maps($objects);
+    if ($fontMaps === []) {
+        return '';
+    }
+
+    $chunks = [];
+    foreach ($objects as $objectBody) {
+        $decoded = jg_partner_order_pdf_decode_stream((string) $objectBody);
+        if ($decoded === '' || str_contains($decoded, 'begincmap') || (!str_contains($decoded, ' Tj') && !str_contains($decoded, ' TJ'))) {
+            continue;
+        }
+
+        $currentFont = '';
+        if (!preg_match_all('/\/(F[0-9A-Za-z]+)\s+[-0-9.]+\s+Tf|<([0-9A-Fa-f\s]+)>\s*Tj|\[(.*?)\]\s*TJ|(\((?:\\\\.|[^\\\\)])*\))\s*Tj/s', $decoded, $matches, PREG_SET_ORDER)) {
+            continue;
+        }
+
+        foreach ($matches as $match) {
+            if (!empty($match[1])) {
+                $currentFont = (string) $match[1];
+                continue;
+            }
+
+            $map = $fontMaps[$currentFont] ?? [];
+            if (!empty($match[2]) && $map !== []) {
+                $text = jg_partner_order_pdf_decode_hex_text((string) $match[2], $map);
+                if (trim($text) !== '') {
+                    $chunks[] = $text;
+                }
+                continue;
+            }
+
+            if (!empty($match[3]) && $map !== []) {
+                if (preg_match_all('/<([0-9A-Fa-f\s]+)>|(\((?:\\\\.|[^\\\\)])*\))/', (string) $match[3], $parts, PREG_SET_ORDER)) {
+                    $line = '';
+                    foreach ($parts as $part) {
+                        if (!empty($part[1])) {
+                            $line .= jg_partner_order_pdf_decode_hex_text((string) $part[1], $map);
+                        } elseif (!empty($part[2])) {
+                            $line .= jg_partner_order_pdf_decode_literal_text((string) $part[2]);
+                        }
+                    }
+                    if (trim($line) !== '') {
+                        $chunks[] = $line;
+                    }
+                }
+                continue;
+            }
+
+            if (!empty($match[4])) {
+                $text = jg_partner_order_pdf_decode_literal_text((string) $match[4]);
+                if (trim($text) !== '') {
+                    $chunks[] = $text;
+                }
+            }
+        }
+    }
+
+    return trim(implode("\n", $chunks));
+}
+
+function jg_partner_order_extract_pdf_text(string $path): string
+{
+    $text = jg_partner_order_run_pdftotext($path);
+    if (trim($text) !== '') {
+        return $text;
+    }
+
+    return jg_partner_order_pdf_extract_text_native($path);
+}
+
 function jg_partner_order_extract_readable_text(string $path, string $originalName): string
 {
     $parts = [$originalName];
+    $extension = strtolower(pathinfo($originalName, PATHINFO_EXTENSION));
+    $pdfText = $extension === 'pdf' ? jg_partner_order_extract_pdf_text($path) : '';
+    if ($pdfText !== '') {
+        $parts[] = $pdfText;
+    }
+
     $raw = @file_get_contents($path, false, null, 0, 2 * 1024 * 1024);
-    if (is_string($raw) && $raw !== '') {
+    if (is_string($raw) && $raw !== '' && ($extension !== 'pdf' || $pdfText === '')) {
         if (preg_match_all('/[A-Za-z0-9][A-Za-z0-9 .,:;_\/#()@+\-]{2,}/', $raw, $matches)) {
             $parts[] = implode(' ', array_slice($matches[0], 0, 1200));
         }

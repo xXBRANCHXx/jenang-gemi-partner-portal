@@ -2877,6 +2877,17 @@ button, input {
   font-weight: 750;
 }
 
+.partner-label-field input[type="text"],
+.partner-label-field select {
+  min-height: 42px;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: #fff;
+  color-scheme: dark;
+  font-weight: 750;
+}
+
 .partner-label-field strong {
   color: #fff;
   font: 700 1.8rem/1 "Space Grotesk", sans-serif;
@@ -2962,6 +2973,209 @@ button, input {
   font-size: 0.72rem;
 }
 
+.partner-product-selector {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+}
+
+.partner-product-selector-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.partner-product-selector-head span,
+.partner-filter-block > span,
+.partner-sku-search span {
+  display: block;
+  color: var(--partner-muted, rgba(255, 255, 255, 0.5));
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.partner-product-selector-head strong {
+  display: block;
+  margin-top: 4px;
+  color: var(--partner-text, #fff);
+  font-size: 1.04rem;
+}
+
+.partner-sku-search {
+  display: grid;
+  gap: 6px;
+  width: min(320px, 46%);
+}
+
+.partner-sku-search input {
+  min-height: 42px;
+  width: 100%;
+  padding: 0 12px;
+  border: 1px solid var(--partner-border, rgba(255, 255, 255, 0.08));
+  border-radius: 16px;
+  outline: none;
+  background: var(--partner-panel-soft, rgba(255, 255, 255, 0.04));
+  color: var(--partner-text, #fff);
+  font: inherit;
+  font-weight: 700;
+}
+
+.partner-filter-block {
+  display: grid;
+  gap: 8px;
+}
+
+.partner-filter-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.partner-filter-pills button,
+.partner-sku-actions button,
+.partner-cart-controls button {
+  min-height: 34px;
+  border: 1px solid var(--partner-border, rgba(255, 255, 255, 0.08));
+  border-radius: 13px;
+  background: var(--partner-panel-soft, rgba(255, 255, 255, 0.04));
+  color: var(--partner-text, #fff);
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.partner-filter-pills button {
+  padding: 0 12px;
+}
+
+.partner-filter-pills button.is-active {
+  border-color: transparent;
+  background: var(--partner-accent-strong, #c8b995);
+  color: var(--partner-bg, #050505);
+}
+
+.partner-sku-list {
+  display: grid;
+  gap: 8px;
+  max-height: 360px;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.partner-sku-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(180px, 0.8fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+}
+
+.partner-sku-main,
+.partner-sku-meta {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.partner-sku-main strong,
+.partner-sku-main span,
+.partner-sku-main code,
+.partner-sku-meta span,
+.partner-sku-meta strong,
+.partner-cart-row strong,
+.partner-cart-row span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.partner-sku-main strong,
+.partner-cart-row strong {
+  color: var(--partner-text, #fff);
+  font-size: 0.86rem;
+}
+
+.partner-sku-main span,
+.partner-sku-meta span,
+.partner-cart-row span {
+  color: var(--partner-muted, rgba(255, 255, 255, 0.52));
+  font-size: 0.72rem;
+}
+
+.partner-sku-main code {
+  color: var(--partner-muted, rgba(255, 255, 255, 0.52));
+  font-size: 0.72rem;
+}
+
+.partner-sku-meta strong {
+  color: var(--partner-text, #fff);
+  font-size: 0.84rem;
+}
+
+.partner-sku-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.partner-sku-actions button {
+  min-width: 38px;
+}
+
+.partner-sku-actions span {
+  width: 100%;
+  color: var(--partner-muted, rgba(255, 255, 255, 0.52));
+  font-size: 0.7rem;
+  font-weight: 800;
+  text-align: right;
+}
+
+.partner-cart-list {
+  display: grid;
+  gap: 8px;
+  min-height: 0;
+  overflow: auto;
+}
+
+.partner-cart-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+}
+
+.partner-cart-controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.partner-cart-controls button {
+  width: 32px;
+  padding: 0;
+}
+
+.partner-cart-controls input {
+  width: 48px;
+  min-height: 34px;
+  border: 1px solid var(--partner-border, rgba(255, 255, 255, 0.08));
+  border-radius: 12px;
+  outline: none;
+  background: var(--partner-panel-soft, rgba(255, 255, 255, 0.04));
+  color: var(--partner-text, #fff);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 850;
+  text-align: center;
+}
+
 .partner-label-preview {
   display: flex;
   flex-direction: column;
@@ -3015,6 +3229,28 @@ button, input {
     align-items: start;
   }
 
+  .partner-sku-row {
+    grid-template-columns: 1fr;
+  }
+
+  .partner-product-selector-head {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .partner-sku-search {
+    width: 100%;
+  }
+
+  .partner-sku-actions {
+    justify-content: flex-start;
+  }
+
+  .partner-sku-actions span {
+    width: auto;
+    text-align: left;
+  }
+
   .partner-order-card-actions {
     justify-content: flex-start;
   }
@@ -3039,7 +3275,8 @@ button, input {
 
   .partner-metric-grid,
   .partner-label-controls,
-  .partner-match-row {
+  .partner-match-row,
+  .partner-cart-row {
     grid-template-columns: 1fr;
   }
 
@@ -3264,11 +3501,14 @@ body.is-dashboard[data-partner-theme='light'] .admin-modal-card .admin-primary-b
 .partner-metric-grid article,
 .partner-panel,
 .partner-analysis-card,
+.partner-product-selector,
 .partner-label-field,
 .partner-label-preview article,
 .partner-recent-order,
 .partner-order-card,
 .partner-match-row,
+.partner-sku-row,
+.partner-cart-row,
 .partner-label-library-row,
 .partner-product-row {
   border-color: var(--partner-border);
@@ -3370,7 +3610,9 @@ body.is-dashboard[data-partner-theme='light'] .admin-modal-card .admin-primary-b
   background: var(--partner-sidebar);
 }
 
-.partner-label-field input[type="datetime-local"] {
+.partner-label-field input[type="datetime-local"],
+.partner-label-field input[type="text"],
+.partner-label-field select {
   color: var(--partner-text);
 }
 

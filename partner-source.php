@@ -159,6 +159,21 @@ function jg_partner_source_find_by_slug(string $slug): ?array
     return null;
 }
 
+function jg_partner_source_float(mixed $value): float
+{
+    return is_numeric($value) ? (float) $value : 0.0;
+}
+
+function jg_partner_source_unit_count(float $volume, mixed $astraValue): float
+{
+    $astra = jg_partner_source_float($astraValue);
+    if ($volume <= 0 || $astra <= 0) {
+        return 1.0;
+    }
+
+    return max(1.0, round($volume / $astra, 4));
+}
+
 function jg_partner_source_catalog(?array $partner = null): array
 {
     $partner = is_array($partner) ? $partner : jg_partner_current_profile();
@@ -175,10 +190,17 @@ function jg_partner_source_catalog(?array $partner = null): array
 
         $brandName = trim((string) ($sku['brand_name'] ?? ''));
         $productName = trim((string) ($sku['product_name'] ?? $sku['base_product_name'] ?? ''));
+        $baseProductName = trim((string) ($sku['base_product_name'] ?? $productName));
         $skuCode = trim((string) ($sku['sku'] ?? ''));
         if ($brandName === '' || $productName === '' || $skuCode === '') {
             continue;
         }
+
+        $volume = jg_partner_source_float($sku['volume'] ?? 0);
+        $astraValue = jg_partner_source_float($sku['astra_value'] ?? $sku['astra'] ?? 0);
+        $unitCount = jg_partner_source_unit_count($volume, $astraValue);
+        $partnerUnitPrice = max(0.0, jg_partner_source_float($sku['partner_unit_price'] ?? $pricing[$skuCode] ?? 0));
+        $partnerSkuPrice = max(0.0, jg_partner_source_float($sku['partner_price'] ?? ($partnerUnitPrice * $unitCount)));
 
         if (!isset($catalog[$brandName])) {
             $catalog[$brandName] = [];
@@ -193,11 +215,19 @@ function jg_partner_source_catalog(?array $partner = null): array
         $catalog[$brandName][$productName]['skus'][] = [
             'sku' => $skuCode,
             'label' => trim((string) ($sku['label'] ?? '')) ?: $skuCode,
+            'brand_name' => $brandName,
+            'product_name' => $productName,
+            'base_product_name' => $baseProductName,
             'flavor' => trim((string) ($sku['flavor_name'] ?? '')),
             'size' => trim((string) ($sku['size_label'] ?? '')),
+            'unit_name' => trim((string) ($sku['unit_name'] ?? '')),
+            'volume' => $volume > 0 ? rtrim(rtrim(number_format($volume, 4, '.', ''), '0'), '.') : '',
+            'astra_value' => $astraValue > 0 ? rtrim(rtrim(number_format($astraValue, 4, '.', ''), '0'), '.') : '',
+            'unit_count' => $unitCount,
             'stock' => (int) ($sku['current_stock'] ?? 0),
             'tag' => trim((string) ($sku['tag'] ?? '')),
-            'partner_price' => (float) ($sku['partner_price'] ?? $pricing[$skuCode] ?? 0),
+            'partner_unit_price' => $partnerUnitPrice,
+            'partner_price' => $partnerSkuPrice,
         ];
     }
 

@@ -87,6 +87,12 @@ function jg_partner_order_allowed_sku_index(?array $partner): array
             continue;
         }
 
+        $volume = is_numeric($sku['volume'] ?? null) ? (float) $sku['volume'] : 0.0;
+        $astraValue = is_numeric($sku['astra_value'] ?? $sku['astra'] ?? null) ? (float) ($sku['astra_value'] ?? $sku['astra']) : 0.0;
+        $unitCount = ($volume > 0 && $astraValue > 0) ? max(1.0, round($volume / $astraValue, 4)) : max(1.0, (float) ($sku['unit_count'] ?? 1));
+        $partnerUnitPrice = max(0.0, (float) ($sku['partner_unit_price'] ?? $pricing[$skuCode] ?? 0));
+        $partnerSkuPrice = max(0.0, (float) ($sku['partner_price'] ?? ($partnerUnitPrice * $unitCount)));
+
         $index[$skuCode] = [
             'sku' => $skuCode,
             'label' => trim((string) ($sku['label'] ?? '')) ?: $skuCode,
@@ -98,7 +104,11 @@ function jg_partner_order_allowed_sku_index(?array $partner): array
             'size_label' => trim((string) ($sku['size_label'] ?? '')),
             'item_tags' => array_values(array_filter((array) ($sku['item_tags'] ?? $sku['online_tags'] ?? $sku['aliases'] ?? []), static fn ($value): bool => trim((string) $value) !== '')),
             'current_stock' => (int) ($sku['current_stock'] ?? 0),
-            'partner_price' => (float) ($sku['partner_price'] ?? $pricing[$skuCode] ?? 0),
+            'volume' => $volume,
+            'astra_value' => $astraValue,
+            'unit_count' => $unitCount,
+            'partner_unit_price' => $partnerUnitPrice,
+            'partner_price' => $partnerSkuPrice,
         ];
     }
 
@@ -109,12 +119,12 @@ function jg_partner_order_validate_sku(?array $partner, mixed $skuCode): array
 {
     $normalized = trim((string) $skuCode);
     if ($normalized === '') {
-        throw new InvalidArgumentException('Matched product is required.');
+        throw new InvalidArgumentException('Approved SKU is required.');
     }
 
     $allowed = jg_partner_order_allowed_sku_index($partner);
     if (!isset($allowed[$normalized])) {
-        throw new InvalidArgumentException('That matched product is not enabled for this partner.');
+        throw new InvalidArgumentException('That approved SKU is not enabled for this partner.');
     }
 
     return $allowed[$normalized];
@@ -605,7 +615,7 @@ function jg_partner_order_normalize_inference(mixed $value): array
 function jg_partner_order_normalize_items(?array $partner, mixed $value): array
 {
     if (!is_array($value)) {
-        throw new InvalidArgumentException('Upload a label that matches at least one partner product.');
+        throw new InvalidArgumentException('Select at least one approved SKU.');
     }
 
     $items = [];
@@ -616,7 +626,10 @@ function jg_partner_order_normalize_items(?array $partner, mixed $value): array
 
         $sku = jg_partner_order_validate_sku($partner, $item['sku_code'] ?? null);
         $quantity = max(1, (int) ($item['quantity'] ?? 1));
-        $unitRevenue = max(0.0, (float) ($item['unit_revenue'] ?? $item['partner_price'] ?? $sku['partner_price'] ?? 0));
+        $unitCount = max(1.0, (float) ($sku['unit_count'] ?? 1));
+        $partnerUnitPrice = max(0.0, (float) ($sku['partner_unit_price'] ?? 0));
+        $unitRevenue = max(0.0, (float) ($sku['partner_price'] ?? ($partnerUnitPrice * $unitCount)));
+        $billableUnits = round($quantity * $unitCount, 4);
 
         $items[] = [
             'sku_code' => $sku['sku'],
@@ -626,6 +639,9 @@ function jg_partner_order_normalize_items(?array $partner, mixed $value): array
             'flavor' => $sku['flavor_name'],
             'size' => $sku['size_label'],
             'quantity' => $quantity,
+            'unit_count' => $unitCount,
+            'billable_units' => $billableUnits,
+            'partner_unit_price' => $partnerUnitPrice,
             'unit_revenue' => $unitRevenue,
             'line_revenue' => $unitRevenue * $quantity,
             'match_confidence' => max(0.0, min(1.0, (float) ($item['match_confidence'] ?? 0))),
@@ -636,7 +652,7 @@ function jg_partner_order_normalize_items(?array $partner, mixed $value): array
     }
 
     if ($items === []) {
-        throw new InvalidArgumentException('Upload a label that matches at least one partner product.');
+        throw new InvalidArgumentException('Select at least one approved SKU.');
     }
 
     return $items;

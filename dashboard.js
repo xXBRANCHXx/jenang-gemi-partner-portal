@@ -28,11 +28,12 @@ document.addEventListener('DOMContentLoaded', () => {
   const labelQueue = document.querySelector('[data-label-queue]');
   const deadlineRange = document.querySelector('[data-deadline-range]');
   const deadlineValue = document.querySelector('[data-deadline-value]');
-  const analysisPlatform = document.querySelector('[data-analysis-platform]');
-  const analysisConfidence = document.querySelector('[data-analysis-confidence]');
-  const analysisReasons = document.querySelector('[data-analysis-reasons]');
-  const analysisItems = document.querySelector('[data-analysis-items]');
-  const analysisItemCount = document.querySelector('[data-analysis-item-count]');
+  const customerNameInput = document.querySelector('[data-customer-name]');
+  const platformSelect = document.querySelector('[data-platform-select]');
+  const skuSearchInput = document.querySelector('[data-sku-search]');
+  const productFilter = document.querySelector('[data-product-filter]');
+  const flavorFilter = document.querySelector('[data-flavor-filter]');
+  const skuList = document.querySelector('[data-sku-list]');
   const orderPreview = document.querySelector('[data-order-preview]');
   const submitOrderButton = document.querySelector('[data-submit-order]');
   const pageTitle = document.querySelector('[data-page-title]');
@@ -52,13 +53,16 @@ document.addEventListener('DOMContentLoaded', () => {
     partner: null,
     catalog: {},
     skuIndex: {},
+    approvedSkus: [],
     orders: [],
     selectedTimeframe: '30d',
     activeSection: root.dataset.activeSection || 'overview',
     theme: window.localStorage.getItem('partner-theme') || 'system',
     labelFile: null,
-    labelAnalysis: null,
-    analyzing: false,
+    selectedProduct: '',
+    selectedFlavor: '',
+    skuSearch: '',
+    cart: [],
     submitting: false
   };
   const sectionLabels = {
@@ -138,17 +142,73 @@ document.addEventListener('DOMContentLoaded', () => {
     return `${size} B`;
   };
 
+  const formatNumber = (value) => {
+    const number = Number(value || 0);
+    if (!Number.isFinite(number)) return '0';
+    return number.toLocaleString('id-ID', {
+      maximumFractionDigits: number % 1 === 0 ? 0 : 2
+    });
+  };
+
+  const detectPlatformFromFileName = (fileName = '') => {
+    const normalized = String(fileName || '').toLowerCase();
+    if (normalized.includes('shopee') || normalized.includes('spx')) return 'Shopee';
+    if (normalized.includes('tiktok') || normalized.includes('tik tok') || normalized.includes('tts')) return 'TikTok Shop';
+    return 'Needs review';
+  };
+
+  const skuProductName = (sku = {}) => String(sku.base_product_name || sku.product_name || 'Product').trim() || 'Product';
+  const skuFlavorName = (sku = {}) => String(sku.flavor_name || sku.flavor || '').trim();
+  const skuDisplayName = (sku = {}) => [sku.product_name || skuProductName(sku), skuFlavorName(sku)]
+    .filter((value, index, values) => value && values.indexOf(value) === index)
+    .join(' · ') || sku.sku || 'Approved SKU';
+
+  const unitFormula = (sku = {}) => {
+    const volume = Number(sku.volume || 0);
+    const astra = Number(sku.astra_value || 0);
+    const units = Math.max(1, Number(sku.unit_count || 1));
+    if (volume > 0 && astra > 0) {
+      return `${formatNumber(volume)} / ASTRA ${formatNumber(astra)} = ${formatNumber(units)} units`;
+    }
+    return `${formatNumber(units)} billable unit${units === 1 ? '' : 's'}`;
+  };
+
   const flattenCatalog = () => {
     const skuIndex = {};
-    Object.values(state.catalog || {}).forEach((products) => {
-      Object.values(products || {}).forEach((productData) => {
+    const approvedSkus = [];
+    Object.entries(state.catalog || {}).forEach(([brandName, products]) => {
+      Object.entries(products || {}).forEach(([productName, productData]) => {
         (productData.skus || []).forEach((sku) => {
           if (!sku?.sku) return;
-          skuIndex[sku.sku] = sku;
+          const unitCount = Math.max(1, Number(sku.unit_count || 1));
+          const partnerUnitPrice = Number(sku.partner_unit_price ?? sku.partner_price ?? 0);
+          const partnerPrice = Number(sku.partner_price ?? (partnerUnitPrice * unitCount));
+          const row = {
+            ...sku,
+            sku: String(sku.sku || ''),
+            brand_name: sku.brand_name || brandName,
+            product_name: sku.product_name || productName,
+            base_product_name: sku.base_product_name || productName,
+            flavor_name: skuFlavorName(sku),
+            size_label: sku.size_label || sku.size || '',
+            current_stock: Number(sku.current_stock ?? sku.stock ?? 0),
+            unit_count: unitCount,
+            partner_unit_price: partnerUnitPrice,
+            partner_price: partnerPrice
+          };
+          skuIndex[row.sku] = row;
+          approvedSkus.push(row);
         });
       });
     });
     state.skuIndex = skuIndex;
+    state.approvedSkus = approvedSkus.sort((left, right) => {
+      const productCompare = skuProductName(left).localeCompare(skuProductName(right));
+      if (productCompare !== 0) return productCompare;
+      const flavorCompare = skuFlavorName(left).localeCompare(skuFlavorName(right));
+      if (flavorCompare !== 0) return flavorCompare;
+      return String(left.sku || '').localeCompare(String(right.sku || ''));
+    });
   };
 
   const sectionUrl = (section) => {
@@ -391,7 +451,7 @@ document.addEventListener('DOMContentLoaded', () => {
           <span>${escapeHtml(formatTimestamp(order.order_timestamp || order.created_at || ''))}</span>
         </div>
       </article>
-    `).join('') : '<p class="admin-empty">No reconstructed orders yet.</p>';
+    `).join('') : '<p class="admin-empty">No orders yet.</p>';
   };
 
   const renderOrders = () => {
@@ -421,7 +481,7 @@ document.addEventListener('DOMContentLoaded', () => {
             <span>${escapeHtml(order.marketplace_platform || 'Needs review')} · ${escapeHtml(statusLabel(order))}</span>
             ${isArchived(order) ? '<em>Archived from charts</em>' : ''}
           </div>
-          <div class="partner-order-card-items">${items || '<span>No matched items</span>'}</div>
+          <div class="partner-order-card-items">${items || '<span>No selected SKUs</span>'}</div>
           <div class="partner-order-card-meta">
             <span>${escapeHtml(formatTimestamp(order.order_timestamp || order.created_at || ''))}</span>
             <span>${escapeHtml(order.deadline_hours || 24)}h deadline</span>
@@ -467,86 +527,174 @@ document.addEventListener('DOMContentLoaded', () => {
         <button type="button" class="admin-ghost-btn" data-remove-queued-file>Remove</button>
       </article>
     `;
-    if (labelDropzoneCopy) labelDropzoneCopy.textContent = state.analyzing ? 'Analyzing label' : 'Label selected';
+    if (labelDropzoneCopy) labelDropzoneCopy.textContent = 'Label selected';
   };
 
-  const renderAnalysis = () => {
-    const analysis = state.labelAnalysis || {};
-    const platform = analysis.platform || {};
-    const items = Array.isArray(analysis.items) ? analysis.items : [];
-    const platformName = platform.platform || (state.analyzing ? 'Analyzing label' : 'Waiting for label');
-    const confidence = Math.round(Number(platform.confidence || 0) * 100);
+  const productOptions = () => [...new Set(state.approvedSkus.map(skuProductName).filter(Boolean))];
 
-    if (analysisPlatform) analysisPlatform.textContent = platformName;
-    if (analysisConfidence) analysisConfidence.textContent = `${confidence}%`;
-    if (analysisReasons) analysisReasons.textContent = (platform.reasons || []).length ? `Platform evidence: ${(platform.reasons || []).join(', ')}` : 'No label analyzed yet.';
-    if (analysisItemCount) analysisItemCount.textContent = `${items.length} product${items.length === 1 ? '' : 's'}`;
+  const flavorOptions = () => {
+    const skus = state.selectedProduct
+      ? state.approvedSkus.filter((sku) => skuProductName(sku) === state.selectedProduct)
+      : state.approvedSkus;
+    return [...new Set(skus.map(skuFlavorName).filter(Boolean))];
+  };
 
-    if (analysisItems) {
-      analysisItems.innerHTML = items.length ? items.map((item) => `
-        <article class="partner-match-row">
-          <div>
-            <strong>${escapeHtml(item.product || item.sku_label || item.sku_code || 'Product')}</strong>
-            <span>${escapeHtml(item.matched_alias || item.flavor || item.size || 'Matched from product text')}</span>
-          </div>
-          <code>${escapeHtml((item.match_evidence || []).map((entry) => entry.phrase).filter(Boolean).slice(0, 2).join(' / ') || item.flavor || 'Product evidence')}</code>
-          <b>x${escapeHtml(item.quantity || 1)}</b>
-          <span>${escapeHtml(Math.round(Number(item.match_confidence || 0) * 100))}%</span>
-        </article>
-      `).join('') : '<p class="admin-empty">No products matched this label.</p>';
+  const filteredApprovedSkus = () => {
+    const query = state.skuSearch.trim().toLowerCase();
+    return state.approvedSkus.filter((sku) => {
+      if (state.selectedProduct && skuProductName(sku) !== state.selectedProduct) return false;
+      if (state.selectedFlavor && skuFlavorName(sku) !== state.selectedFlavor) return false;
+      if (!query) return true;
+      return [
+        sku.sku,
+        sku.label,
+        sku.tag,
+        sku.brand_name,
+        sku.product_name,
+        sku.base_product_name,
+        skuFlavorName(sku),
+        sku.size_label
+      ].some((value) => String(value || '').toLowerCase().includes(query));
+    });
+  };
+
+  const renderFilterPills = (container, values, activeValue, dataName, allLabel = 'All') => {
+    if (!container) return;
+    const buttons = [
+      `<button type="button" class="${activeValue === '' ? 'is-active' : ''}" data-${dataName}="">${escapeHtml(allLabel)}</button>`,
+      ...values.map((value) => `<button type="button" class="${activeValue === value ? 'is-active' : ''}" data-${dataName}="${escapeHtml(value)}">${escapeHtml(value)}</button>`)
+    ];
+    container.innerHTML = buttons.join('');
+  };
+
+  const renderProductFilters = () => {
+    const products = productOptions();
+    if (state.selectedProduct && !products.includes(state.selectedProduct)) {
+      state.selectedProduct = '';
     }
 
+    const flavors = flavorOptions();
+    if (state.selectedFlavor && !flavors.includes(state.selectedFlavor)) {
+      state.selectedFlavor = '';
+    }
+
+    renderFilterPills(productFilter, products, state.selectedProduct, 'product-value');
+    renderFilterPills(flavorFilter, flavors, state.selectedFlavor, 'flavor-value');
+  };
+
+  const addSku = (skuCode, quantity = 1) => {
+    const sku = state.skuIndex[skuCode];
+    if (!sku) return;
+    const existing = state.cart.find((item) => item.sku === skuCode);
+    if (existing) {
+      existing.quantity += quantity;
+    } else {
+      state.cart.push({ ...sku, quantity });
+    }
+    renderSkuList();
     renderPreview();
   };
 
-  const canSubmitCurrentOrder = () => {
-    const analysis = state.labelAnalysis || {};
-    const items = Array.isArray(analysis.items) ? analysis.items : [];
-    const platform = String(analysis.platform?.platform || '');
-    return Boolean(state.labelFile && items.length && platform !== '' && platform !== 'Needs review' && !state.analyzing && !state.submitting);
+  const updateCartQuantity = (skuCode, quantity) => {
+    const nextQuantity = Math.max(0, Number(quantity || 0));
+    state.cart = state.cart
+      .map((item) => item.sku === skuCode ? { ...item, quantity: nextQuantity } : item)
+      .filter((item) => item.quantity > 0);
+    renderSkuList();
+    renderPreview();
   };
 
+  const renderSkuList = () => {
+    renderProductFilters();
+    if (!skuList) return;
+
+    const rows = filteredApprovedSkus();
+    if (!state.approvedSkus.length) {
+      skuList.innerHTML = '<p class="admin-empty">No approved SKUs are enabled for this partner.</p>';
+      return;
+    }
+    if (!rows.length) {
+      skuList.innerHTML = '<p class="admin-empty">No approved SKUs match those filters.</p>';
+      return;
+    }
+
+    skuList.innerHTML = rows.map((sku) => {
+      const inCart = state.cart.find((item) => item.sku === sku.sku);
+      return `
+        <article class="partner-sku-row">
+          <div class="partner-sku-main">
+            <strong>${escapeHtml(skuDisplayName(sku))}</strong>
+            <span>${escapeHtml(sku.brand_name || '')} · ${escapeHtml(sku.size_label || sku.unit_name || '')}</span>
+            <code>${escapeHtml(sku.sku || '')}${sku.tag ? ` · ${escapeHtml(sku.tag)}` : ''}</code>
+          </div>
+          <div class="partner-sku-meta">
+            <span>Stock <b>${escapeHtml(sku.current_stock ?? 0)}</b></span>
+            <span>${escapeHtml(unitFormula(sku))}</span>
+            <strong>${escapeHtml(formatCurrency(sku.partner_price || 0))}</strong>
+          </div>
+          <div class="partner-sku-actions">
+            ${[1, 2, 3].map((qty) => `<button type="button" data-add-sku="${escapeHtml(sku.sku)}" data-add-qty="${qty}">+${qty}</button>`).join('')}
+            ${inCart ? `<span>${escapeHtml(inCart.quantity)} selected</span>` : ''}
+          </div>
+        </article>
+      `;
+    }).join('');
+  };
+
+  const cartTotals = () => state.cart.reduce((totals, item) => {
+    const quantity = Number(item.quantity || 0);
+    const unitCount = Math.max(1, Number(item.unit_count || 1));
+    totals.quantity += quantity;
+    totals.billableUnits += quantity * unitCount;
+    totals.revenue += quantity * Number(item.partner_price || 0);
+    return totals;
+  }, { quantity: 0, billableUnits: 0, revenue: 0 });
+
+  const canSubmitCurrentOrder = () => Boolean(state.labelFile && state.cart.length && !state.submitting);
+
   const renderPreview = () => {
-    const analysis = state.labelAnalysis || {};
-    const items = Array.isArray(analysis.items) ? analysis.items : [];
-    const revenue = items.reduce((sum, item) => sum + Number(item.line_revenue || 0), 0);
+    const totals = cartTotals();
+    const platform = platformSelect?.value || 'Needs review';
+    const customerName = customerNameInput?.value.trim() || 'Label recipient';
     if (orderPreview) {
+      const cartMarkup = state.cart.length ? state.cart.map((item) => `
+        <article class="partner-cart-row">
+          <div>
+            <strong>${escapeHtml(skuDisplayName(item))}</strong>
+            <span>${escapeHtml(item.sku || '')} · ${escapeHtml(formatCurrency(item.partner_price || 0))} per SKU</span>
+          </div>
+          <div class="partner-cart-controls">
+            <button type="button" data-cart-qty="${escapeHtml(item.sku)}" data-cart-delta="-1">-</button>
+            <input type="number" min="0" step="1" value="${escapeHtml(item.quantity || 0)}" data-cart-input="${escapeHtml(item.sku)}" aria-label="Quantity for ${escapeHtml(skuDisplayName(item))}">
+            <button type="button" data-cart-qty="${escapeHtml(item.sku)}" data-cart-delta="1">+</button>
+          </div>
+        </article>
+      `).join('') : '<p class="admin-empty">No approved SKUs selected.</p>';
+
       orderPreview.innerHTML = `
-        <article><span>Platform</span><strong>${escapeHtml(analysis.platform?.platform || 'Waiting for label')}</strong></article>
-        <article><span>Customer</span><strong>${escapeHtml(analysis.customer_name || 'Label recipient')}</strong></article>
-        <article><span>Items</span><strong>${escapeHtml(items.length)} matched product${items.length === 1 ? '' : 's'}</strong></article>
+        <article><span>Platform</span><strong>${escapeHtml(platform)}</strong></article>
+        <article><span>Customer</span><strong>${escapeHtml(customerName)}</strong></article>
+        <article><span>SKU quantity</span><strong>${escapeHtml(totals.quantity)}</strong></article>
+        <article><span>Billable units</span><strong>${escapeHtml(formatNumber(totals.billableUnits))}</strong></article>
         <article><span>Deadline</span><strong>${escapeHtml(deadlineRange?.value || 24)}h</strong></article>
-        <article><span>Revenue</span><strong>${escapeHtml(formatCurrency(revenue))}</strong></article>
+        <article><span>Revenue</span><strong>${escapeHtml(formatCurrency(totals.revenue))}</strong></article>
+        <div class="partner-cart-list">${cartMarkup}</div>
       `;
     }
     if (submitOrderButton instanceof HTMLButtonElement) {
       submitOrderButton.disabled = !canSubmitCurrentOrder();
-      submitOrderButton.textContent = state.submitting ? 'Submitting...' : 'Submit Reconstructed Order';
+      submitOrderButton.textContent = state.submitting ? 'Submitting...' : 'Submit Order';
     }
   };
 
-  const analyzeLabel = async (file) => {
+  const setLabelFile = (file) => {
     state.labelFile = file;
-    state.labelAnalysis = null;
-    state.analyzing = true;
     setError('', modalErrorNode);
-    renderLabelQueue();
-    renderAnalysis();
-
-    try {
-      const formData = new window.FormData();
-      formData.append('action', 'analyze');
-      formData.append('labels[]', file);
-      const payload = await postLabelForm(formData);
-      state.labelAnalysis = payload.analysis || null;
-    } catch (error) {
-      state.labelAnalysis = null;
-      setError(error instanceof Error ? error.message : 'Unable to analyze label.', modalErrorNode);
-    } finally {
-      state.analyzing = false;
-      renderLabelQueue();
-      renderAnalysis();
+    if (file && platformSelect instanceof HTMLSelectElement && platformSelect.value === 'Needs review') {
+      platformSelect.value = detectPlatformFromFileName(file.name);
     }
+    renderLabelQueue();
+    renderPreview();
   };
 
   const uploadLabel = async (orderId, file) => {
@@ -559,25 +707,32 @@ document.addEventListener('DOMContentLoaded', () => {
   const openOrderModal = () => {
     if (!(orderModal instanceof HTMLElement) || !(orderForm instanceof HTMLFormElement)) return;
     state.labelFile = null;
-    state.labelAnalysis = null;
-    state.analyzing = false;
+    state.selectedProduct = '';
+    state.selectedFlavor = '';
+    state.skuSearch = '';
+    state.cart = [];
     state.submitting = false;
     orderModal.hidden = false;
     orderForm.reset();
     if (orderForm.elements.order_timestamp) orderForm.elements.order_timestamp.value = datetimeLocalValue();
     if (deadlineRange instanceof HTMLInputElement) deadlineRange.value = '24';
+    if (platformSelect instanceof HTMLSelectElement) platformSelect.value = 'Needs review';
+    if (skuSearchInput instanceof HTMLInputElement) skuSearchInput.value = '';
     setError('', modalErrorNode);
     renderDeadline();
     renderLabelQueue();
-    renderAnalysis();
+    renderSkuList();
+    renderPreview();
   };
 
   const closeOrderModal = () => {
     if (!(orderModal instanceof HTMLElement) || !(orderForm instanceof HTMLFormElement)) return;
     orderModal.hidden = true;
     state.labelFile = null;
-    state.labelAnalysis = null;
-    state.analyzing = false;
+    state.selectedProduct = '';
+    state.selectedFlavor = '';
+    state.skuSearch = '';
+    state.cart = [];
     state.submitting = false;
     orderForm.reset();
     setError('', modalErrorNode);
@@ -611,6 +766,8 @@ document.addEventListener('DOMContentLoaded', () => {
     flattenCatalog();
     if (partnerNameNode) partnerNameNode.textContent = state.partner?.name || 'Partner';
     if (partnerCodeNode) partnerCodeNode.textContent = state.partner?.code ? `Workspace ${state.partner.code}` : 'Direct ordering portal';
+    renderSkuList();
+    renderPreview();
   };
 
   document.querySelectorAll('[data-open-order-modal]').forEach((button) => {
@@ -638,20 +795,66 @@ document.addEventListener('DOMContentLoaded', () => {
     event.preventDefault();
     labelDropzone.classList.remove('is-dragover');
     const file = event.dataTransfer?.files?.[0] || null;
-    if (file) analyzeLabel(file);
+    if (file) setLabelFile(file);
   });
   labelInput?.addEventListener('change', () => {
     const file = labelInput.files?.[0] || null;
     labelInput.value = '';
-    if (file) analyzeLabel(file);
+    if (file) setLabelFile(file);
   });
   labelQueue?.addEventListener('click', (event) => {
     const target = event.target;
     if (!(target instanceof HTMLElement) || !target.matches('[data-remove-queued-file]')) return;
-    state.labelFile = null;
-    state.labelAnalysis = null;
+    setLabelFile(null);
     renderLabelQueue();
-    renderAnalysis();
+  });
+
+  skuSearchInput?.addEventListener('input', () => {
+    state.skuSearch = skuSearchInput.value || '';
+    renderSkuList();
+  });
+
+  productFilter?.addEventListener('click', (event) => {
+    const button = event.target instanceof Element ? event.target.closest('[data-product-value]') : null;
+    if (!(button instanceof HTMLButtonElement)) return;
+    state.selectedProduct = button.getAttribute('data-product-value') || '';
+    state.selectedFlavor = '';
+    renderSkuList();
+  });
+
+  flavorFilter?.addEventListener('click', (event) => {
+    const button = event.target instanceof Element ? event.target.closest('[data-flavor-value]') : null;
+    if (!(button instanceof HTMLButtonElement)) return;
+    state.selectedFlavor = button.getAttribute('data-flavor-value') || '';
+    renderSkuList();
+  });
+
+  skuList?.addEventListener('click', (event) => {
+    const button = event.target instanceof Element ? event.target.closest('[data-add-sku]') : null;
+    if (!(button instanceof HTMLButtonElement)) return;
+    addSku(button.getAttribute('data-add-sku') || '', Math.max(1, Number(button.getAttribute('data-add-qty') || 1)));
+  });
+
+  [platformSelect, customerNameInput].forEach((input) => {
+    input?.addEventListener('input', renderPreview);
+    input?.addEventListener('change', renderPreview);
+  });
+
+  orderPreview?.addEventListener('click', (event) => {
+    const button = event.target instanceof Element ? event.target.closest('[data-cart-qty]') : null;
+    if (!(button instanceof HTMLButtonElement)) return;
+    const skuCode = button.getAttribute('data-cart-qty') || '';
+    const delta = Number(button.getAttribute('data-cart-delta') || 0);
+    const item = state.cart.find((row) => row.sku === skuCode);
+    updateCartQuantity(skuCode, Number(item?.quantity || 0) + delta);
+  });
+
+  orderPreview?.addEventListener('change', (event) => {
+    const input = event.target;
+    if (!(input instanceof HTMLInputElement)) return;
+    const skuCode = input.getAttribute('data-cart-input') || '';
+    if (!skuCode) return;
+    updateCartQuantity(skuCode, Number(input.value || 0));
   });
 
   orderForm?.addEventListener('submit', async (event) => {
@@ -659,7 +862,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setError('', modalErrorNode);
 
     if (!canSubmitCurrentOrder()) {
-      setError('Upload a label with a detected platform and at least one matched product.', modalErrorNode);
+      setError('Upload a label and select at least one approved SKU.', modalErrorNode);
       return;
     }
 
@@ -668,26 +871,38 @@ document.addEventListener('DOMContentLoaded', () => {
 
     try {
       const formData = new window.FormData(orderForm);
-      const analysis = state.labelAnalysis || {};
+      const platform = formData.get('marketplace_platform') || platformSelect?.value || 'Needs review';
+      const customerName = formData.get('customer_name') || '';
       const payload = await requestJson(ordersEndpoint, {
         method: 'POST',
         body: {
           action: 'create',
           order_timestamp: formData.get('order_timestamp'),
           deadline_hours: formData.get('deadline_hours'),
-          marketplace_platform: analysis.platform?.platform || 'Needs review',
-          customer_name: analysis.customer_name || '',
-          items: (analysis.items || []).map((item) => ({
-            sku_code: item.sku_code,
-            quantity: item.quantity,
-            unit_revenue: item.unit_revenue,
-            line_revenue: item.line_revenue,
-            match_confidence: item.match_confidence,
-            match_score: item.match_score,
-            matched_alias: item.matched_alias,
-            match_evidence: item.match_evidence || []
+          marketplace_platform: platform,
+          customer_name: customerName,
+          items: state.cart.map((item) => ({
+            sku_code: item.sku,
+            quantity: item.quantity
           })),
-          inference: analysis
+          inference: {
+            source: 'manual_approved_sku_selection',
+            platform: {
+              platform,
+              confidence: platform === 'Needs review' ? 0 : 1,
+              reasons: state.labelFile ? ['label_uploaded'] : []
+            },
+            customer_name: String(customerName || ''),
+            items: state.cart.map((item) => ({
+              sku_code: item.sku,
+              sku_label: item.label,
+              product: skuProductName(item),
+              flavor: skuFlavorName(item),
+              quantity: item.quantity
+            })),
+            label_file_name: state.labelFile?.name || '',
+            analyzed_at: new Date().toISOString()
+          }
         }
       });
 

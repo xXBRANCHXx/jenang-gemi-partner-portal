@@ -81,7 +81,7 @@ $sectionUrl = static function (string $section) use ($dashboardPath): string {
                 <a href="<?php echo htmlspecialchars($sectionUrl('settings'), ENT_QUOTES); ?>" class="<?php echo $activeSection === 'settings' ? 'is-active' : ''; ?>" data-partner-section-link="settings">Settings</a>
             </nav>
 
-            <button type="button" class="partner-sidebar-primary" data-open-order-modal>New Label Order</button>
+            <button type="button" class="partner-sidebar-primary" data-open-order-modal>New Order</button>
 
             <div class="partner-theme-switch" data-theme-switch aria-label="Theme preference">
                 <button type="button" data-theme-option="system">System</button>
@@ -106,13 +106,13 @@ $sectionUrl = static function (string $section) use ($dashboardPath): string {
                     <span>Partner portal</span>
                     <h2 data-page-title><?php echo htmlspecialchars(ucfirst($activeSection), ENT_QUOTES); ?></h2>
                 </div>
-                <button type="button" class="admin-primary-btn" data-open-order-modal>Reconstruct Order</button>
+                <button type="button" class="admin-primary-btn" data-open-order-modal>Create Order</button>
             </header>
 
             <section class="partner-section <?php echo $activeSection === 'overview' ? 'is-active' : ''; ?>" data-partner-section="overview">
                 <section class="partner-metric-grid">
                     <article><span>30D units</span><strong data-metric-units>0</strong><small>Recent sell-through</small></article>
-                    <article><span>Orders reconstructed</span><strong data-metric-orders>0</strong><small>This window</small></article>
+                    <article><span>Orders created</span><strong data-metric-orders>0</strong><small>This window</small></article>
                     <article><span>Avg. units/order</span><strong data-metric-average>0.0</strong><small>Last 30 days</small></article>
                     <article><span>Revenue</span><strong data-metric-revenue>Rp0</strong><small>Partner pricing</small></article>
                 </section>
@@ -141,7 +141,7 @@ $sectionUrl = static function (string $section) use ($dashboardPath): string {
                         <div class="partner-panel-head">
                             <div>
                                 <span>Recent orders</span>
-                                <h3>Reconstructed history</h3>
+                                <h3>Order history</h3>
                             </div>
                         </div>
                         <div class="partner-recent-list" data-recent-orders></div>
@@ -156,7 +156,7 @@ $sectionUrl = static function (string $section) use ($dashboardPath): string {
                             <span>Orders</span>
                             <h3>Order history</h3>
                         </div>
-                        <button type="button" class="admin-primary-btn" data-open-order-modal>New Label Order</button>
+                        <button type="button" class="admin-primary-btn" data-open-order-modal>New Order</button>
                     </div>
                     <p class="admin-form-error" data-order-error hidden></p>
                     <div class="partner-order-card-list" data-order-list>
@@ -184,14 +184,14 @@ $sectionUrl = static function (string $section) use ($dashboardPath): string {
                 <section class="partner-metric-grid">
                     <article><span>Active orders</span><strong data-analytics-active>0</strong><small>Not canceled or archived</small></article>
                     <article><span>Fulfilled</span><strong data-analytics-fulfilled>0</strong><small>Completed orders</small></article>
-                    <article><span>Cancel rate</span><strong data-analytics-cancel-rate>0%</strong><small>All reconstructed orders</small></article>
+                    <article><span>Cancel rate</span><strong data-analytics-cancel-rate>0%</strong><small>All partner orders</small></article>
                     <article><span>Revenue/order</span><strong data-analytics-revenue-order>Rp0</strong><small>Partner pricing average</small></article>
                 </section>
                 <section class="partner-panel">
                     <div class="partner-panel-head">
                         <div>
                             <span>Product mix</span>
-                            <h3>Matched product units</h3>
+                            <h3>Product units</h3>
                         </div>
                     </div>
                     <div class="partner-product-mix" data-product-mix>
@@ -240,16 +240,28 @@ $sectionUrl = static function (string $section) use ($dashboardPath): string {
                 <div class="partner-label-main">
                     <div class="admin-modal-head">
                         <div>
-                            <span class="admin-panel-kicker">New label order</span>
-                            <h3 id="order-modal-title">Reconstruct order from shipping label</h3>
+                            <span class="admin-panel-kicker">New order</span>
+                            <h3 id="order-modal-title">Upload label, then choose approved SKUs</h3>
                         </div>
                         <button type="button" class="admin-ghost-btn" data-close-order-modal>Close</button>
                     </div>
 
                     <div class="partner-label-controls">
                         <label class="partner-label-field">
+                            <span>Customer name</span>
+                            <input type="text" name="customer_name" maxlength="160" placeholder="Optional customer name" data-customer-name>
+                        </label>
+                        <label class="partner-label-field">
                             <span>Creation time</span>
                             <input type="datetime-local" name="order_timestamp" data-order-timestamp required>
+                        </label>
+                        <label class="partner-label-field">
+                            <span>Source</span>
+                            <select name="marketplace_platform" data-platform-select>
+                                <option value="Needs review">Needs review</option>
+                                <option value="Shopee">Shopee</option>
+                                <option value="TikTok Shop">TikTok Shop</option>
+                            </select>
                         </label>
                         <label class="partner-label-field">
                             <span>Deadline</span>
@@ -269,35 +281,40 @@ $sectionUrl = static function (string $section) use ($dashboardPath): string {
                         <p class="admin-empty">No label file selected.</p>
                     </div>
 
-                    <div class="partner-analysis-card" data-analysis-card>
-                        <div class="partner-analysis-head">
+                    <section class="partner-product-selector" data-product-selector>
+                        <div class="partner-product-selector-head">
                             <div>
-                                <span>Source detection</span>
-                                <strong data-analysis-platform>Waiting for label</strong>
+                                <span>Approved SKUs</span>
+                                <strong>Select products</strong>
                             </div>
-                            <b data-analysis-confidence>0%</b>
+                            <label class="partner-sku-search">
+                                <span>Search</span>
+                                <input type="search" placeholder="SKU, product, flavor, tag" data-sku-search>
+                            </label>
                         </div>
-                        <p data-analysis-reasons>No label analyzed yet.</p>
-                    </div>
-
-                    <div class="partner-analysis-card">
-                        <div class="partner-analysis-head">
-                            <div>
-                                <span>Matched products</span>
-                                <strong data-analysis-item-count>0 products</strong>
+                        <div class="partner-filter-block">
+                            <span>Product</span>
+                            <div class="partner-filter-pills" data-product-filter>
+                                <button type="button" class="is-active" data-product-value="">All</button>
                             </div>
                         </div>
-                        <div class="partner-match-list" data-analysis-items>
-                            <p class="admin-empty">Upload a label to detect products.</p>
+                        <div class="partner-filter-block">
+                            <span>Flavor</span>
+                            <div class="partner-filter-pills" data-flavor-filter>
+                                <button type="button" class="is-active" data-flavor-value="">All</button>
+                            </div>
                         </div>
-                    </div>
+                        <div class="partner-sku-list" data-sku-list>
+                            <p class="admin-empty">Approved SKUs will load after your session is ready.</p>
+                        </div>
+                    </section>
                 </div>
 
                 <aside class="partner-label-preview">
                     <span>Order preview</span>
                     <div class="partner-preview-stack" data-order-preview></div>
                     <p class="admin-form-error" data-modal-order-error hidden></p>
-                    <button type="submit" class="admin-primary-btn" data-submit-order disabled>Submit Reconstructed Order</button>
+                    <button type="submit" class="admin-primary-btn" data-submit-order disabled>Submit Order</button>
                 </aside>
             </section>
         </form>

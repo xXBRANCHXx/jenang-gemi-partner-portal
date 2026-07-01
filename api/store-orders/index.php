@@ -133,6 +133,17 @@ function jg_store_orders_labels(array $order): array
     return $labels;
 }
 
+function jg_store_orders_has_labels(array $order): bool
+{
+    foreach ((array) ($order['labels'] ?? []) as $label) {
+        if (is_array($label) && trim((string) ($label['path'] ?? $label['url'] ?? '')) !== '') {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 function jg_store_orders_normalize(array $order): array
 {
     $createdAt = (string) ($order['created_at'] ?? '');
@@ -204,7 +215,7 @@ try {
     $orders = array_values(array_filter(array_map(
         static fn (array $order): array => jg_store_orders_normalize($order),
         jg_partner_order_list_all()
-    ), static fn (array $order): bool => (string) ($order['sourceOrderId'] ?? '') !== ''));
+    ), static fn (array $order): bool => (string) ($order['sourceOrderId'] ?? '') !== '' && jg_store_orders_has_labels($order)));
 } catch (Throwable $exception) {
     jg_store_orders_fail($exception->getMessage() ?: 'Unable to load partner orders.', 500);
 }

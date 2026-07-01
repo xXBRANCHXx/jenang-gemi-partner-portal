@@ -48,7 +48,7 @@ try {
     }
 
     if (!isset($_FILES['labels']) || !is_array($_FILES['labels'])) {
-        jg_partner_label_fail('Select one label file.');
+        jg_partner_label_fail('Upload a shipment label PDF.');
     }
 
     $labels = jg_partner_order_store_uploaded_labels($partnerCode, $orderId, $_FILES['labels']);
@@ -61,7 +61,8 @@ try {
 } catch (InvalidArgumentException $exception) {
     jg_partner_label_fail($exception->getMessage(), 422);
 } catch (RuntimeException $exception) {
-    jg_partner_label_fail($exception->getMessage(), 404);
+    $message = $exception->getMessage() ?: 'Unable to upload label.';
+    jg_partner_label_fail($message, str_contains(strtolower($message), 'not found') ? 404 : 500);
 } catch (Throwable) {
     jg_partner_label_fail('Unable to upload labels.', 500);
 }

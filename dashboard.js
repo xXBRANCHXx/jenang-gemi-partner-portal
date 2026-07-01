@@ -94,8 +94,8 @@ document.addEventListener('DOMContentLoaded', () => {
     return payload;
   };
 
-  const postLabelForm = async (formData) => {
-    const response = await fetch(labelsEndpoint, {
+  const postOrderForm = async (formData) => {
+    const response = await fetch(ordersEndpoint, {
       method: 'POST',
       credentials: 'same-origin',
       body: formData
@@ -140,6 +140,13 @@ document.addEventListener('DOMContentLoaded', () => {
     if (size >= 1024 * 1024) return `${(size / (1024 * 1024)).toFixed(1)} MB`;
     if (size >= 1024) return `${Math.round(size / 1024)} KB`;
     return `${size} B`;
+  };
+
+  const isPdfLabelFile = (file) => {
+    if (!file) return false;
+    const name = String(file.name || '').toLowerCase();
+    const type = String(file.type || '').toLowerCase();
+    return name.endsWith('.pdf') && (!type || type === 'application/pdf' || type === 'application/x-pdf');
   };
 
   const formatNumber = (value) => {
@@ -688,6 +695,14 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   const setLabelFile = (file) => {
+    if (file && !isPdfLabelFile(file)) {
+      state.labelFile = null;
+      setError('Upload a shipment label PDF.', modalErrorNode);
+      renderLabelQueue();
+      renderPreview();
+      return;
+    }
+
     state.labelFile = file;
     setError('', modalErrorNode);
     if (file && platformSelect instanceof HTMLSelectElement && platformSelect.value === 'Needs review') {
@@ -695,13 +710,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     renderLabelQueue();
     renderPreview();
-  };
-
-  const uploadLabel = async (orderId, file) => {
-    const formData = new window.FormData();
-    formData.append('order_id', orderId);
-    formData.append('labels[]', file);
-    return postLabelForm(formData);
   };
 
   const openOrderModal = () => {
@@ -873,43 +881,40 @@ document.addEventListener('DOMContentLoaded', () => {
       const formData = new window.FormData(orderForm);
       const platform = formData.get('marketplace_platform') || platformSelect?.value || 'Needs review';
       const customerName = formData.get('customer_name') || '';
-      const payload = await requestJson(ordersEndpoint, {
-        method: 'POST',
-        body: {
-          action: 'create',
-          order_timestamp: formData.get('order_timestamp'),
-          deadline_hours: formData.get('deadline_hours'),
-          marketplace_platform: platform,
-          customer_name: customerName,
+      const orderPayload = {
+        action: 'create',
+        order_timestamp: formData.get('order_timestamp'),
+        deadline_hours: formData.get('deadline_hours'),
+        marketplace_platform: platform,
+        customer_name: customerName,
+        items: state.cart.map((item) => ({
+          sku_code: item.sku,
+          quantity: item.quantity
+        })),
+        inference: {
+          source: 'manual_approved_sku_selection',
+          platform: {
+            platform,
+            confidence: platform === 'Needs review' ? 0 : 1,
+            reasons: state.labelFile ? ['label_uploaded'] : []
+          },
+          customer_name: String(customerName || ''),
           items: state.cart.map((item) => ({
             sku_code: item.sku,
+            sku_label: item.label,
+            product: skuProductName(item),
+            flavor: skuFlavorName(item),
             quantity: item.quantity
           })),
-          inference: {
-            source: 'manual_approved_sku_selection',
-            platform: {
-              platform,
-              confidence: platform === 'Needs review' ? 0 : 1,
-              reasons: state.labelFile ? ['label_uploaded'] : []
-            },
-            customer_name: String(customerName || ''),
-            items: state.cart.map((item) => ({
-              sku_code: item.sku,
-              sku_label: item.label,
-              product: skuProductName(item),
-              flavor: skuFlavorName(item),
-              quantity: item.quantity
-            })),
-            label_file_name: state.labelFile?.name || '',
-            analyzed_at: new Date().toISOString()
-          }
+          label_file_name: state.labelFile?.name || '',
+          analyzed_at: new Date().toISOString()
         }
-      });
+      };
 
-      const savedOrder = payload.order || null;
-      if (savedOrder?.id && state.labelFile) {
-        await uploadLabel(savedOrder.id, state.labelFile);
-      }
+      const multipart = new window.FormData();
+      multipart.append('payload', JSON.stringify(orderPayload));
+      multipart.append('labels[]', state.labelFile, state.labelFile.name);
+      await postOrderForm(multipart);
 
       closeOrderModal();
       await loadOrders();

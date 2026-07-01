@@ -266,16 +266,16 @@ $sectionUrl = static function (string $section) use ($dashboardPath): string {
                         <label class="partner-label-field">
                             <span>Deadline</span>
                             <strong data-deadline-value>24h</strong>
-                            <input type="range" name="deadline_hours" min="1" max="48" value="24" data-deadline-range>
+                            <input type="range" name="deadline_hours" min="24" max="48" value="24" data-deadline-range>
                         </label>
                     </div>
 
                     <button type="button" class="partner-upload-dropzone partner-label-dropzone" data-label-dropzone>
                         <span class="partner-upload-plus" aria-hidden="true">+</span>
                         <strong data-label-dropzone-copy>Upload shipping label</strong>
-                        <span>Shopee, TikTok Shop, PDF, image, ZPL, TXT, or PRN</span>
+                        <span>PDF shipment label</span>
                     </button>
-                    <input type="file" name="labels" data-label-input hidden accept=".pdf,.png,.jpg,.jpeg,.webp,.gif,.svg,.zpl,.txt,.prn">
+                    <input type="file" name="labels" data-label-input hidden accept=".pdf,application/pdf">
 
                     <div class="partner-upload-queue" data-label-queue>
                         <p class="admin-empty">No label file selected.</p>

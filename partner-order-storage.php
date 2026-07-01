@@ -703,8 +703,12 @@ function jg_partner_order_build_record(string $partnerCode, ?array $partner, arr
     $labelRecords = array_values(array_filter((array) ($existing['labels'] ?? []), 'is_array'));
     $orderTimestamp = jg_partner_order_normalize_timestamp($payload['order_timestamp'] ?? ($existing['order_timestamp'] ?? $createdAt));
     $deadlineHours = jg_partner_order_normalize_deadline_hours($payload['deadline_hours'] ?? ($existing['deadline_hours'] ?? 24));
-    $deadlineAt = jg_partner_order_deadline_at($orderTimestamp, $deadlineHours);
     $inference = jg_partner_order_normalize_inference($payload['inference'] ?? ($existing['inference'] ?? []));
+    $marketplacePlatform = jg_partner_order_normalize_marketplace_platform($payload['marketplace_platform'] ?? ($inference['platform']['platform'] ?? $existing['marketplace_platform'] ?? 'Needs review'));
+    if (!in_array($marketplacePlatform, ['Shopee', 'TikTok Shop'], true)) {
+        $deadlineHours = max(24, $deadlineHours);
+    }
+    $deadlineAt = jg_partner_order_deadline_at($orderTimestamp, $deadlineHours);
     $customerName = jg_partner_order_normalize_text($payload['customer_name'] ?? ($inference['customer_name'] ?? ''), 'Customer name', 160, false);
     if ($customerName === '') {
         $customerName = 'Label recipient';
@@ -726,7 +730,7 @@ function jg_partner_order_build_record(string $partnerCode, ?array $partner, arr
         'order_timestamp' => $orderTimestamp,
         'deadline_hours' => $deadlineHours,
         'deadline_at' => $deadlineAt,
-        'marketplace_platform' => jg_partner_order_normalize_marketplace_platform($payload['marketplace_platform'] ?? ($inference['platform']['platform'] ?? $existing['marketplace_platform'] ?? 'Needs review')),
+        'marketplace_platform' => $marketplacePlatform,
         'revenue_total' => $revenueTotal,
         'inference' => $inference,
         'notes' => jg_partner_order_normalize_text($payload['notes'] ?? '', 'Notes', 300, false),
@@ -997,6 +1001,38 @@ function jg_partner_order_assert_editable(array $order): void
     }
 }
 
+function jg_partner_order_insert_record_mysql(PDO $pdo, array $record): void
+{
+    $stmt = $pdo->prepare(
+        'INSERT INTO partner_orders
+            (id, partner_code, customer_name, brand_name, product_name, sku_code, sku_label, quantity, notes, status, order_timestamp, marketplace_platform, deadline_hours, deadline_at, revenue_total, inference_json, items_json, archived_at, created_at, updated_at)
+         VALUES
+            (:id, :partner_code, :customer_name, :brand_name, :product_name, :sku_code, :sku_label, :quantity, :notes, :status, :order_timestamp, :marketplace_platform, :deadline_hours, :deadline_at, :revenue_total, :inference_json, :items_json, :archived_at, :created_at, :updated_at)'
+    );
+    $stmt->execute([
+        ':id' => $record['id'],
+        ':partner_code' => $record['partner_code'],
+        ':customer_name' => $record['customer_name'],
+        ':brand_name' => $record['brand'],
+        ':product_name' => $record['product'],
+        ':sku_code' => $record['sku_code'],
+        ':sku_label' => $record['sku_label'],
+        ':quantity' => $record['quantity'],
+        ':notes' => $record['notes'],
+        ':status' => $record['status'],
+        ':order_timestamp' => gmdate('Y-m-d H:i:s', strtotime($record['order_timestamp'])),
+        ':marketplace_platform' => $record['marketplace_platform'],
+        ':deadline_hours' => $record['deadline_hours'],
+        ':deadline_at' => gmdate('Y-m-d H:i:s', strtotime($record['deadline_at'])),
+        ':revenue_total' => number_format((float) ($record['revenue_total'] ?? 0), 2, '.', ''),
+        ':inference_json' => json_encode($record['inference'], JSON_UNESCAPED_SLASHES),
+        ':items_json' => json_encode($record['items'], JSON_UNESCAPED_SLASHES),
+        ':archived_at' => trim((string) ($record['archived_at'] ?? '')) !== '' ? gmdate('Y-m-d H:i:s', strtotime((string) $record['archived_at'])) : null,
+        ':created_at' => gmdate('Y-m-d H:i:s', strtotime($record['created_at'])),
+        ':updated_at' => gmdate('Y-m-d H:i:s', strtotime($record['updated_at'])),
+    ]);
+}
+
 function jg_partner_order_cancel(string $partnerCode, string $orderId): array
 {
     $normalizedId = jg_partner_order_normalize_text($orderId, 'Order id');
@@ -1099,34 +1135,7 @@ function jg_partner_order_save(string $partnerCode, ?array $partner, array $payl
     if ($pdo instanceof PDO) {
         if ($action === 'create') {
             $record = jg_partner_order_build_record($partnerCode, $partner, $payload);
-            $stmt = $pdo->prepare(
-                'INSERT INTO partner_orders
-                    (id, partner_code, customer_name, brand_name, product_name, sku_code, sku_label, quantity, notes, status, order_timestamp, marketplace_platform, deadline_hours, deadline_at, revenue_total, inference_json, items_json, archived_at, created_at, updated_at)
-                 VALUES
-                    (:id, :partner_code, :customer_name, :brand_name, :product_name, :sku_code, :sku_label, :quantity, :notes, :status, :order_timestamp, :marketplace_platform, :deadline_hours, :deadline_at, :revenue_total, :inference_json, :items_json, :archived_at, :created_at, :updated_at)'
-            );
-            $stmt->execute([
-                ':id' => $record['id'],
-                ':partner_code' => $record['partner_code'],
-                ':customer_name' => $record['customer_name'],
-                ':brand_name' => $record['brand'],
-                ':product_name' => $record['product'],
-                ':sku_code' => $record['sku_code'],
-                ':sku_label' => $record['sku_label'],
-                ':quantity' => $record['quantity'],
-                ':notes' => $record['notes'],
-                ':status' => $record['status'],
-                ':order_timestamp' => gmdate('Y-m-d H:i:s', strtotime($record['order_timestamp'])),
-                ':marketplace_platform' => $record['marketplace_platform'],
-                ':deadline_hours' => $record['deadline_hours'],
-                ':deadline_at' => gmdate('Y-m-d H:i:s', strtotime($record['deadline_at'])),
-                ':revenue_total' => number_format((float) ($record['revenue_total'] ?? 0), 2, '.', ''),
-                ':inference_json' => json_encode($record['inference'], JSON_UNESCAPED_SLASHES),
-                ':items_json' => json_encode($record['items'], JSON_UNESCAPED_SLASHES),
-                ':archived_at' => trim((string) ($record['archived_at'] ?? '')) !== '' ? gmdate('Y-m-d H:i:s', strtotime((string) $record['archived_at'])) : null,
-                ':created_at' => gmdate('Y-m-d H:i:s', strtotime($record['created_at'])),
-                ':updated_at' => gmdate('Y-m-d H:i:s', strtotime($record['updated_at'])),
-            ]);
+            jg_partner_order_insert_record_mysql($pdo, $record);
 
             return jg_partner_order_find($partnerCode, $record['id']) ?? $record;
         }
@@ -1287,7 +1296,7 @@ function jg_partner_order_upload_directory(): string
 
 function jg_partner_order_allowed_extensions(): array
 {
-    return ['pdf', 'png', 'jpg', 'jpeg', 'webp', 'gif', 'svg', 'zpl', 'txt', 'prn'];
+    return ['pdf'];
 }
 
 function jg_partner_order_normalize_uploaded_files(array $files): array
@@ -1315,6 +1324,162 @@ function jg_partner_order_normalize_uploaded_files(array $files): array
     }
 
     return $normalized;
+}
+
+function jg_partner_order_required_uploaded_label_file(array $files): array
+{
+    $uploadedFiles = [];
+    foreach (jg_partner_order_normalize_uploaded_files($files) as $file) {
+        $errorCode = (int) ($file['error'] ?? UPLOAD_ERR_NO_FILE);
+        if ($errorCode === UPLOAD_ERR_NO_FILE) {
+            continue;
+        }
+        $uploadedFiles[] = $file;
+    }
+
+    if ($uploadedFiles === []) {
+        throw new InvalidArgumentException('Upload a shipment label PDF.');
+    }
+    if (count($uploadedFiles) > 1) {
+        throw new InvalidArgumentException('Upload only one shipment label PDF.');
+    }
+
+    $file = $uploadedFiles[0];
+    if ((int) ($file['error'] ?? UPLOAD_ERR_OK) !== UPLOAD_ERR_OK) {
+        throw new RuntimeException('The shipment label PDF failed to upload.');
+    }
+
+    return $file;
+}
+
+function jg_partner_order_assert_pdf_upload(array $file): void
+{
+    $safeOriginal = trim((string) ($file['name'] ?? ''));
+    $extension = strtolower(pathinfo($safeOriginal, PATHINFO_EXTENSION));
+    if ($safeOriginal === '' || !in_array($extension, jg_partner_order_allowed_extensions(), true)) {
+        throw new InvalidArgumentException('Upload a shipment label PDF.');
+    }
+
+    $tmpName = (string) ($file['tmp_name'] ?? '');
+    if ($tmpName === '' || !is_file($tmpName)) {
+        throw new RuntimeException('The shipment label PDF failed to upload.');
+    }
+
+    $header = @file_get_contents($tmpName, false, null, 0, 5);
+    if (!is_string($header) || $header !== '%PDF-') {
+        throw new InvalidArgumentException('Shipment label must be a valid PDF file.');
+    }
+}
+
+function jg_partner_order_prepare_uploaded_label(string $partnerCode, string $orderId, array $files): array
+{
+    $file = jg_partner_order_required_uploaded_label_file($files);
+    jg_partner_order_assert_pdf_upload($file);
+
+    $uploadDir = jg_partner_order_upload_directory();
+    $safeOriginal = trim((string) ($file['name'] ?? 'shipment-label.pdf'));
+    $extension = strtolower(pathinfo($safeOriginal, PATHINFO_EXTENSION)) ?: 'pdf';
+    $storedName = sprintf(
+        '%s-%s-%s.%s',
+        preg_replace('/[^a-z0-9]+/i', '-', strtolower($partnerCode)) ?: 'partner',
+        preg_replace('/[^a-z0-9]+/i', '-', strtolower($orderId)) ?: 'order',
+        substr(sha1($safeOriginal . microtime(true) . random_int(1000, 9999)), 0, 12),
+        $extension
+    );
+
+    $targetPath = rtrim($uploadDir, '/') . '/' . $storedName;
+    if (!@move_uploaded_file((string) ($file['tmp_name'] ?? ''), $targetPath)) {
+        throw new RuntimeException('Unable to save shipment label PDF.');
+    }
+
+    $mimeType = '';
+    if (function_exists('mime_content_type')) {
+        $mimeType = (string) @mime_content_type($targetPath);
+    }
+
+    return [
+        'name' => $safeOriginal,
+        'stored_name' => $storedName,
+        'path' => 'uploads/shipping-labels/' . $storedName,
+        'url' => '../uploads/shipping-labels/' . $storedName,
+        'mime_type' => $mimeType,
+        'size_bytes' => (int) ($file['size'] ?? 0),
+        'created_at' => gmdate(DATE_ATOM),
+    ];
+}
+
+function jg_partner_order_unlink_labels(array $labels): void
+{
+    foreach ($labels as $label) {
+        if (!is_array($label)) {
+            continue;
+        }
+        $path = __DIR__ . '/' . ltrim((string) ($label['path'] ?? ''), '/');
+        if (is_file($path)) {
+            @unlink($path);
+        }
+    }
+}
+
+function jg_partner_order_insert_label_mysql(PDO $pdo, string $partnerCode, string $orderId, array $label): void
+{
+    $stmt = $pdo->prepare(
+        'INSERT INTO partner_order_labels
+            (order_id, partner_code, original_name, stored_name, relative_path, mime_type, size_bytes, created_at)
+         VALUES
+            (:order_id, :partner_code, :original_name, :stored_name, :relative_path, :mime_type, :size_bytes, :created_at)'
+    );
+    $stmt->execute([
+        ':order_id' => $orderId,
+        ':partner_code' => $partnerCode,
+        ':original_name' => $label['name'],
+        ':stored_name' => $label['stored_name'],
+        ':relative_path' => $label['path'],
+        ':mime_type' => $label['mime_type'],
+        ':size_bytes' => $label['size_bytes'],
+        ':created_at' => gmdate('Y-m-d H:i:s', strtotime((string) $label['created_at'])),
+    ]);
+}
+
+function jg_partner_order_create_with_label(string $partnerCode, ?array $partner, array $payload, array $files): array
+{
+    $record = jg_partner_order_build_record($partnerCode, $partner, $payload);
+
+    $pdo = jg_partner_data_db();
+    if (!$pdo instanceof PDO) {
+        jg_partner_order_assert_fallback_storage_allowed();
+    }
+
+    $label = jg_partner_order_prepare_uploaded_label($partnerCode, (string) $record['id'], $files);
+    $record['labels'] = [$label];
+
+    if ($pdo instanceof PDO) {
+        try {
+            $pdo->beginTransaction();
+            jg_partner_order_insert_record_mysql($pdo, $record);
+            jg_partner_order_insert_label_mysql($pdo, $partnerCode, (string) $record['id'], $label);
+            $pdo->commit();
+        } catch (Throwable $exception) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            jg_partner_order_unlink_labels([$label]);
+            throw $exception;
+        }
+
+        return jg_partner_order_find($partnerCode, (string) $record['id']) ?? $record;
+    }
+
+    try {
+        $database = jg_partner_order_read_json_database();
+        $database['orders'][] = $record;
+        jg_partner_order_write_json_database($database);
+    } catch (Throwable $exception) {
+        jg_partner_order_unlink_labels([$label]);
+        throw $exception;
+    }
+
+    return $record;
 }
 
 function jg_partner_order_run_pdftotext(string $path): string
@@ -1654,29 +1819,10 @@ function jg_partner_order_analyze_label_text(?array $partner, string $labelText)
 
 function jg_partner_order_analyze_uploaded_labels(?array $partner, array $files): array
 {
-    $uploadedFiles = jg_partner_order_normalize_uploaded_files($files);
-    $firstFile = null;
-    foreach ($uploadedFiles as $file) {
-        if ((int) ($file['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_FILE) {
-            continue;
-        }
-        $firstFile = $file;
-        break;
-    }
+    $firstFile = jg_partner_order_required_uploaded_label_file($files);
+    jg_partner_order_assert_pdf_upload($firstFile);
 
-    if (!is_array($firstFile)) {
-        throw new InvalidArgumentException('Select one label file.');
-    }
-    if ((int) ($firstFile['error'] ?? UPLOAD_ERR_OK) !== UPLOAD_ERR_OK) {
-        throw new RuntimeException('The label failed to upload.');
-    }
-
-    $safeOriginal = trim((string) ($firstFile['name'] ?? ''));
-    $extension = strtolower(pathinfo($safeOriginal, PATHINFO_EXTENSION));
-    if ($safeOriginal === '' || !in_array($extension, jg_partner_order_allowed_extensions(), true)) {
-        throw new RuntimeException('Unsupported file type. Use PDF, image, or label-print file formats.');
-    }
-
+    $safeOriginal = trim((string) ($firstFile['name'] ?? 'shipment-label.pdf'));
     $labelText = jg_partner_order_extract_readable_text((string) ($firstFile['tmp_name'] ?? ''), $safeOriginal);
     return jg_partner_order_analyze_label_text($partner, $labelText);
 }
@@ -1691,86 +1837,19 @@ function jg_partner_order_store_uploaded_labels(string $partnerCode, string $ord
         throw new InvalidArgumentException('Delete the current shipping label before uploading another one.');
     }
 
-    $uploadDir = jg_partner_order_upload_directory();
-    $savedLabels = [];
-
-    foreach (jg_partner_order_normalize_uploaded_files($files) as $file) {
-        if ($savedLabels !== []) {
-            throw new InvalidArgumentException('Upload only one shipping label per order.');
-        }
-        $errorCode = (int) ($file['error'] ?? UPLOAD_ERR_NO_FILE);
-        if ($errorCode === UPLOAD_ERR_NO_FILE) {
-            continue;
-        }
-        if ($errorCode !== UPLOAD_ERR_OK) {
-            throw new RuntimeException('One of the uploaded files failed to upload.');
-        }
-
-        $tmpName = (string) ($file['tmp_name'] ?? '');
-        $sizeBytes = (int) ($file['size'] ?? 0);
-        $safeOriginal = trim((string) ($file['name'] ?? ''));
-        $extension = strtolower(pathinfo($safeOriginal, PATHINFO_EXTENSION));
-
-        if ($safeOriginal === '') {
-            throw new RuntimeException('Uploaded file name is invalid.');
-        }
-        if (!in_array($extension, jg_partner_order_allowed_extensions(), true)) {
-            throw new RuntimeException('Unsupported file type. Use PDF, image, or label-print file formats.');
-        }
-
-        $storedName = sprintf(
-            '%s-%s-%s.%s',
-            preg_replace('/[^a-z0-9]+/i', '-', strtolower($partnerCode)) ?: 'partner',
-            preg_replace('/[^a-z0-9]+/i', '-', strtolower($orderId)) ?: 'order',
-            substr(sha1($safeOriginal . microtime(true) . random_int(1000, 9999)), 0, 12),
-            $extension
-        );
-
-        $targetPath = rtrim($uploadDir, '/') . '/' . $storedName;
-        if (!@move_uploaded_file($tmpName, $targetPath)) {
-            throw new RuntimeException('Unable to save uploaded label.');
-        }
-
-        $mimeType = '';
-        if (function_exists('mime_content_type')) {
-            $mimeType = (string) @mime_content_type($targetPath);
-        }
-
-        $savedLabels[] = [
-            'name' => $safeOriginal,
-            'stored_name' => $storedName,
-            'path' => 'uploads/shipping-labels/' . $storedName,
-            'url' => '../uploads/shipping-labels/' . $storedName,
-            'mime_type' => $mimeType,
-            'size_bytes' => $sizeBytes,
-            'created_at' => gmdate(DATE_ATOM),
-        ];
-    }
-
-    if ($savedLabels === []) {
-        return $existingOrder['labels'] ?? [];
-    }
+    $savedLabels = [
+        jg_partner_order_prepare_uploaded_label($partnerCode, $orderId, $files),
+    ];
 
     $pdo = jg_partner_data_db();
     if ($pdo instanceof PDO) {
-        $stmt = $pdo->prepare(
-            'INSERT INTO partner_order_labels
-                (order_id, partner_code, original_name, stored_name, relative_path, mime_type, size_bytes, created_at)
-             VALUES
-                (:order_id, :partner_code, :original_name, :stored_name, :relative_path, :mime_type, :size_bytes, :created_at)'
-        );
-
-        foreach ($savedLabels as $label) {
-            $stmt->execute([
-                ':order_id' => $orderId,
-                ':partner_code' => $partnerCode,
-                ':original_name' => $label['name'],
-                ':stored_name' => $label['stored_name'],
-                ':relative_path' => $label['path'],
-                ':mime_type' => $label['mime_type'],
-                ':size_bytes' => $label['size_bytes'],
-                ':created_at' => gmdate('Y-m-d H:i:s', strtotime($label['created_at'])),
-            ]);
+        try {
+            foreach ($savedLabels as $label) {
+                jg_partner_order_insert_label_mysql($pdo, $partnerCode, $orderId, $label);
+            }
+        } catch (Throwable $exception) {
+            jg_partner_order_unlink_labels($savedLabels);
+            throw $exception;
         }
 
         $fresh = jg_partner_order_find($partnerCode, $orderId);
@@ -1789,7 +1868,12 @@ function jg_partner_order_store_uploaded_labels(string $partnerCode, string $ord
         break;
     }
     unset($order);
-    jg_partner_order_write_json_database($database);
+    try {
+        jg_partner_order_write_json_database($database);
+    } catch (Throwable $exception) {
+        jg_partner_order_unlink_labels($savedLabels);
+        throw $exception;
+    }
 
     $fresh = jg_partner_order_find($partnerCode, $orderId);
     return $fresh['labels'] ?? [];

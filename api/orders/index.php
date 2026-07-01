@@ -15,8 +15,27 @@ function jg_order_fail(string $message, int $status = 422): void
     exit;
 }
 
+function jg_order_is_multipart(): bool
+{
+    $contentType = strtolower((string) ($_SERVER['CONTENT_TYPE'] ?? $_SERVER['HTTP_CONTENT_TYPE'] ?? ''));
+    return str_contains($contentType, 'multipart/form-data');
+}
+
 function jg_order_request(): array
 {
+    if (jg_order_is_multipart()) {
+        $payload = trim((string) ($_POST['payload'] ?? ''));
+        if ($payload !== '') {
+            $decoded = json_decode($payload, true);
+            if (!is_array($decoded)) {
+                jg_order_fail('Order payload is invalid JSON.');
+            }
+            return $decoded;
+        }
+
+        return $_POST;
+    }
+
     $raw = file_get_contents('php://input');
     if (!$raw) return [];
     $data = json_decode($raw, true);
@@ -50,7 +69,14 @@ $action = (string) ($request['action'] ?? '');
 
 try {
     if ($action === 'create' || $action === 'update') {
-        $order = jg_partner_order_save($partnerCode, $partner, $request, $action);
+        if ($action === 'create') {
+            if (!jg_order_is_multipart() || !isset($_FILES['labels']) || !is_array($_FILES['labels'])) {
+                jg_order_fail('Upload a shipment label PDF.');
+            }
+            $order = jg_partner_order_create_with_label($partnerCode, $partner, $request, $_FILES['labels']);
+        } else {
+            $order = jg_partner_order_save($partnerCode, $partner, $request, $action);
+        }
         $orders = jg_partner_order_list($partnerCode);
         echo json_encode([
             'order' => $order,
@@ -95,7 +121,8 @@ try {
 } catch (InvalidArgumentException $exception) {
     jg_order_fail($exception->getMessage(), 422);
 } catch (RuntimeException $exception) {
-    jg_order_fail($exception->getMessage(), 404);
+    $message = $exception->getMessage() ?: 'Unable to save order.';
+    jg_order_fail($message, str_contains(strtolower($message), 'not found') ? 404 : 500);
 } catch (Throwable) {
     jg_order_fail('Unable to save order.', 500);
 }

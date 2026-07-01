@@ -3797,3 +3797,187 @@ body.is-dashboard[data-partner-theme='light'] :is(
     color: rgba(36, 36, 36, 0.76);
   }
 }
+
+body.is-dashboard[data-partner-theme='light'] .partner-workspace,
+body.is-dashboard[data-partner-theme='light'] .partner-order-modal-shell {
+  color: var(--partner-text);
+}
+
+body.is-dashboard[data-partner-theme='light'] :is(.partner-workspace, .partner-order-modal-shell) :where(
+  h1,
+  h2,
+  h3,
+  h4,
+  p,
+  span,
+  strong,
+  small,
+  label,
+  button,
+  a,
+  input,
+  select,
+  textarea,
+  div
+) {
+  color: inherit;
+}
+
+body.is-dashboard[data-partner-theme='light'] :is(
+  .partner-sidebar-kicker,
+  .partner-page-head span,
+  .partner-panel-head span,
+  .partner-analysis-head span,
+  .partner-label-preview > span,
+  .partner-label-field > span,
+  .partner-metric-grid span,
+  .partner-sidebar p,
+  .partner-sidebar-profile span,
+  .partner-recent-order span,
+  .partner-order-card-main span,
+  .partner-order-card-main em,
+  .partner-order-card-items span,
+  .partner-order-card-meta span,
+  .partner-order-card-meta a,
+  .partner-match-row span,
+  .partner-match-row code,
+  .partner-analysis-card p,
+  .partner-metric-grid small,
+  .partner-settings-row > span,
+  .partner-label-library-row span,
+  .partner-product-row span,
+  .partner-product-selector-head span,
+  .partner-filter-block > span,
+  .partner-sku-search span,
+  .partner-sku-main span,
+  .partner-sku-main code,
+  .partner-sku-meta span,
+  .partner-cart-row span,
+  .partner-sku-actions span,
+  .admin-empty
+) {
+  color: var(--partner-muted);
+}
+
+body.is-dashboard[data-partner-theme='light'] :is(
+  .partner-sidebar h1,
+  .partner-page-head h2,
+  .partner-panel-head h3,
+  .partner-metric-grid strong,
+  .partner-recent-order strong,
+  .partner-analysis-head strong,
+  .partner-label-field strong,
+  .partner-label-preview article strong,
+  .partner-order-card-main strong,
+  .partner-match-row strong,
+  .partner-sku-main strong,
+  .partner-sku-meta strong,
+  .partner-cart-row strong,
+  .partner-label-library-row strong,
+  .partner-product-row strong
+) {
+  color: var(--partner-text);
+}
+
+body.is-dashboard[data-partner-theme='light'] :is(
+  .admin-primary-btn,
+  .admin-primary-btn *,
+  .partner-sidebar-primary,
+  .partner-sidebar-primary *,
+  .partner-filter-pills button.is-active
+) {
+  color: #ffffff;
+}
+
+@media (prefers-color-scheme: light) {
+  body.is-dashboard:not([data-partner-theme='dark']) .partner-workspace,
+  body.is-dashboard:not([data-partner-theme='dark']) .partner-order-modal-shell {
+    color: var(--partner-text);
+  }
+
+  body.is-dashboard:not([data-partner-theme='dark']) :is(.partner-workspace, .partner-order-modal-shell) :where(
+    h1,
+    h2,
+    h3,
+    h4,
+    p,
+    span,
+    strong,
+    small,
+    label,
+    button,
+    a,
+    input,
+    select,
+    textarea,
+    div
+  ) {
+    color: inherit;
+  }
+
+  body.is-dashboard:not([data-partner-theme='dark']) :is(
+    .partner-sidebar-kicker,
+    .partner-page-head span,
+    .partner-panel-head span,
+    .partner-analysis-head span,
+    .partner-label-preview > span,
+    .partner-label-field > span,
+    .partner-metric-grid span,
+    .partner-sidebar p,
+    .partner-sidebar-profile span,
+    .partner-recent-order span,
+    .partner-order-card-main span,
+    .partner-order-card-main em,
+    .partner-order-card-items span,
+    .partner-order-card-meta span,
+    .partner-order-card-meta a,
+    .partner-match-row span,
+    .partner-match-row code,
+    .partner-analysis-card p,
+    .partner-metric-grid small,
+    .partner-settings-row > span,
+    .partner-label-library-row span,
+    .partner-product-row span,
+    .partner-product-selector-head span,
+    .partner-filter-block > span,
+    .partner-sku-search span,
+    .partner-sku-main span,
+    .partner-sku-main code,
+    .partner-sku-meta span,
+    .partner-cart-row span,
+    .partner-sku-actions span,
+    .admin-empty
+  ) {
+    color: var(--partner-muted);
+  }
+
+  body.is-dashboard:not([data-partner-theme='dark']) :is(
+    .partner-sidebar h1,
+    .partner-page-head h2,
+    .partner-panel-head h3,
+    .partner-metric-grid strong,
+    .partner-recent-order strong,
+    .partner-analysis-head strong,
+    .partner-label-field strong,
+    .partner-label-preview article strong,
+    .partner-order-card-main strong,
+    .partner-match-row strong,
+    .partner-sku-main strong,
+    .partner-sku-meta strong,
+    .partner-cart-row strong,
+    .partner-label-library-row strong,
+    .partner-product-row strong
+  ) {
+    color: var(--partner-text);
+  }
+
+  body.is-dashboard:not([data-partner-theme='dark']) :is(
+    .admin-primary-btn,
+    .admin-primary-btn *,
+    .partner-sidebar-primary,
+    .partner-sidebar-primary *,
+    .partner-filter-pills button.is-active
+  ) {
+    color: #ffffff;
+  }
+}

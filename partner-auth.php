@@ -59,7 +59,8 @@ function jg_partner_profile_slug(?array $partner): string
 function jg_partner_attempt_login(string $code, string $password, ?array $requestedPartner = null): bool
 {
     jg_partner_start_session();
-    $partner = jg_partner_source_authenticate($code, $password);
+    $authResult = jg_partner_source_authenticate_result($code, $password);
+    $partner = !empty($authResult['ok']) && is_array($authResult['partner'] ?? null) ? $authResult['partner'] : null;
     if (!$partner) {
         return false;
     }
@@ -73,7 +74,31 @@ function jg_partner_attempt_login(string $code, string $password, ?array $reques
     $_SESSION['jg_partner_name'] = $partnerName;
     $_SESSION['jg_partner_slug'] = jg_partner_profile_slug($partner);
     $_SESSION['jg_partner_login_at'] = gmdate(DATE_ATOM);
+    if (!empty($authResult['password_reset_required']) && is_string($authResult['password_reset_token'] ?? null) && $authResult['password_reset_token'] !== '') {
+        $_SESSION['jg_partner_password_reset_required'] = true;
+        $_SESSION['jg_partner_password_reset_token'] = (string) $authResult['password_reset_token'];
+    } else {
+        unset($_SESSION['jg_partner_password_reset_required'], $_SESSION['jg_partner_password_reset_token']);
+    }
     return true;
+}
+
+function jg_partner_password_reset_required(): bool
+{
+    jg_partner_start_session();
+    return !empty($_SESSION['jg_partner_password_reset_required']) && trim((string) ($_SESSION['jg_partner_password_reset_token'] ?? '')) !== '';
+}
+
+function jg_partner_password_reset_token(): string
+{
+    jg_partner_start_session();
+    return (string) ($_SESSION['jg_partner_password_reset_token'] ?? '');
+}
+
+function jg_partner_clear_password_reset_session(): void
+{
+    jg_partner_start_session();
+    unset($_SESSION['jg_partner_password_reset_required'], $_SESSION['jg_partner_password_reset_token']);
 }
 
 function jg_partner_is_authenticated_for(?array $partner): bool

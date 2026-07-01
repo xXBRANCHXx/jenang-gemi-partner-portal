@@ -83,7 +83,7 @@ $adminCssVersion = (string) @filemtime(__DIR__ . '/admin.css');
 $portalTitle = $requestedPartner ? ((string) ($requestedPartner['name'] ?? 'Partner Portal')) : 'Jenang Gemi Partner Portal';
 $portalChip = $requestedPartner ? 'Partner Login' : 'Partner Portal Access';
 $portalCopy = $requestedPartner
-    ? 'Enter your portal password to access this partner dashboard.'
+    ? 'Enter your portal password or one-time reset key to access this partner dashboard.'
     : 'Use your assigned partner URL to access your dashboard.';
 ?>
 <!DOCTYPE html>
@@ -109,13 +109,13 @@ $portalCopy = $requestedPartner
             <form method="post" class="admin-login-form" autocomplete="off">
                 <?php if ($requestedPartner !== null): ?>
                     <label for="partner_password">Password</label>
-                    <input id="partner_password" name="partner_password" type="password" placeholder="Enter your portal password" autocomplete="current-password" required autofocus>
+                    <input id="partner_password" name="partner_password" type="password" placeholder="Enter your password or reset key" autocomplete="current-password" required autofocus>
                 <?php else: ?>
                     <label for="partner_code">Partner Code</label>
                     <input id="partner_code" name="partner_code" type="text" placeholder="Enter your partner code" autocomplete="one-time-code" required autofocus disabled>
                 <?php endif; ?>
                 <?php if ($hasError): ?>
-                    <p class="admin-login-error">Password is invalid for this partner workspace.</p>
+                    <p class="admin-login-error">Password or reset key is invalid for this partner workspace.</p>
                 <?php endif; ?>
                 <?php if ($requestPath !== '' && $requestedPartner === null): ?>
                     <p class="admin-login-error">That partner page was not found.</p>

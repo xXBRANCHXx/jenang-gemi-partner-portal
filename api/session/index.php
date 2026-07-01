@@ -15,6 +15,7 @@ if ($method === 'GET') {
     echo json_encode([
         'partner' => $safePartner,
         'catalog' => jg_partner_source_catalog($partner),
+        'password_reset_required' => jg_partner_password_reset_required(),
     ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
     exit;
 }
@@ -45,13 +46,15 @@ if ($method === 'POST') {
         exit;
     }
 
-    $result = jg_partner_source_change_password(jg_partner_current_code(), $currentPassword, $newPassword);
+    $resetToken = jg_partner_password_reset_required() ? jg_partner_password_reset_token() : '';
+    $result = jg_partner_source_change_password(jg_partner_current_code(), $currentPassword, $newPassword, $resetToken);
     if (empty($result['ok'])) {
         http_response_code(422);
         echo json_encode(['error' => (string) ($result['error'] ?? 'Unable to update password.')], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
         exit;
     }
 
+    jg_partner_clear_password_reset_session();
     echo json_encode(['ok' => true], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
     exit;
 }

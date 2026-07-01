@@ -12,6 +12,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const orderForm = document.querySelector('[data-order-form]');
   const passwordModal = document.querySelector('[data-password-modal]');
   const passwordForm = document.querySelector('[data-password-form]');
+  const currentPasswordField = document.querySelector('[data-current-password-field]');
+  const currentPasswordInput = document.querySelector('[data-current-password-input]');
+  const passwordResetNote = document.querySelector('[data-password-reset-note]');
   const orderList = document.querySelector('[data-order-list]');
   const recentOrders = document.querySelector('[data-recent-orders]');
   const errorNode = document.querySelector('[data-order-error]');
@@ -63,7 +66,8 @@ document.addEventListener('DOMContentLoaded', () => {
     selectedFlavor: '',
     skuSearch: '',
     cart: [],
-    submitting: false
+    submitting: false,
+    passwordResetRequired: false
   };
   const sectionLabels = {
     overview: 'Overview',
@@ -109,6 +113,19 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!target) return;
     target.hidden = !message;
     target.textContent = message || '';
+  };
+
+  const renderPasswordResetState = () => {
+    if (currentPasswordField instanceof HTMLElement) {
+      currentPasswordField.hidden = state.passwordResetRequired;
+    }
+    if (currentPasswordInput instanceof HTMLInputElement) {
+      currentPasswordInput.required = !state.passwordResetRequired;
+      if (state.passwordResetRequired) currentPasswordInput.value = '';
+    }
+    if (passwordResetNote instanceof HTMLElement) {
+      passwordResetNote.hidden = !state.passwordResetRequired;
+    }
   };
 
   const formatTimestamp = (value) => {
@@ -751,6 +768,11 @@ document.addEventListener('DOMContentLoaded', () => {
     passwordModal.hidden = false;
     passwordForm.reset();
     setError('', passwordErrorNode);
+    renderPasswordResetState();
+    if (state.passwordResetRequired) {
+      passwordForm.elements.new_password.focus();
+      return;
+    }
     passwordForm.elements.current_password.focus();
   };
 
@@ -759,6 +781,7 @@ document.addEventListener('DOMContentLoaded', () => {
     passwordModal.hidden = true;
     passwordForm.reset();
     setError('', passwordErrorNode);
+    renderPasswordResetState();
   };
 
   const loadOrders = async () => {
@@ -771,9 +794,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const payload = await requestJson(sessionEndpoint);
     state.partner = payload.partner || null;
     state.catalog = payload.catalog || {};
+    state.passwordResetRequired = Boolean(payload.password_reset_required);
     flattenCatalog();
     if (partnerNameNode) partnerNameNode.textContent = state.partner?.name || 'Partner';
     if (partnerCodeNode) partnerCodeNode.textContent = state.partner?.code ? `Workspace ${state.partner.code}` : 'Direct ordering portal';
+    renderPasswordResetState();
+    if (state.passwordResetRequired && passwordModal instanceof HTMLElement && passwordModal.hidden) {
+      openPasswordModal();
+    }
     renderSkuList();
     renderPreview();
   };
@@ -1012,11 +1040,13 @@ document.addEventListener('DOMContentLoaded', () => {
         method: 'POST',
         body: {
           action: 'change_password',
-          current_password: formData.get('current_password'),
+          current_password: state.passwordResetRequired ? '' : formData.get('current_password'),
           new_password: newPassword,
           confirm_password: confirmPassword
         }
       });
+      state.passwordResetRequired = false;
+      renderPasswordResetState();
       closePasswordModal();
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Unable to update password.', passwordErrorNode);

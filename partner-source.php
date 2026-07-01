@@ -125,21 +125,32 @@ function jg_partner_source_find(string $code): ?array
 
 function jg_partner_source_authenticate(string $code, string $password): ?array
 {
-    $response = jg_partner_source_post_json(JG_PARTNER_AUTH_URL, [
-        'code' => strtoupper(trim($code)),
-        'password' => $password,
-    ]);
+    $response = jg_partner_source_authenticate_result($code, $password);
 
     return !empty($response['ok']) && is_array($response['partner'] ?? null) ? $response['partner'] : null;
 }
 
-function jg_partner_source_change_password(string $code, string $currentPassword, string $newPassword): array
+function jg_partner_source_authenticate_result(string $code, string $password): array
 {
-    return jg_partner_source_post_json(JG_PARTNER_PASSWORD_URL, [
+    return jg_partner_source_post_json(JG_PARTNER_AUTH_URL, [
+        'code' => strtoupper(trim($code)),
+        'password' => $password,
+    ]);
+}
+
+function jg_partner_source_change_password(string $code, string $currentPassword, string $newPassword, string $resetToken = ''): array
+{
+    $payload = [
         'code' => strtoupper(trim($code)),
         'current_password' => $currentPassword,
         'new_password' => $newPassword,
-    ]);
+    ];
+
+    if ($resetToken !== '') {
+        $payload['reset_token'] = $resetToken;
+    }
+
+    return jg_partner_source_post_json(JG_PARTNER_PASSWORD_URL, $payload);
 }
 
 function jg_partner_source_find_by_slug(string $slug): ?array

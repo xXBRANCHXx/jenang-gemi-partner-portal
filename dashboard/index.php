@@ -331,9 +331,10 @@ $sectionUrl = static function (string $section) use ($dashboardPath): string {
                 <button type="button" class="admin-ghost-btn" data-close-password-modal>Close</button>
             </div>
             <form class="admin-affiliate-editor" data-password-form>
-                <label class="admin-affiliate-field">
+                <p class="admin-table-note" data-password-reset-note hidden>Set a new password to finish unlocking this workspace.</p>
+                <label class="admin-affiliate-field" data-current-password-field>
                     <span class="admin-control-label">Current password</span>
-                    <input type="password" name="current_password" autocomplete="current-password" required>
+                    <input type="password" name="current_password" autocomplete="current-password" required data-current-password-input>
                 </label>
                 <label class="admin-affiliate-field">
                     <span class="admin-control-label">New password</span>

@@ -3310,8 +3310,8 @@ body.is-dashboard[data-partner-theme='light'] {
   --partner-panel-strong: #e3e3e3;
   --partner-border: rgba(24, 24, 24, 0.12);
   --partner-text: #242424;
-  --partner-muted: rgba(36, 36, 36, 0.62);
-  --partner-faint: rgba(36, 36, 36, 0.38);
+  --partner-muted: rgba(36, 36, 36, 0.76);
+  --partner-faint: rgba(36, 36, 36, 0.52);
   --partner-accent: #777777;
   --partner-accent-strong: #242424;
   --partner-danger: #765f5c;
@@ -3327,8 +3327,8 @@ body.is-dashboard[data-partner-theme='light'] {
     --partner-panel-strong: #e3e3e3;
     --partner-border: rgba(24, 24, 24, 0.12);
     --partner-text: #242424;
-    --partner-muted: rgba(36, 36, 36, 0.62);
-    --partner-faint: rgba(36, 36, 36, 0.38);
+    --partner-muted: rgba(36, 36, 36, 0.76);
+    --partner-faint: rgba(36, 36, 36, 0.52);
     --partner-accent: #777777;
     --partner-accent-strong: #242424;
     --partner-danger: #765f5c;
@@ -3750,5 +3750,50 @@ body.is-dashboard[data-partner-theme='light'] .admin-build-badge {
 
   .partner-product-row i {
     width: 100%;
+  }
+}
+
+/* Final partner portal contrast pass. */
+body.is-dashboard :is(
+  .admin-empty,
+  .partner-upload-queue .admin-empty,
+  .partner-sku-list .admin-empty,
+  .partner-cart-list .admin-empty,
+  .partner-preview-stack .admin-empty,
+  .partner-label-library .admin-empty
+) {
+  color: var(--partner-muted);
+}
+
+body.is-dashboard :is(
+  .partner-filter-pills button:not(.is-active),
+  .partner-sku-main span,
+  .partner-sku-main code,
+  .partner-sku-meta span,
+  .partner-cart-row span,
+  .partner-sku-actions span
+) {
+  color: var(--partner-muted);
+}
+
+body.is-dashboard[data-partner-theme='light'] :is(
+  .partner-filter-pills button:not(.is-active),
+  .partner-upload-queue .admin-empty,
+  .partner-sku-list .admin-empty,
+  .partner-cart-list .admin-empty,
+  .partner-preview-stack .admin-empty
+) {
+  color: rgba(36, 36, 36, 0.76);
+}
+
+@media (prefers-color-scheme: light) {
+  body.is-dashboard:not([data-partner-theme='dark']) :is(
+    .partner-filter-pills button:not(.is-active),
+    .partner-upload-queue .admin-empty,
+    .partner-sku-list .admin-empty,
+    .partner-cart-list .admin-empty,
+    .partner-preview-stack .admin-empty
+  ) {
+    color: rgba(36, 36, 36, 0.76);
   }
 }

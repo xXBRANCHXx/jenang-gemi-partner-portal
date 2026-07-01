@@ -83,12 +83,6 @@ $sectionUrl = static function (string $section) use ($dashboardPath): string {
 
             <button type="button" class="partner-sidebar-primary" data-open-order-modal>New Order</button>
 
-            <div class="partner-theme-switch" data-theme-switch aria-label="Theme preference">
-                <button type="button" data-theme-option="system">System</button>
-                <button type="button" data-theme-option="light">Light</button>
-                <button type="button" data-theme-option="dark">Dark</button>
-            </div>
-
             <div class="partner-sidebar-profile">
                 <strong><?php echo htmlspecialchars($partnerName, ENT_QUOTES); ?></strong>
                 <span>Active partner</span>

@@ -18,11 +18,15 @@ $status['private_storage_ready'] = $privateStorageReady;
 
 if (!jg_partner_is_authenticated()) {
     $tables = (array) ($status['tables'] ?? []);
+    $databaseReady = !empty($status['connected'])
+        && !empty($tables['partner_orders'])
+        && !empty($tables['partner_order_labels']);
     echo json_encode([
-        'ok' => !empty($status['connected'])
-            && !empty($tables['partner_orders'])
-            && !empty($tables['partner_order_labels'])
-            && $privateStorageReady,
+        'ok' => $databaseReady && $privateStorageReady,
+        'checks' => [
+            'database' => $databaseReady,
+            'private_storage' => $privateStorageReady,
+        ],
     ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
     exit;
 } else {

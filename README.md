@@ -43,3 +43,13 @@ If phpMyAdmin needs the tables created manually, import `database/partner-data-s
 - Non-Shopee/TikTok partner orders are stored with a minimum 24-hour deadline. Partner orders can contain any number of approved SKU lines within normal server request limits.
 - Store Ops can read labeled partner orders from the token-protected `/api/store-orders/` feed, so direct database access is optional.
 - Partner access is bound to unique partner URLs like `/{partner_slug}/`; one partner code cannot be used on another partner's landing page.
+- Shipping-label PDFs are stored outside the public web root. Partner downloads require the owning session; Store Ops downloads use five-minute signed links from the existing order feed.
+- Labels have a seven-day maximum lifetime, shortened to three days after fulfillment and one day after cancellation. Expired files are removed automatically whenever partners or Store Ops access the order flow; no external cron job is required.
+- Label uploads are PDF-only and limited to 10 MB.
+
+## Production deployment order
+
+1. Deploy this Partner Portal first. The first authenticated orders request adds the retention columns automatically.
+2. Confirm `/api/db-status/` returns `{ "ok": true }` and an authenticated partner can load the dashboard.
+3. Deploy the Executive Dashboard partner API hardening that narrows the public registry. Existing Partner Portal sessions are intentionally invalidated once and must sign in again.
+4. Submit and fulfill one test order through Store Ops before inviting partners.

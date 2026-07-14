@@ -4,7 +4,89 @@ declare(strict_types=1);
 require_once __DIR__ . '/partner-data-bootstrap.php';
 
 const JG_PARTNER_ORDER_JSON_FILE = __DIR__ . '/data/orders.json';
-const JG_PARTNER_LABEL_UPLOAD_DIR = __DIR__ . '/uploads/shipping-labels';
+const JG_PARTNER_LEGACY_LABEL_UPLOAD_DIR = __DIR__ . '/uploads/shipping-labels';
+const JG_PARTNER_LABEL_MAX_BYTES = 10 * 1024 * 1024;
+const JG_PARTNER_LABEL_OPEN_RETENTION_SECONDS = 7 * 86400;
+const JG_PARTNER_LABEL_FULFILLED_RETENTION_SECONDS = 3 * 86400;
+const JG_PARTNER_LABEL_CANCELLED_RETENTION_SECONDS = 86400;
+
+function jg_partner_order_private_storage_root(): string
+{
+    $configured = jg_partner_portal_config_value('JG_PARTNER_PRIVATE_STORAGE_DIR', 'partner_private_storage_dir');
+    $root = $configured !== '' ? rtrim($configured, DIRECTORY_SEPARATOR) : dirname(__DIR__) . '/partner-portal-private';
+    if (!is_dir($root) && !@mkdir($root, 0700, true) && !is_dir($root)) {
+        throw new RuntimeException('Private label storage is unavailable.');
+    }
+    @chmod($root, 0700);
+    return $root;
+}
+
+function jg_partner_order_label_storage_relative_path(string $storedName): string
+{
+    return 'shipping-labels/' . basename($storedName);
+}
+
+function jg_partner_order_label_expiration_for_status(string $status, ?int $now = null): string
+{
+    $now ??= time();
+    $normalized = strtoupper(trim($status));
+    $seconds = match ($normalized) {
+        'FULFILLED' => JG_PARTNER_LABEL_FULFILLED_RETENTION_SECONDS,
+        'CANCELLED' => JG_PARTNER_LABEL_CANCELLED_RETENTION_SECONDS,
+        default => JG_PARTNER_LABEL_OPEN_RETENTION_SECONDS,
+    };
+
+    return gmdate(DATE_ATOM, $now + $seconds);
+}
+
+function jg_partner_order_label_is_expired(array $label, ?int $now = null): bool
+{
+    $now ??= time();
+    $expiresAt = trim((string) ($label['expires_at'] ?? ''));
+    if ($expiresAt === '') {
+        $createdAt = strtotime((string) ($label['created_at'] ?? ''));
+        $expiresAt = gmdate(DATE_ATOM, ($createdAt !== false ? $createdAt : $now) + JG_PARTNER_LABEL_OPEN_RETENTION_SECONDS);
+    }
+    $timestamp = strtotime($expiresAt);
+    return $timestamp !== false && $timestamp <= $now;
+}
+
+function jg_partner_order_sign_store_download(string $orderId, int $expires, string $token): string
+{
+    return hash_hmac('sha256', trim($orderId) . "\n" . $expires, $token);
+}
+
+function jg_partner_order_verify_store_download(string $orderId, int $expires, string $signature, string $token, ?int $now = null): bool
+{
+    $now ??= time();
+    if ($orderId === '' || $token === '' || $signature === '' || $expires < $now || $expires > $now + 600) {
+        return false;
+    }
+    return hash_equals(jg_partner_order_sign_store_download($orderId, $expires, $token), strtolower($signature));
+}
+
+function jg_partner_order_label_file_candidates(array $label): array
+{
+    $storedName = basename(trim((string) ($label['stored_name'] ?? $label['path'] ?? '')));
+    if ($storedName === '' || $storedName === '.' || $storedName === '..') {
+        return [];
+    }
+
+    return [
+        jg_partner_order_private_storage_root() . '/shipping-labels/' . $storedName,
+        JG_PARTNER_LEGACY_LABEL_UPLOAD_DIR . '/' . $storedName,
+    ];
+}
+
+function jg_partner_order_label_file_path(array $label): ?string
+{
+    foreach (jg_partner_order_label_file_candidates($label) as $path) {
+        if (is_file($path)) {
+            return $path;
+        }
+    }
+    return null;
+}
 
 function jg_partner_order_default_database(): array
 {
@@ -745,9 +827,9 @@ function jg_partner_order_build_record(string $partnerCode, ?array $partner, arr
 function jg_partner_order_fetch_labels_mysql(PDO $pdo, string $partnerCode): array
 {
     $stmt = $pdo->prepare(
-        'SELECT id, order_id, original_name, stored_name, relative_path, mime_type, size_bytes, created_at
+        'SELECT id, order_id, original_name, stored_name, relative_path, mime_type, size_bytes, expires_at, created_at
          FROM partner_order_labels
-         WHERE partner_code = :partner_code
+         WHERE partner_code = :partner_code AND deleted_at IS NULL
          ORDER BY created_at DESC, id DESC'
     );
     $stmt->execute([':partner_code' => $partnerCode]);
@@ -765,9 +847,10 @@ function jg_partner_order_fetch_labels_mysql(PDO $pdo, string $partnerCode): arr
             'name' => (string) ($row['original_name'] ?? ''),
             'stored_name' => (string) ($row['stored_name'] ?? ''),
             'path' => $relativePath,
-            'url' => $relativePath !== '' ? '../' . ltrim($relativePath, '/') : '',
+            'url' => '/api/label-file/?order_id=' . rawurlencode($orderId),
             'mime_type' => (string) ($row['mime_type'] ?? ''),
             'size_bytes' => (int) ($row['size_bytes'] ?? 0),
+            'expires_at' => (string) ($row['expires_at'] ?? ''),
             'created_at' => (string) ($row['created_at'] ?? ''),
         ];
     }
@@ -779,7 +862,15 @@ function jg_partner_order_attach_labels(array $orders, array $labelsByOrder): ar
 {
     foreach ($orders as &$order) {
         $orderId = (string) ($order['id'] ?? '');
-        $order['labels'] = array_values(array_filter($labelsByOrder[$orderId] ?? (array) ($order['labels'] ?? []), 'is_array'));
+        $labels = array_values(array_filter(
+            $labelsByOrder[$orderId] ?? (array) ($order['labels'] ?? []),
+            static fn (mixed $label): bool => is_array($label) && !jg_partner_order_label_is_expired($label)
+        ));
+        foreach ($labels as &$label) {
+            $label['url'] = '/api/label-file/?order_id=' . rawurlencode($orderId);
+        }
+        unset($label);
+        $order['labels'] = $labels;
         $order['label_count'] = count($order['labels']);
     }
     unset($order);
@@ -789,6 +880,7 @@ function jg_partner_order_attach_labels(array $orders, array $labelsByOrder): ar
 
 function jg_partner_order_list(string $partnerCode): array
 {
+    jg_partner_order_cleanup_expired_labels();
     $pdo = jg_partner_data_db();
     if ($pdo instanceof PDO) {
         $stmt = $pdo->prepare(
@@ -873,8 +965,9 @@ function jg_partner_order_list(string $partnerCode): array
 function jg_partner_order_fetch_all_labels_mysql(PDO $pdo): array
 {
     $stmt = $pdo->query(
-        'SELECT id, order_id, partner_code, original_name, stored_name, relative_path, mime_type, size_bytes, created_at
+        'SELECT id, order_id, partner_code, original_name, stored_name, relative_path, mime_type, size_bytes, expires_at, created_at
          FROM partner_order_labels
+         WHERE deleted_at IS NULL
          ORDER BY created_at DESC, id DESC'
     );
 
@@ -891,9 +984,10 @@ function jg_partner_order_fetch_all_labels_mysql(PDO $pdo): array
             'name' => (string) ($row['original_name'] ?? ''),
             'stored_name' => (string) ($row['stored_name'] ?? ''),
             'path' => $relativePath,
-            'url' => $relativePath !== '' ? '../' . ltrim($relativePath, '/') : '',
+            'url' => '/api/label-file/?order_id=' . rawurlencode($orderId),
             'mime_type' => (string) ($row['mime_type'] ?? ''),
             'size_bytes' => (int) ($row['size_bytes'] ?? 0),
+            'expires_at' => (string) ($row['expires_at'] ?? ''),
             'created_at' => (string) ($row['created_at'] ?? ''),
         ];
     }
@@ -903,6 +997,7 @@ function jg_partner_order_fetch_all_labels_mysql(PDO $pdo): array
 
 function jg_partner_order_list_all(): array
 {
+    jg_partner_order_cleanup_expired_labels();
     $pdo = jg_partner_data_db();
     if ($pdo instanceof PDO) {
         $stmt = $pdo->query(
@@ -1033,6 +1128,58 @@ function jg_partner_order_insert_record_mysql(PDO $pdo, array $record): void
     ]);
 }
 
+function jg_partner_order_schedule_label_expiration(string $orderId, string $status): void
+{
+    $normalizedStatus = strtoupper(trim($status));
+    if (!in_array($normalizedStatus, ['FULFILLED', 'CANCELLED'], true)) {
+        return;
+    }
+
+    $expiresAt = jg_partner_order_label_expiration_for_status($normalizedStatus);
+    $pdo = jg_partner_data_db();
+    if ($pdo instanceof PDO) {
+        $stmt = $pdo->prepare(
+            'UPDATE partner_order_labels
+             SET expires_at = CASE
+                 WHEN expires_at IS NULL OR expires_at > :expires_at_compare THEN :expires_at_value
+                 ELSE expires_at
+             END
+             WHERE order_id = :order_id AND deleted_at IS NULL'
+        );
+        $mysqlExpiresAt = gmdate('Y-m-d H:i:s', strtotime($expiresAt));
+        $stmt->execute([
+            ':expires_at_compare' => $mysqlExpiresAt,
+            ':expires_at_value' => $mysqlExpiresAt,
+            ':order_id' => $orderId,
+        ]);
+        return;
+    }
+
+    $database = jg_partner_order_read_json_database();
+    $changed = false;
+    foreach ($database['orders'] as &$order) {
+        if ((string) ($order['id'] ?? '') !== $orderId) {
+            continue;
+        }
+        foreach ((array) ($order['labels'] ?? []) as $index => $label) {
+            if (!is_array($label)) {
+                continue;
+            }
+            $current = strtotime((string) ($label['expires_at'] ?? ''));
+            $target = strtotime($expiresAt);
+            if ($target !== false && ($current === false || $current > $target)) {
+                $order['labels'][$index]['expires_at'] = $expiresAt;
+                $changed = true;
+            }
+        }
+        break;
+    }
+    unset($order);
+    if ($changed) {
+        jg_partner_order_write_json_database($database);
+    }
+}
+
 function jg_partner_order_cancel(string $partnerCode, string $orderId): array
 {
     $normalizedId = jg_partner_order_normalize_text($orderId, 'Order id');
@@ -1056,6 +1203,8 @@ function jg_partner_order_cancel(string $partnerCode, string $orderId): array
             ':partner_code' => $partnerCode,
         ]);
 
+        jg_partner_order_schedule_label_expiration($normalizedId, 'CANCELLED');
+
         return jg_partner_order_find($partnerCode, $normalizedId) ?? array_merge($existing, [
             'status' => 'CANCELLED',
             'updated_at' => gmdate(DATE_ATOM),
@@ -1072,6 +1221,7 @@ function jg_partner_order_cancel(string $partnerCode, string $orderId): array
         $database['orders'][$index]['status'] = 'CANCELLED';
         $database['orders'][$index]['updated_at'] = gmdate(DATE_ATOM);
         jg_partner_order_write_json_database($database);
+        jg_partner_order_schedule_label_expiration($normalizedId, 'CANCELLED');
         return $database['orders'][$index];
     }
 
@@ -1213,6 +1363,9 @@ function jg_partner_order_delete(string $partnerCode, string $orderId): void
         throw new RuntimeException('Order not found.');
     }
     jg_partner_order_assert_editable($existing);
+    if (!jg_partner_order_unlink_labels((array) ($existing['labels'] ?? []))) {
+        throw new RuntimeException('Unable to securely delete the shipping label file.');
+    }
 
     $pdo = jg_partner_data_db();
     if ($pdo instanceof PDO) {
@@ -1254,6 +1407,7 @@ function jg_partner_order_set_status(string $orderId, string $status): bool
         ]);
 
         if ($stmt->rowCount() > 0) {
+            jg_partner_order_schedule_label_expiration($normalizedId, $normalizedStatus);
             return true;
         }
 
@@ -1262,7 +1416,11 @@ function jg_partner_order_set_status(string $orderId, string $status): bool
             ':id' => $normalizedId,
             ':status' => $normalizedStatus,
         ]);
-        return (int) $checkStmt->fetchColumn() > 0;
+        $exists = (int) $checkStmt->fetchColumn() > 0;
+        if ($exists) {
+            jg_partner_order_schedule_label_expiration($normalizedId, $normalizedStatus);
+        }
+        return $exists;
     }
 
     $database = jg_partner_order_read_json_database();
@@ -1280,6 +1438,7 @@ function jg_partner_order_set_status(string $orderId, string $status): bool
 
     if ($updated) {
         jg_partner_order_write_json_database($database);
+        jg_partner_order_schedule_label_expiration($normalizedId, $normalizedStatus);
     }
 
     return $updated;
@@ -1287,11 +1446,13 @@ function jg_partner_order_set_status(string $orderId, string $status): bool
 
 function jg_partner_order_upload_directory(): string
 {
-    if (!is_dir(JG_PARTNER_LABEL_UPLOAD_DIR)) {
-        mkdir(JG_PARTNER_LABEL_UPLOAD_DIR, 0775, true);
+    $directory = jg_partner_order_private_storage_root() . '/shipping-labels';
+    if (!is_dir($directory) && !@mkdir($directory, 0700, true) && !is_dir($directory)) {
+        throw new RuntimeException('Private label storage is unavailable.');
     }
+    @chmod($directory, 0700);
 
-    return JG_PARTNER_LABEL_UPLOAD_DIR;
+    return $directory;
 }
 
 function jg_partner_order_allowed_extensions(): array
@@ -1365,9 +1526,25 @@ function jg_partner_order_assert_pdf_upload(array $file): void
         throw new RuntimeException('The shipment label PDF failed to upload.');
     }
 
+    $size = (int) ($file['size'] ?? filesize($tmpName) ?: 0);
+    if ($size <= 0) {
+        throw new InvalidArgumentException('Shipment label PDF is empty.');
+    }
+    if ($size > JG_PARTNER_LABEL_MAX_BYTES) {
+        throw new InvalidArgumentException('Shipment label PDF must be 10 MB or smaller.');
+    }
+
     $header = @file_get_contents($tmpName, false, null, 0, 5);
     if (!is_string($header) || $header !== '%PDF-') {
         throw new InvalidArgumentException('Shipment label must be a valid PDF file.');
+    }
+
+    if (class_exists('finfo')) {
+        $finfo = new finfo(FILEINFO_MIME_TYPE);
+        $detectedType = strtolower((string) $finfo->file($tmpName));
+        if (!in_array($detectedType, ['application/pdf', 'application/x-pdf', 'application/octet-stream'], true)) {
+            throw new InvalidArgumentException('Shipment label must be a valid PDF file.');
+        }
     }
 }
 
@@ -1400,34 +1577,137 @@ function jg_partner_order_prepare_uploaded_label(string $partnerCode, string $or
     return [
         'name' => $safeOriginal,
         'stored_name' => $storedName,
-        'path' => 'uploads/shipping-labels/' . $storedName,
-        'url' => '../uploads/shipping-labels/' . $storedName,
-        'mime_type' => $mimeType,
+        'path' => jg_partner_order_label_storage_relative_path($storedName),
+        'url' => '/api/label-file/?order_id=' . rawurlencode($orderId),
+        'mime_type' => $mimeType !== '' ? $mimeType : 'application/pdf',
         'size_bytes' => (int) ($file['size'] ?? 0),
+        'expires_at' => jg_partner_order_label_expiration_for_status('IS_LISTED'),
         'created_at' => gmdate(DATE_ATOM),
     ];
 }
 
-function jg_partner_order_unlink_labels(array $labels): void
+function jg_partner_order_unlink_labels(array $labels): bool
 {
+    $deleted = true;
     foreach ($labels as $label) {
         if (!is_array($label)) {
             continue;
         }
-        $path = __DIR__ . '/' . ltrim((string) ($label['path'] ?? ''), '/');
-        if (is_file($path)) {
-            @unlink($path);
+        foreach (jg_partner_order_label_file_candidates($label) as $path) {
+            if (is_file($path)) {
+                if (!@unlink($path) && is_file($path)) {
+                    $deleted = false;
+                }
+            }
         }
     }
+    return $deleted;
+}
+
+function jg_partner_order_cleanup_expired_labels(?int $now = null): int
+{
+    static $ranAt = 0;
+    $now ??= time();
+    if ($ranAt > 0 && $now - $ranAt < 60) {
+        return 0;
+    }
+    $ranAt = $now;
+
+    $pdo = jg_partner_data_db();
+    if ($pdo instanceof PDO) {
+        $stmt = $pdo->prepare(
+            'SELECT id, original_name, stored_name, relative_path, mime_type, size_bytes, expires_at, created_at
+             FROM partner_order_labels
+             WHERE deleted_at IS NULL
+               AND COALESCE(expires_at, DATE_ADD(created_at, INTERVAL 7 DAY)) <= :now'
+        );
+        $stmt->execute([':now' => gmdate('Y-m-d H:i:s', $now)]);
+        $expired = array_values(array_filter($stmt->fetchAll(), 'is_array'));
+        if ($expired === []) {
+            return 0;
+        }
+
+        $expired = array_values(array_filter(
+            $expired,
+            static fn (array $label): bool => jg_partner_order_unlink_labels([$label])
+        ));
+        if ($expired === []) {
+            return 0;
+        }
+        $ids = array_map(static fn (array $label): int => (int) ($label['id'] ?? 0), $expired);
+        $ids = array_values(array_filter($ids, static fn (int $id): bool => $id > 0));
+        if ($ids !== []) {
+            $placeholders = implode(',', array_fill(0, count($ids), '?'));
+            $update = $pdo->prepare(
+                'UPDATE partner_order_labels
+                 SET original_name = "Expired shipping label", stored_name = "", relative_path = "",
+                     mime_type = "", size_bytes = 0, deleted_at = ?, deletion_reason = "retention_expired"
+                 WHERE id IN (' . $placeholders . ')'
+            );
+            $update->execute(array_merge([gmdate('Y-m-d H:i:s', $now)], $ids));
+        }
+        return count($expired);
+    }
+
+    $database = jg_partner_order_read_json_database();
+    $deleted = 0;
+    foreach ($database['orders'] as &$order) {
+        $retained = [];
+        foreach ((array) ($order['labels'] ?? []) as $label) {
+            if (!is_array($label)) {
+                continue;
+            }
+            if (jg_partner_order_label_is_expired($label, $now)) {
+                if (jg_partner_order_unlink_labels([$label])) {
+                    $deleted += 1;
+                    continue;
+                }
+            }
+            $retained[] = $label;
+        }
+        $order['labels'] = $retained;
+    }
+    unset($order);
+    if ($deleted > 0) {
+        jg_partner_order_write_json_database($database);
+    }
+    return $deleted;
+}
+
+function jg_partner_order_stream_label(array $label): never
+{
+    if (jg_partner_order_label_is_expired($label)) {
+        throw new RuntimeException('Shipping label has expired.');
+    }
+    $path = jg_partner_order_label_file_path($label);
+    if ($path === null) {
+        throw new RuntimeException('Shipping label file is unavailable.');
+    }
+
+    $downloadName = trim((string) ($label['name'] ?? 'shipping-label.pdf'));
+    $downloadName = preg_replace('/[^A-Za-z0-9._ -]+/', '-', $downloadName) ?: 'shipping-label.pdf';
+    if (!str_ends_with(strtolower($downloadName), '.pdf')) {
+        $downloadName .= '.pdf';
+    }
+
+    header('Content-Type: application/pdf');
+    header('Content-Length: ' . (string) filesize($path));
+    header('Content-Disposition: inline; filename="' . addcslashes($downloadName, "\\\"") . '"');
+    header('Cache-Control: private, no-store, max-age=0');
+    header('Pragma: no-cache');
+    header('X-Content-Type-Options: nosniff');
+    header('Content-Security-Policy: sandbox');
+    readfile($path);
+    exit;
 }
 
 function jg_partner_order_insert_label_mysql(PDO $pdo, string $partnerCode, string $orderId, array $label): void
 {
     $stmt = $pdo->prepare(
         'INSERT INTO partner_order_labels
-            (order_id, partner_code, original_name, stored_name, relative_path, mime_type, size_bytes, created_at)
+            (order_id, partner_code, original_name, stored_name, relative_path, mime_type, size_bytes, expires_at, created_at)
          VALUES
-            (:order_id, :partner_code, :original_name, :stored_name, :relative_path, :mime_type, :size_bytes, :created_at)'
+            (:order_id, :partner_code, :original_name, :stored_name, :relative_path, :mime_type, :size_bytes, :expires_at, :created_at)'
     );
     $stmt->execute([
         ':order_id' => $orderId,
@@ -1437,6 +1717,7 @@ function jg_partner_order_insert_label_mysql(PDO $pdo, string $partnerCode, stri
         ':relative_path' => $label['path'],
         ':mime_type' => $label['mime_type'],
         ':size_bytes' => $label['size_bytes'],
+        ':expires_at' => gmdate('Y-m-d H:i:s', strtotime((string) $label['expires_at'])),
         ':created_at' => gmdate('Y-m-d H:i:s', strtotime((string) $label['created_at'])),
     ]);
 }
@@ -1933,17 +2214,20 @@ function jg_partner_order_delete_label(string $partnerCode, string $orderId): ar
         throw new RuntimeException('Order not found.');
     }
 
-    foreach ((array) ($order['labels'] ?? []) as $label) {
-        $path = __DIR__ . '/' . ltrim((string) ($label['path'] ?? ''), '/');
-        if (is_file($path)) {
-            @unlink($path);
-        }
+    if (!jg_partner_order_unlink_labels((array) ($order['labels'] ?? []))) {
+        throw new RuntimeException('Unable to securely delete the shipping label file.');
     }
 
     $pdo = jg_partner_data_db();
     if ($pdo instanceof PDO) {
-        $stmt = $pdo->prepare('DELETE FROM partner_order_labels WHERE order_id = :order_id AND partner_code = :partner_code');
+        $stmt = $pdo->prepare(
+            'UPDATE partner_order_labels
+             SET original_name = "Deleted shipping label", stored_name = "", relative_path = "",
+                 mime_type = "", size_bytes = 0, deleted_at = :deleted_at, deletion_reason = "partner_deleted"
+             WHERE order_id = :order_id AND partner_code = :partner_code AND deleted_at IS NULL'
+        );
         $stmt->execute([
+            ':deleted_at' => gmdate('Y-m-d H:i:s'),
             ':order_id' => $orderId,
             ':partner_code' => $partnerCode,
         ]);

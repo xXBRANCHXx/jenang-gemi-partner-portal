@@ -3,7 +3,8 @@ declare(strict_types=1);
 
 require __DIR__ . '/partner-source.php';
 
-const JG_PARTNER_SESSION_LIFETIME = 2592000;
+const JG_PARTNER_SESSION_LIFETIME = 43200;
+const JG_PARTNER_SESSION_IDLE_TIMEOUT = 7200;
 
 function jg_partner_start_session(): void
 {
@@ -22,6 +23,22 @@ function jg_partner_start_session(): void
 
     session_name('jg_partner_session');
     session_start();
+
+    if (trim((string) ($_SESSION['jg_partner_code'] ?? '')) !== '') {
+        $now = time();
+        $loginAt = strtotime((string) ($_SESSION['jg_partner_login_at'] ?? '')) ?: $now;
+        $lastActivity = (int) ($_SESSION['jg_partner_last_activity'] ?? $now);
+        if ($now - $loginAt > JG_PARTNER_SESSION_LIFETIME || $now - $lastActivity > JG_PARTNER_SESSION_IDLE_TIMEOUT) {
+            $_SESSION = [];
+            session_regenerate_id(true);
+        } elseif (!is_array($_SESSION['jg_partner_profile'] ?? null)) {
+            // Sessions created before profile caching cannot safely use the narrowed public registry.
+            $_SESSION = [];
+            session_regenerate_id(true);
+        } else {
+            $_SESSION['jg_partner_last_activity'] = $now;
+        }
+    }
 }
 
 function jg_partner_is_authenticated(): bool
@@ -38,11 +55,19 @@ function jg_partner_current_code(): string
 
 function jg_partner_current_profile(): ?array
 {
+    jg_partner_start_session();
+    if (is_array($_SESSION['jg_partner_profile'] ?? null)) {
+        return $_SESSION['jg_partner_profile'];
+    }
     $code = jg_partner_current_code();
     if ($code === '') {
         return null;
     }
-    return jg_partner_source_find($code);
+    $partner = jg_partner_source_find($code);
+    if (is_array($partner)) {
+        $_SESSION['jg_partner_profile'] = $partner;
+    }
+    return $partner;
 }
 
 function jg_partner_current_slug(): string
@@ -73,7 +98,10 @@ function jg_partner_attempt_login(string $code, string $password, ?array $reques
     $_SESSION['jg_partner_code'] = (string) ($partner['code'] ?? '');
     $_SESSION['jg_partner_name'] = $partnerName;
     $_SESSION['jg_partner_slug'] = jg_partner_profile_slug($partner);
+    $_SESSION['jg_partner_profile'] = $partner;
     $_SESSION['jg_partner_login_at'] = gmdate(DATE_ATOM);
+    $_SESSION['jg_partner_last_activity'] = time();
+    $_SESSION['jg_partner_csrf_token'] = bin2hex(random_bytes(32));
     if (!empty($authResult['password_reset_required']) && is_string($authResult['password_reset_token'] ?? null) && $authResult['password_reset_token'] !== '') {
         $_SESSION['jg_partner_password_reset_required'] = true;
         $_SESSION['jg_partner_password_reset_token'] = (string) $authResult['password_reset_token'];
@@ -81,6 +109,30 @@ function jg_partner_attempt_login(string $code, string $password, ?array $reques
         unset($_SESSION['jg_partner_password_reset_required'], $_SESSION['jg_partner_password_reset_token']);
     }
     return true;
+}
+
+function jg_partner_csrf_token(): string
+{
+    jg_partner_start_session();
+    $token = (string) ($_SESSION['jg_partner_csrf_token'] ?? '');
+    if ($token === '') {
+        $token = bin2hex(random_bytes(32));
+        $_SESSION['jg_partner_csrf_token'] = $token;
+    }
+    return $token;
+}
+
+function jg_partner_require_csrf_json(): void
+{
+    jg_partner_require_auth_json();
+    $provided = trim((string) ($_SERVER['HTTP_X_CSRF_TOKEN'] ?? ''));
+    if ($provided !== '' && hash_equals(jg_partner_csrf_token(), $provided)) {
+        return;
+    }
+    http_response_code(403);
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode(['error' => 'Your session security token is invalid. Refresh the page and try again.']);
+    exit;
 }
 
 function jg_partner_password_reset_required(): bool
@@ -99,6 +151,15 @@ function jg_partner_clear_password_reset_session(): void
 {
     jg_partner_start_session();
     unset($_SESSION['jg_partner_password_reset_required'], $_SESSION['jg_partner_password_reset_token']);
+}
+
+function jg_partner_rotate_session_security(): void
+{
+    jg_partner_start_session();
+    session_regenerate_id(true);
+    $_SESSION['jg_partner_login_at'] = gmdate(DATE_ATOM);
+    $_SESSION['jg_partner_last_activity'] = time();
+    $_SESSION['jg_partner_csrf_token'] = bin2hex(random_bytes(32));
 }
 
 function jg_partner_is_authenticated_for(?array $partner): bool

@@ -10,4 +10,6 @@ return [
     'partner_db_charset' => 'utf8mb4',
     'store_ops_orders_token' => 'PUT_SHARED_STORE_OPS_TOKEN_HERE',
     'partner_portal_base_url' => 'https://partner.jenanggemi.com',
+    // Optional. Defaults to a private directory beside public_html.
+    'partner_private_storage_dir' => '',
 ];

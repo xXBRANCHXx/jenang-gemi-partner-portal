@@ -34,10 +34,14 @@ CREATE TABLE IF NOT EXISTS `partner_order_labels` (
   `relative_path` VARCHAR(255) NOT NULL,
   `mime_type` VARCHAR(120) NOT NULL DEFAULT '',
   `size_bytes` BIGINT UNSIGNED NOT NULL DEFAULT 0,
+  `expires_at` DATETIME NULL DEFAULT NULL,
+  `deleted_at` DATETIME NULL DEFAULT NULL,
+  `deletion_reason` VARCHAR(64) NOT NULL DEFAULT '',
   `created_at` DATETIME NOT NULL,
   PRIMARY KEY (`id`),
   KEY `idx_partner_order_labels_order` (`order_id`, `created_at`),
   KEY `idx_partner_order_labels_partner` (`partner_code`, `created_at`),
+  KEY `idx_partner_order_labels_expiry` (`deleted_at`, `expires_at`),
   CONSTRAINT `fk_partner_order_labels_order`
     FOREIGN KEY (`order_id`) REFERENCES `partner_orders` (`id`)
     ON DELETE CASCADE

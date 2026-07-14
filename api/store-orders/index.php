@@ -20,12 +20,7 @@ function jg_store_orders_token(): string
 
 function jg_store_orders_request_token(): string
 {
-    $header = (string) ($_SERVER['HTTP_X_STORE_OPS_TOKEN'] ?? '');
-    if (trim($header) !== '') {
-        return trim($header);
-    }
-
-    return trim((string) ($_GET['token'] ?? ''));
+    return trim((string) ($_SERVER['HTTP_X_STORE_OPS_TOKEN'] ?? ''));
 }
 
 function jg_store_orders_request_body(): array
@@ -110,22 +105,33 @@ function jg_store_orders_base_url(): string
     return $host !== '' ? $scheme . '://' . $host : 'https://partner.jenanggemi.com';
 }
 
+function jg_store_orders_signed_label_url(string $orderId): string
+{
+    $expires = time() + 300;
+    $token = jg_store_orders_token();
+    $signature = jg_partner_order_sign_store_download($orderId, $expires, $token);
+    return jg_store_orders_base_url() . '/api/store-label/?' . http_build_query([
+        'order_id' => $orderId,
+        'expires' => $expires,
+        'signature' => $signature,
+    ]);
+}
+
 function jg_store_orders_labels(array $order): array
 {
-    $baseUrl = jg_store_orders_base_url();
+    $orderId = (string) ($order['id'] ?? '');
     $labels = [];
     foreach ((array) ($order['labels'] ?? []) as $label) {
         if (!is_array($label)) {
             continue;
         }
 
-        $path = ltrim((string) ($label['path'] ?? ''), '/');
         $labels[] = [
             'name' => (string) ($label['name'] ?? 'Partner shipping label'),
-            'path' => $path,
-            'url' => $path !== '' ? $baseUrl . '/' . $path : '',
+            'url' => $orderId !== '' ? jg_store_orders_signed_label_url($orderId) : '',
             'mime_type' => (string) ($label['mime_type'] ?? ''),
             'size_bytes' => (int) ($label['size_bytes'] ?? 0),
+            'expires_at' => (string) ($label['expires_at'] ?? ''),
             'created_at' => (string) ($label['created_at'] ?? ''),
         ];
     }

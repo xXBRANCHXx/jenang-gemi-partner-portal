@@ -21,13 +21,14 @@ if ($method === 'GET') {
 }
 
 if ($method === 'DELETE') {
+    jg_partner_require_csrf_json();
     jg_partner_logout();
     echo json_encode(['ok' => true], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
     exit;
 }
 
 if ($method === 'POST') {
-    jg_partner_require_auth_json();
+    jg_partner_require_csrf_json();
     $request = json_decode((string) file_get_contents('php://input'), true);
     $request = is_array($request) ? $request : [];
     $action = (string) ($request['action'] ?? '');
@@ -55,7 +56,11 @@ if ($method === 'POST') {
     }
 
     jg_partner_clear_password_reset_session();
-    echo json_encode(['ok' => true], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+    jg_partner_rotate_session_security();
+    echo json_encode([
+        'ok' => true,
+        'csrf_token' => jg_partner_csrf_token(),
+    ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
     exit;
 }
 

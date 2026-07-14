@@ -64,6 +64,8 @@ if ($method !== 'POST') {
     jg_order_fail('Method not allowed.', 405);
 }
 
+jg_partner_require_csrf_json();
+
 $request = jg_order_request();
 $action = (string) ($request['action'] ?? '');
 

@@ -7,6 +7,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const labelsEndpoint = root.dataset.labelsEndpoint || '../api/order-labels/';
   const logoutUrl = root.dataset.logoutUrl || '../logout/';
   const dashboardBase = root.dataset.dashboardBase || './';
+  let csrfToken = root.dataset.csrfToken || '';
+  const maxLabelBytes = 10 * 1024 * 1024;
 
   const orderModal = document.querySelector('[data-order-modal]');
   const orderForm = document.querySelector('[data-order-form]');
@@ -88,7 +90,8 @@ document.addEventListener('DOMContentLoaded', () => {
       method: options.method || 'GET',
       headers: {
         Accept: 'application/json',
-        ...(options.body ? { 'Content-Type': 'application/json' } : {})
+        ...(options.body ? { 'Content-Type': 'application/json' } : {}),
+        ...((options.method || 'GET').toUpperCase() !== 'GET' ? { 'X-CSRF-Token': csrfToken } : {})
       },
       credentials: 'same-origin',
       body: options.body ? JSON.stringify(options.body) : undefined
@@ -101,6 +104,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const postOrderForm = async (formData) => {
     const response = await fetch(ordersEndpoint, {
       method: 'POST',
+      headers: { 'X-CSRF-Token': csrfToken },
       credentials: 'same-origin',
       body: formData
     });
@@ -390,6 +394,7 @@ document.addEventListener('DOMContentLoaded', () => {
         </div>
         <div>
           <span>${escapeHtml(formatTimestamp(label.created_at || order.created_at || ''))}</span>
+          ${label.expires_at ? `<span>Deletes ${escapeHtml(formatTimestamp(label.expires_at))}</span>` : ''}
           ${label.url ? `<a href="${escapeHtml(label.url)}" target="_blank" rel="noopener">Open</a>` : '<span>No file URL</span>'}
         </div>
       </article>
@@ -719,6 +724,13 @@ document.addEventListener('DOMContentLoaded', () => {
       renderPreview();
       return;
     }
+    if (file && Number(file.size || 0) > maxLabelBytes) {
+      state.labelFile = null;
+      setError('Shipment label PDF must be 10 MB or smaller.', modalErrorNode);
+      renderLabelQueue();
+      renderPreview();
+      return;
+    }
 
     state.labelFile = file;
     setError('', modalErrorNode);
@@ -1036,7 +1048,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     try {
-      await requestJson(sessionEndpoint, {
+      const passwordResult = await requestJson(sessionEndpoint, {
         method: 'POST',
         body: {
           action: 'change_password',
@@ -1045,6 +1057,7 @@ document.addEventListener('DOMContentLoaded', () => {
           confirm_password: confirmPassword
         }
       });
+      csrfToken = String(passwordResult.csrf_token || csrfToken);
       state.passwordResetRequired = false;
       renderPasswordResetState();
       closePasswordModal();

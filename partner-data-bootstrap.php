@@ -186,9 +186,13 @@ function jg_partner_data_ensure_schema(PDO $pdo): void
             relative_path VARCHAR(255) NOT NULL,
             mime_type VARCHAR(120) NOT NULL DEFAULT "",
             size_bytes BIGINT UNSIGNED NOT NULL DEFAULT 0,
+            expires_at DATETIME NULL DEFAULT NULL,
+            deleted_at DATETIME NULL DEFAULT NULL,
+            deletion_reason VARCHAR(64) NOT NULL DEFAULT "",
             created_at DATETIME NOT NULL,
             KEY idx_partner_order_labels_order (order_id, created_at),
             KEY idx_partner_order_labels_partner (partner_code, created_at),
+            KEY idx_partner_order_labels_expiry (deleted_at, expires_at),
             CONSTRAINT fk_partner_order_labels_order FOREIGN KEY (order_id) REFERENCES partner_orders(id) ON DELETE CASCADE
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci',
     ];
@@ -205,6 +209,10 @@ function jg_partner_data_ensure_schema(PDO $pdo): void
     jg_partner_data_ensure_column($pdo, 'partner_orders', 'deadline_at', 'DATETIME NULL DEFAULT NULL');
     jg_partner_data_ensure_column($pdo, 'partner_orders', 'revenue_total', 'DECIMAL(14,2) NOT NULL DEFAULT 0.00');
     jg_partner_data_ensure_column($pdo, 'partner_orders', 'inference_json', 'LONGTEXT NULL DEFAULT NULL');
+    jg_partner_data_ensure_column($pdo, 'partner_order_labels', 'expires_at', 'DATETIME NULL DEFAULT NULL');
+    jg_partner_data_ensure_column($pdo, 'partner_order_labels', 'deleted_at', 'DATETIME NULL DEFAULT NULL');
+    jg_partner_data_ensure_column($pdo, 'partner_order_labels', 'deletion_reason', 'VARCHAR(64) NOT NULL DEFAULT ""');
+    jg_partner_data_ensure_index($pdo, 'partner_order_labels', 'idx_partner_order_labels_expiry', '(deleted_at, expires_at)');
 }
 
 function jg_partner_data_ensure_column(PDO $pdo, string $tableName, string $columnName, string $definition): void
@@ -225,4 +233,21 @@ function jg_partner_data_ensure_column(PDO $pdo, string $tableName, string $colu
     $safeTable = preg_replace('/[^a-zA-Z0-9_]/', '', $tableName) ?: $tableName;
     $safeColumn = preg_replace('/[^a-zA-Z0-9_]/', '', $columnName) ?: $columnName;
     $pdo->exec(sprintf('ALTER TABLE `%s` ADD COLUMN `%s` %s', $safeTable, $safeColumn, $definition));
+}
+
+function jg_partner_data_ensure_index(PDO $pdo, string $tableName, string $indexName, string $columns): void
+{
+    $stmt = $pdo->prepare(
+        'SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS
+         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = :table_name AND INDEX_NAME = :index_name'
+    );
+    $stmt->execute([
+        ':table_name' => $tableName,
+        ':index_name' => $indexName,
+    ]);
+    if ((int) $stmt->fetchColumn() > 0) {
+        return;
+    }
+
+    $pdo->exec(sprintf('ALTER TABLE `%s` ADD INDEX `%s` %s', $tableName, $indexName, $columns));
 }

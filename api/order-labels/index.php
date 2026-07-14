@@ -20,6 +20,8 @@ if ($method !== 'POST') {
     jg_partner_label_fail('Method not allowed.', 405);
 }
 
+jg_partner_require_csrf_json();
+
 $partnerCode = jg_partner_current_code();
 $action = trim((string) ($_POST['action'] ?? 'upload')) ?: 'upload';
 

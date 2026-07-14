@@ -54,13 +54,14 @@ $sectionUrl = static function (string $section) use ($dashboardPath): string {
     <link rel="stylesheet" href="/admin.css?v=<?php echo urlencode($adminCssVersion ?: '1'); ?>">
 </head>
 <body class="admin-body is-dashboard">
-    <div class="admin-build-badge" aria-label="Partner portal build version">Build 1.01.00</div>
+    <div class="admin-build-badge" aria-label="Partner portal build version">Build 1.02.00</div>
     <div
         class="partner-dashboard-app partner-workspace"
         data-partner-dashboard
         data-session-endpoint="<?php echo htmlspecialchars($sessionEndpoint, ENT_QUOTES); ?>"
         data-orders-endpoint="<?php echo htmlspecialchars($ordersEndpoint, ENT_QUOTES); ?>"
         data-labels-endpoint="<?php echo htmlspecialchars($labelsEndpoint, ENT_QUOTES); ?>"
+        data-csrf-token="<?php echo htmlspecialchars(jg_partner_csrf_token(), ENT_QUOTES); ?>"
         data-logout-url="<?php echo htmlspecialchars($logoutUrl, ENT_QUOTES); ?>"
         data-dashboard-base="<?php echo htmlspecialchars($dashboardPath, ENT_QUOTES); ?>"
         data-active-section="<?php echo htmlspecialchars($activeSection, ENT_QUOTES); ?>"
@@ -164,10 +165,11 @@ $sectionUrl = static function (string $section) use ($dashboardPath): string {
                     <div class="partner-panel-head">
                         <div>
                             <span>Labels</span>
-                            <h3>Shipping label archive</h3>
+                            <h3>Temporary shipping labels</h3>
                         </div>
                         <button type="button" class="admin-primary-btn" data-open-order-modal>Upload Label</button>
                     </div>
+                    <p class="admin-empty">Labels are kept for up to seven days, shortened to three days after fulfillment and one day after cancellation.</p>
                     <div class="partner-label-library" data-label-library>
                         <p class="admin-empty">No labels uploaded yet.</p>
                     </div>
@@ -267,7 +269,7 @@ $sectionUrl = static function (string $section) use ($dashboardPath): string {
                     <button type="button" class="partner-upload-dropzone partner-label-dropzone" data-label-dropzone>
                         <span class="partner-upload-plus" aria-hidden="true">+</span>
                         <strong data-label-dropzone-copy>Upload shipping label</strong>
-                        <span>PDF shipment label</span>
+                        <span>PDF shipment label · maximum 10 MB</span>
                     </button>
                     <input type="file" name="labels" data-label-input hidden accept=".pdf,application/pdf">
 

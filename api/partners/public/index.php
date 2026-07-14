@@ -22,5 +22,14 @@ if (!is_array($data)) {
 
 echo json_encode([
     'meta' => $data['meta'] ?? [],
-    'partners' => array_values(array_filter($data['partners'] ?? [], 'is_array')),
+    'partners' => array_values(array_map(
+        static fn (array $partner): array => [
+            'code' => (string) ($partner['code'] ?? ''),
+            'name' => (string) ($partner['name'] ?? ''),
+            'partner_slug' => (string) ($partner['partner_slug'] ?? ''),
+            'store_path' => (string) ($partner['store_path'] ?? ''),
+            'updated_at' => (string) ($partner['updated_at'] ?? ''),
+        ],
+        array_filter($data['partners'] ?? [], 'is_array')
+    )),
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);

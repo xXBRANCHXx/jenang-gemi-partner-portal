@@ -9,12 +9,11 @@ header('Content-Type: application/json; charset=utf-8');
 $status = jg_partner_data_status();
 
 if (!jg_partner_is_authenticated()) {
-    unset($status['database_name'], $status['database_user']);
-    foreach ($status['config_files'] as &$configFile) {
-        unset($configFile['path']);
-    }
-    unset($configFile);
-    $status['authenticated'] = false;
+    $tables = (array) ($status['tables'] ?? []);
+    echo json_encode([
+        'ok' => !empty($status['connected']) && !empty($tables['partner_orders']) && !empty($tables['partner_order_labels']),
+    ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+    exit;
 } else {
     $status['authenticated'] = true;
 }

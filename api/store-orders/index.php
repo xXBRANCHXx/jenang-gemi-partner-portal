@@ -220,10 +220,7 @@ if ($method !== 'GET') {
 try {
     $orders = array_values(array_filter(array_map(
         static fn (array $order): array => jg_store_orders_normalize($order),
-        array_values(array_filter(
-            jg_partner_order_list_all(),
-            'jg_partner_order_has_available_label_pdf'
-        ))
+        jg_partner_order_list_all()
     ), static fn (array $order): bool => (string) ($order['sourceOrderId'] ?? '') !== '' && jg_store_orders_has_labels($order)));
 } catch (Throwable $exception) {
     jg_store_orders_fail($exception->getMessage() ?: 'Unable to load partner orders.', 500);

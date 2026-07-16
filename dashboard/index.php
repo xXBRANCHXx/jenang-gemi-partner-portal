@@ -54,7 +54,7 @@ $sectionUrl = static function (string $section) use ($dashboardPath): string {
     <link rel="stylesheet" href="/admin.css?v=<?php echo urlencode($adminCssVersion ?: '1'); ?>">
 </head>
 <body class="admin-body is-dashboard">
-    <div class="admin-build-badge" aria-label="Partner portal build version">Build 1.02.07</div>
+    <div class="admin-build-badge" aria-label="Partner portal build version">Build 1.02.08</div>
     <div
         class="partner-dashboard-app partner-workspace"
         data-partner-dashboard
@@ -259,14 +259,36 @@ $sectionUrl = static function (string $section) use ($dashboardPath): string {
                             <span>Creation time</span>
                             <input type="datetime-local" name="order_timestamp" data-order-timestamp required>
                         </label>
-                        <label class="partner-label-field">
+                        <div class="partner-label-field partner-platform-field" data-platform-picker>
                             <span>Platform</span>
-                            <select name="marketplace_platform" data-platform-select required>
-                                <option value="" selected disabled>Select platform</option>
-                                <option value="Shopee">Shopee</option>
-                                <option value="TikTok Shop">TikTok Shop</option>
-                            </select>
-                        </label>
+                            <input type="hidden" name="marketplace_platform" value="" data-platform-select>
+                            <button type="button" class="partner-platform-trigger" aria-haspopup="listbox" aria-expanded="false" aria-required="true" data-platform-trigger>
+                                <span class="partner-platform-badge" aria-hidden="true" data-platform-trigger-badge>?</span>
+                                <span class="partner-platform-trigger-copy">
+                                    <strong data-platform-label>Select platform</strong>
+                                    <small data-platform-caption>Required for every order</small>
+                                </span>
+                                <span class="partner-platform-chevron" aria-hidden="true">⌄</span>
+                            </button>
+                            <div class="partner-platform-menu" role="listbox" aria-label="Order platform" data-platform-menu hidden>
+                                <button type="button" class="partner-platform-option" role="option" aria-selected="false" data-platform-option="Shopee">
+                                    <span class="partner-platform-badge" data-platform-badge="shopee" aria-hidden="true">S</span>
+                                    <span>
+                                        <strong>Shopee</strong>
+                                        <small>Shopee marketplace order</small>
+                                    </span>
+                                    <span class="partner-platform-check" aria-hidden="true">✓</span>
+                                </button>
+                                <button type="button" class="partner-platform-option" role="option" aria-selected="false" data-platform-option="TikTok Shop">
+                                    <span class="partner-platform-badge" data-platform-badge="tiktok" aria-hidden="true">T</span>
+                                    <span>
+                                        <strong>TikTok Shop</strong>
+                                        <small>TikTok marketplace order</small>
+                                    </span>
+                                    <span class="partner-platform-check" aria-hidden="true">✓</span>
+                                </button>
+                            </div>
+                        </div>
                         <label class="partner-label-field">
                             <span>Deadline</span>
                             <strong data-deadline-value>24h</strong>

@@ -2888,6 +2888,159 @@ button, input {
   font-weight: 750;
 }
 
+.partner-platform-field {
+  position: relative;
+  z-index: 5;
+}
+
+.partner-platform-trigger {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr) auto;
+  align-items: center;
+  width: 100%;
+  min-height: 48px;
+  gap: 10px;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--partner-text, #fff);
+  text-align: left;
+  cursor: pointer;
+}
+
+.partner-platform-trigger:focus-visible {
+  border-radius: 12px;
+  box-shadow: 0 0 0 2px var(--partner-accent, #a8a8a8);
+}
+
+.partner-platform-trigger-copy {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.partner-platform-trigger-copy strong {
+  overflow: hidden;
+  color: var(--partner-text, #fff);
+  font: 800 0.88rem/1.2 "Plus Jakarta Sans", sans-serif;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.partner-platform-trigger-copy small {
+  color: var(--partner-muted, rgba(255, 255, 255, 0.52));
+  font-size: 0.66rem;
+  font-weight: 700;
+}
+
+.partner-platform-badge {
+  display: inline-grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--partner-border, rgba(255, 255, 255, 0.1));
+  border-radius: 11px;
+  background: var(--partner-panel-soft, rgba(255, 255, 255, 0.05));
+  color: var(--partner-muted, rgba(255, 255, 255, 0.6));
+  font: 900 0.78rem/1 "Space Grotesk", sans-serif;
+}
+
+.partner-platform-trigger[data-platform-value="Shopee"] .partner-platform-badge,
+.partner-platform-badge[data-platform-badge="shopee"] {
+  border-color: rgba(238, 77, 45, 0.42);
+  background: rgba(238, 77, 45, 0.16);
+  color: #ff8a72;
+}
+
+.partner-platform-trigger[data-platform-value="TikTok Shop"] .partner-platform-badge,
+.partner-platform-badge[data-platform-badge="tiktok"] {
+  border-color: rgba(37, 244, 238, 0.32);
+  background: rgba(37, 244, 238, 0.1);
+  color: #66fff9;
+  box-shadow: inset -2px 0 rgba(254, 44, 85, 0.38);
+}
+
+.partner-platform-chevron {
+  color: var(--partner-muted, rgba(255, 255, 255, 0.58));
+  font-size: 1.1rem;
+  transition: transform 150ms ease;
+}
+
+.partner-platform-trigger[aria-expanded="true"] .partner-platform-chevron {
+  transform: rotate(180deg);
+}
+
+.partner-platform-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: -6px;
+  left: -6px;
+  z-index: 30;
+  display: grid;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid var(--partner-border, rgba(255, 255, 255, 0.1));
+  border-radius: 16px;
+  background: var(--partner-panel-strong, #353535);
+  box-shadow: 0 20px 44px rgba(0, 0, 0, 0.38);
+}
+
+.partner-platform-menu[hidden] {
+  display: none;
+}
+
+.partner-platform-option {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr) 24px;
+  align-items: center;
+  min-height: 58px;
+  gap: 10px;
+  padding: 7px 10px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--partner-text, #fff);
+  text-align: left;
+  cursor: pointer;
+}
+
+.partner-platform-option:hover,
+.partner-platform-option:focus-visible,
+.partner-platform-option[aria-selected="true"] {
+  border-color: var(--partner-border, rgba(255, 255, 255, 0.1));
+  outline: 0;
+  background: var(--partner-panel-soft, rgba(255, 255, 255, 0.06));
+}
+
+.partner-platform-option > span:nth-child(2) {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.partner-platform-option strong {
+  color: var(--partner-text, #fff);
+  font-size: 0.82rem;
+}
+
+.partner-platform-option small {
+  color: var(--partner-muted, rgba(255, 255, 255, 0.52));
+  font-size: 0.66rem;
+  font-weight: 650;
+}
+
+.partner-platform-check {
+  color: var(--partner-accent-strong, #dedede);
+  font-weight: 900;
+  opacity: 0;
+  text-align: center;
+}
+
+.partner-platform-option[aria-selected="true"] .partner-platform-check {
+  opacity: 1;
+}
+
 .partner-label-field strong {
   color: #fff;
   font: 700 1.8rem/1 "Space Grotesk", sans-serif;

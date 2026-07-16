@@ -37,6 +37,13 @@ document.addEventListener('DOMContentLoaded', () => {
   const deadlineValue = document.querySelector('[data-deadline-value]');
   const customerNameInput = document.querySelector('[data-customer-name]');
   const platformSelect = document.querySelector('[data-platform-select]');
+  const platformPicker = document.querySelector('[data-platform-picker]');
+  const platformTrigger = document.querySelector('[data-platform-trigger]');
+  const platformTriggerBadge = document.querySelector('[data-platform-trigger-badge]');
+  const platformLabel = document.querySelector('[data-platform-label]');
+  const platformCaption = document.querySelector('[data-platform-caption]');
+  const platformMenu = document.querySelector('[data-platform-menu]');
+  const platformOptions = Array.from(document.querySelectorAll('[data-platform-option]'));
   const skuSearchInput = document.querySelector('[data-sku-search]');
   const productFilter = document.querySelector('[data-product-filter]');
   const flavorFilter = document.querySelector('[data-flavor-filter]');
@@ -123,6 +130,40 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!target) return;
     target.hidden = !message;
     target.textContent = message || '';
+  };
+
+  const closePlatformMenu = () => {
+    if (platformMenu instanceof HTMLElement) platformMenu.hidden = true;
+    if (platformTrigger instanceof HTMLButtonElement) platformTrigger.setAttribute('aria-expanded', 'false');
+  };
+
+  const openPlatformMenu = () => {
+    if (!(platformMenu instanceof HTMLElement) || !(platformTrigger instanceof HTMLButtonElement)) return;
+    platformMenu.hidden = false;
+    platformTrigger.setAttribute('aria-expanded', 'true');
+    const selected = platformOptions.find((option) => option.getAttribute('aria-selected') === 'true');
+    const firstOption = selected || platformOptions[0];
+    if (firstOption instanceof HTMLButtonElement) firstOption.focus();
+  };
+
+  const setPlatformValue = (value, dispatchChange = true) => {
+    const normalized = String(value || '');
+    const selected = platformOptions.find((option) => option.getAttribute('data-platform-option') === normalized) || null;
+    if (platformSelect instanceof HTMLInputElement) platformSelect.value = selected ? normalized : '';
+    if (platformLabel) platformLabel.textContent = selected ? normalized : 'Select platform';
+    if (platformCaption) platformCaption.textContent = selected ? 'Ready for Store Ops' : 'Required for every order';
+    if (platformTriggerBadge) platformTriggerBadge.textContent = selected ? (normalized === 'TikTok Shop' ? 'T' : 'S') : '?';
+    if (platformTrigger instanceof HTMLButtonElement) {
+      platformTrigger.classList.toggle('has-value', Boolean(selected));
+      platformTrigger.setAttribute('data-platform-value', selected ? normalized : '');
+    }
+    platformOptions.forEach((option) => {
+      option.setAttribute('aria-selected', option === selected ? 'true' : 'false');
+    });
+    closePlatformMenu();
+    if (dispatchChange && platformSelect instanceof HTMLInputElement) {
+      platformSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    }
   };
 
   const renderPasswordResetState = () => {
@@ -736,7 +777,7 @@ document.addEventListener('DOMContentLoaded', () => {
     return totals;
   }, { quantity: 0, billableUnits: 0, partnerCost: 0 });
 
-  const canSubmitCurrentOrder = () => Boolean(state.labelFile && state.cart.length && !state.submitting);
+  const canSubmitCurrentOrder = () => Boolean(state.labelFile && state.cart.length && platformSelect?.value && !state.submitting);
 
   const renderPreview = () => {
     const totals = cartTotals();
@@ -807,7 +848,7 @@ document.addEventListener('DOMContentLoaded', () => {
     orderForm.reset();
     if (orderForm.elements.order_timestamp) orderForm.elements.order_timestamp.value = datetimeLocalValue();
     if (deadlineRange instanceof HTMLInputElement) deadlineRange.value = '24';
-    if (platformSelect instanceof HTMLSelectElement) platformSelect.value = '';
+    setPlatformValue('', false);
     if (skuSearchInput instanceof HTMLInputElement) skuSearchInput.value = '';
     setError('', modalErrorNode);
     renderDeadline();
@@ -825,6 +866,7 @@ document.addEventListener('DOMContentLoaded', () => {
     state.skuSearch = '';
     state.cart = [];
     state.submitting = false;
+    closePlatformMenu();
     orderForm.reset();
     setError('', modalErrorNode);
   };
@@ -911,6 +953,54 @@ document.addEventListener('DOMContentLoaded', () => {
     renderLabelQueue();
   });
 
+  platformTrigger?.addEventListener('click', () => {
+    if (platformTrigger.getAttribute('aria-expanded') === 'true') {
+      closePlatformMenu();
+      return;
+    }
+    openPlatformMenu();
+  });
+
+  platformTrigger?.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+      closePlatformMenu();
+      return;
+    }
+    if (!['ArrowDown', 'ArrowUp'].includes(event.key)) return;
+    event.preventDefault();
+    openPlatformMenu();
+    const target = event.key === 'ArrowUp' ? platformOptions.at(-1) : platformOptions[0];
+    if (target instanceof HTMLButtonElement) target.focus();
+  });
+
+  platformMenu?.addEventListener('click', (event) => {
+    const option = event.target instanceof Element ? event.target.closest('[data-platform-option]') : null;
+    if (!(option instanceof HTMLButtonElement)) return;
+    setPlatformValue(option.getAttribute('data-platform-option') || '');
+    if (platformTrigger instanceof HTMLButtonElement) platformTrigger.focus();
+  });
+
+  platformMenu?.addEventListener('keydown', (event) => {
+    const currentIndex = platformOptions.indexOf(document.activeElement);
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      closePlatformMenu();
+      if (platformTrigger instanceof HTMLButtonElement) platformTrigger.focus();
+      return;
+    }
+    if (!['ArrowDown', 'ArrowUp'].includes(event.key) || currentIndex < 0) return;
+    event.preventDefault();
+    const delta = event.key === 'ArrowDown' ? 1 : -1;
+    const nextIndex = (currentIndex + delta + platformOptions.length) % platformOptions.length;
+    const next = platformOptions[nextIndex];
+    if (next instanceof HTMLButtonElement) next.focus();
+  });
+
+  document.addEventListener('click', (event) => {
+    if (!(platformPicker instanceof HTMLElement) || !(event.target instanceof Node) || platformPicker.contains(event.target)) return;
+    closePlatformMenu();
+  });
+
   skuSearchInput?.addEventListener('input', () => {
     state.skuSearch = skuSearchInput.value || '';
     renderSkuList();
@@ -963,6 +1053,11 @@ document.addEventListener('DOMContentLoaded', () => {
     event.preventDefault();
     setError('', modalErrorNode);
 
+    if (!platformSelect?.value) {
+      setError('Select an order platform.', modalErrorNode);
+      if (platformTrigger instanceof HTMLButtonElement) platformTrigger.focus();
+      return;
+    }
     if (!canSubmitCurrentOrder()) {
       setError('Upload a label and select at least one approved SKU.', modalErrorNode);
       return;
@@ -975,10 +1070,6 @@ document.addEventListener('DOMContentLoaded', () => {
       const formData = new window.FormData(orderForm);
       const platform = String(formData.get('marketplace_platform') || platformSelect?.value || '').trim();
       const customerName = formData.get('customer_name') || '';
-      if (!platform) {
-        setError('Select an order platform.', modalErrorNode);
-        return;
-      }
       const orderPayload = {
         action: 'create',
         order_timestamp: formData.get('order_timestamp'),

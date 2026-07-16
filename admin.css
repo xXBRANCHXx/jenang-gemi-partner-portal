@@ -2956,7 +2956,7 @@ button, input {
 [data-platform-kind="shopee"] .partner-platform-metric-head .partner-platform-badge {
   border-color: rgba(238, 77, 45, 0.42);
   background: rgba(238, 77, 45, 0.16);
-  color: #ff8a72;
+  color: var(--partner-shopee, #ff8a72);
 }
 
 .partner-platform-trigger[data-platform-kind="tiktok"] .partner-platform-badge,
@@ -3469,7 +3469,9 @@ body.is-dashboard {
   --partner-accent: #a8a8a8;
   --partner-accent-strong: #dedede;
   --partner-danger: #9b7a76;
+  --partner-shopee: #ff8a72;
   --partner-shadow: 0 20px 60px rgba(0, 0, 0, 0.24);
+  color-scheme: dark;
 }
 
 body.is-dashboard[data-partner-theme='light'] {
@@ -3485,7 +3487,9 @@ body.is-dashboard[data-partner-theme='light'] {
   --partner-accent: #777777;
   --partner-accent-strong: #242424;
   --partner-danger: #765f5c;
+  --partner-shopee: #b8321d;
   --partner-shadow: 0 20px 50px rgba(24, 24, 24, 0.1);
+  color-scheme: light;
 }
 
 @media (prefers-color-scheme: light) {
@@ -3502,7 +3506,9 @@ body.is-dashboard[data-partner-theme='light'] {
     --partner-accent: #777777;
     --partner-accent-strong: #242424;
     --partner-danger: #765f5c;
+    --partner-shopee: #b8321d;
     --partner-shadow: 0 20px 50px rgba(24, 24, 24, 0.1);
+    color-scheme: light;
   }
 }
 
@@ -4316,6 +4322,25 @@ body.is-dashboard[data-partner-theme='light'] .partner-month-picker input {
   white-space: nowrap;
 }
 
+/* Keep native controls and legacy dashboard details aligned with the active theme. */
+body.is-dashboard :is(.partner-workspace, .partner-order-modal-shell) :is(input, select, textarea) {
+  color-scheme: inherit;
+}
+
+.partner-bar-label {
+  color: var(--partner-muted);
+}
+
+.partner-order-card-items b {
+  color: var(--partner-text);
+}
+
+.partner-analysis-head b {
+  border-color: var(--partner-border);
+  background: var(--partner-panel-soft);
+  color: var(--partner-text);
+}
+
 body.is-dashboard .admin-build-badge {
   border-color: var(--partner-border);
   background: rgba(37, 37, 37, 0.9);
@@ -4411,26 +4436,6 @@ body.is-dashboard[data-partner-theme='light'] .partner-order-modal-shell {
   color: var(--partner-text);
 }
 
-body.is-dashboard[data-partner-theme='light'] :is(.partner-workspace, .partner-order-modal-shell) :where(
-  h1,
-  h2,
-  h3,
-  h4,
-  p,
-  span,
-  strong,
-  small,
-  label,
-  button,
-  a,
-  input,
-  select,
-  textarea,
-  div
-) {
-  color: inherit;
-}
-
 body.is-dashboard[data-partner-theme='light'] :is(
   .partner-sidebar-kicker,
   .partner-page-head span,
@@ -4501,26 +4506,6 @@ body.is-dashboard[data-partner-theme='light'] :is(
   body.is-dashboard:not([data-partner-theme='dark']) .partner-workspace,
   body.is-dashboard:not([data-partner-theme='dark']) .partner-order-modal-shell {
     color: var(--partner-text);
-  }
-
-  body.is-dashboard:not([data-partner-theme='dark']) :is(.partner-workspace, .partner-order-modal-shell) :where(
-    h1,
-    h2,
-    h3,
-    h4,
-    p,
-    span,
-    strong,
-    small,
-    label,
-    button,
-    a,
-    input,
-    select,
-    textarea,
-    div
-  ) {
-    color: inherit;
   }
 
   body.is-dashboard:not([data-partner-theme='dark']) :is(

@@ -463,7 +463,7 @@ function jg_partner_order_infer_platform(string $text): array
             'AIR WAYBILL' => 2,
             'AWB' => 2,
         ],
-        'TikTok Shop' => [
+        'TikTok/Toped' => [
             'TIKTOK' => 5,
             'TIKTOK SHOP' => 6,
             'SELLER SKU' => 3,
@@ -669,11 +669,11 @@ function jg_partner_order_normalize_marketplace_platform(mixed $value): string
     if ($normalized === '') {
         return 'Needs review';
     }
-    if (str_contains($normalized, 'shopee') || $normalized === 'spx') {
+    if (in_array($normalized, ['shopee', 'spx'], true)) {
         return 'Shopee';
     }
-    if (str_contains($normalized, 'tiktok') || str_contains($normalized, 'tik tok')) {
-        return 'TikTok Shop';
+    if (in_array($normalized, ['tiktok', 'tik tok', 'tiktok shop', 'tiktok/toped', 'tiktok toped', 'tiktok/tokopedia', 'tiktok tokopedia', 'tokopedia'], true)) {
+        return 'TikTok/Toped';
     }
 
     return mb_substr($raw, 0, 32);

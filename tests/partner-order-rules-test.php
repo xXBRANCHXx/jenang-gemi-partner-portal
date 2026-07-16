@@ -57,6 +57,8 @@ partner_order_expect(40000.0, $partnerOrder['revenue_total'], 'Partner order rev
 partner_order_expect(20000.0, $partnerOrder['items'][0]['unit_revenue'], 'Partner pricing should remain the configured SKU-level price.');
 partner_order_expect(20000.0, $partnerOrder['items'][0]['partner_unit_price'], 'Partner unit pricing should remain at SKU level.');
 partner_order_expect(2, count($partnerOrder['items']) === 1 ? $partnerOrder['items'][0]['quantity'] : 0, 'Partner orders should preserve selected SKU quantities.');
+partner_order_expect('TikTok/Toped', jg_partner_order_normalize_marketplace_platform('TikTok Shop'), 'TikTok aliases should use the combined built-in platform.');
+partner_order_expect('Shopee Bandung', jg_partner_order_normalize_marketplace_platform('Shopee Bandung'), 'Custom reseller names should not collapse into built-in platforms.');
 
 $missingPlatformRejected = false;
 try {

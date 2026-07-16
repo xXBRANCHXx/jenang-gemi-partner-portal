@@ -1,2 +1,3 @@
 config.local.php
 data/partners.runtime.json
+data/platform-options.json

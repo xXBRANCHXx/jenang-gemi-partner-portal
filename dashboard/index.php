@@ -54,7 +54,7 @@ $sectionUrl = static function (string $section) use ($dashboardPath): string {
     <link rel="stylesheet" href="/admin.css?v=<?php echo urlencode($adminCssVersion ?: '1'); ?>">
 </head>
 <body class="admin-body is-dashboard">
-    <div class="admin-build-badge" aria-label="Partner portal build version">Build 1.02.08</div>
+    <div class="admin-build-badge" aria-label="Partner portal build version">Build 1.02.09</div>
     <div
         class="partner-dashboard-app partner-workspace"
         data-partner-dashboard
@@ -111,7 +111,7 @@ $sectionUrl = static function (string $section) use ($dashboardPath): string {
                     <article><span>Units sold</span><strong data-metric-units>0</strong><small data-metric-window>Last 30 days</small></article>
                     <article><span>Orders created</span><strong data-metric-orders>0</strong><small data-metric-window>Last 30 days</small></article>
                     <article><span>Avg. units/order</span><strong data-metric-average>0.0</strong><small data-metric-window>Last 30 days</small></article>
-                    <article><span>Revenue</span><strong data-metric-revenue>Rp0</strong><small data-metric-window>Last 30 days</small></article>
+                    <article><span>Partner cost</span><strong data-metric-revenue>Rp0</strong><small data-metric-window>Last 30 days</small></article>
                 </section>
 
                 <section class="partner-overview-grid">
@@ -189,7 +189,18 @@ $sectionUrl = static function (string $section) use ($dashboardPath): string {
                     <article><span>Active orders</span><strong data-analytics-active>0</strong><small>Not canceled or archived</small></article>
                     <article><span>Fulfilled</span><strong data-analytics-fulfilled>0</strong><small>Completed orders</small></article>
                     <article><span>Cancel rate</span><strong data-analytics-cancel-rate>0%</strong><small>All partner orders</small></article>
-                    <article><span>Revenue/order</span><strong data-analytics-revenue-order>Rp0</strong><small>Partner pricing average</small></article>
+                    <article><span>Cost/order</span><strong data-analytics-revenue-order>Rp0</strong><small>Average partner cost</small></article>
+                </section>
+                <section class="partner-panel">
+                    <div class="partner-panel-head">
+                        <div>
+                            <span>Reseller performance</span>
+                            <h3>Platform metrics</h3>
+                        </div>
+                    </div>
+                    <div class="partner-platform-metrics" data-platform-metrics>
+                        <p class="admin-empty">Platform metrics will appear after orders are created.</p>
+                    </div>
                 </section>
                 <section class="partner-panel">
                     <div class="partner-panel-head">
@@ -232,6 +243,27 @@ $sectionUrl = static function (string $section) use ($dashboardPath): string {
                         </div>
                         <button type="button" class="admin-ghost-btn" data-open-password-modal>Change Password</button>
                     </article>
+
+                    <article class="partner-panel partner-platform-settings-panel">
+                        <div class="partner-panel-head">
+                            <div>
+                                <span>Order routing</span>
+                                <h3>Platform options</h3>
+                            </div>
+                        </div>
+                        <p class="partner-settings-copy">Add reseller profiles for order entry and platform-level metrics. Built-in marketplaces stay available automatically.</p>
+                        <form class="partner-platform-profile-form" data-platform-profile-form>
+                            <label>
+                                <span>Reseller or platform name</span>
+                                <input type="text" name="platform_name" maxlength="32" placeholder="e.g. Bandung Reseller" autocomplete="off" required>
+                            </label>
+                            <button type="submit" class="admin-primary-btn">Add platform</button>
+                        </form>
+                        <p class="admin-form-error" data-platform-profile-error hidden></p>
+                        <div class="partner-platform-profile-list" data-platform-profile-list>
+                            <p class="admin-empty">Loading platform options.</p>
+                        </div>
+                    </article>
                 </section>
             </section>
         </main>
@@ -271,7 +303,7 @@ $sectionUrl = static function (string $section) use ($dashboardPath): string {
                                 <span class="partner-platform-chevron" aria-hidden="true">⌄</span>
                             </button>
                             <div class="partner-platform-menu" role="listbox" aria-label="Order platform" data-platform-menu hidden>
-                                <button type="button" class="partner-platform-option" role="option" aria-selected="false" data-platform-option="Shopee">
+                                <button type="button" class="partner-platform-option" role="option" aria-selected="false" data-platform-option="Shopee" data-platform-kind="shopee" data-platform-caption="Shopee marketplace order" data-platform-badge-text="S">
                                     <span class="partner-platform-badge" data-platform-badge="shopee" aria-hidden="true">S</span>
                                     <span>
                                         <strong>Shopee</strong>
@@ -279,11 +311,11 @@ $sectionUrl = static function (string $section) use ($dashboardPath): string {
                                     </span>
                                     <span class="partner-platform-check" aria-hidden="true">✓</span>
                                 </button>
-                                <button type="button" class="partner-platform-option" role="option" aria-selected="false" data-platform-option="TikTok Shop">
+                                <button type="button" class="partner-platform-option" role="option" aria-selected="false" data-platform-option="TikTok/Toped" data-platform-kind="tiktok" data-platform-caption="TikTok/Toped marketplace order" data-platform-badge-text="T">
                                     <span class="partner-platform-badge" data-platform-badge="tiktok" aria-hidden="true">T</span>
                                     <span>
-                                        <strong>TikTok Shop</strong>
-                                        <small>TikTok marketplace order</small>
+                                        <strong>TikTok/Toped</strong>
+                                        <small>TikTok/Toped marketplace order</small>
                                     </span>
                                     <span class="partner-platform-check" aria-hidden="true">✓</span>
                                 </button>

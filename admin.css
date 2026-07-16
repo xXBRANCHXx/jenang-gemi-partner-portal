@@ -2946,19 +2946,21 @@ button, input {
   font: 900 0.78rem/1 "Space Grotesk", sans-serif;
 }
 
-.partner-platform-trigger[data-platform-value="Shopee"] .partner-platform-badge,
-.partner-platform-badge[data-platform-badge="shopee"] {
+.partner-platform-trigger[data-platform-kind="shopee"] .partner-platform-badge,
+[data-platform-kind="shopee"] > .partner-platform-badge,
+[data-platform-kind="shopee"] .partner-platform-metric-head .partner-platform-badge {
   border-color: rgba(238, 77, 45, 0.42);
   background: rgba(238, 77, 45, 0.16);
   color: #ff8a72;
 }
 
-.partner-platform-trigger[data-platform-value="TikTok Shop"] .partner-platform-badge,
-.partner-platform-badge[data-platform-badge="tiktok"] {
-  border-color: rgba(37, 244, 238, 0.32);
-  background: rgba(37, 244, 238, 0.1);
-  color: #66fff9;
-  box-shadow: inset -2px 0 rgba(254, 44, 85, 0.38);
+.partner-platform-trigger[data-platform-kind="tiktok"] .partner-platform-badge,
+[data-platform-kind="tiktok"] > .partner-platform-badge,
+[data-platform-kind="tiktok"] .partner-platform-metric-head .partner-platform-badge {
+  border-color: rgba(67, 214, 126, 0.5);
+  background: #111;
+  color: #54df8d;
+  box-shadow: inset 0 0 0 1px rgba(67, 214, 126, 0.08);
 }
 
 .partner-platform-chevron {
@@ -4004,6 +4006,155 @@ body.is-dashboard[data-partner-theme='light'] .partner-month-picker input {
   padding: 0;
 }
 
+.partner-platform-settings-panel {
+  grid-column: 1 / -1;
+}
+
+.partner-settings-copy {
+  margin: 0 0 16px;
+  color: var(--partner-muted);
+  font-size: 0.78rem;
+  line-height: 1.6;
+}
+
+.partner-platform-profile-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.partner-platform-profile-form label {
+  display: grid;
+  gap: 7px;
+}
+
+.partner-platform-profile-form label > span {
+  color: var(--partner-muted);
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.partner-platform-profile-form input {
+  min-height: 44px;
+  width: 100%;
+  padding: 0 13px;
+  border: 1px solid var(--partner-border);
+  border-radius: 14px;
+  outline: 0;
+  background: var(--partner-panel-soft);
+  color: var(--partner-text);
+  font: 750 0.82rem/1 "Plus Jakarta Sans", sans-serif;
+}
+
+.partner-platform-profile-form input:focus {
+  border-color: var(--partner-accent);
+}
+
+.partner-platform-profile-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.partner-platform-profile-card {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 11px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--partner-border);
+  border-radius: 16px;
+  background: var(--partner-panel-soft);
+}
+
+.partner-platform-profile-card > div,
+.partner-platform-metric-head > div {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.partner-platform-profile-card strong,
+.partner-platform-metric-card strong {
+  overflow: hidden;
+  color: var(--partner-text);
+  font-size: 0.82rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.partner-platform-profile-card small,
+.partner-platform-metric-card small {
+  color: var(--partner-muted);
+  font-size: 0.67rem;
+}
+
+.partner-platform-locked {
+  color: var(--partner-muted);
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.partner-platform-metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.partner-platform-metric-card {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid var(--partner-border);
+  border-radius: 18px;
+  background: var(--partner-panel-soft);
+}
+
+.partner-platform-metric-head {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+}
+
+.partner-platform-metric-card dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+}
+
+.partner-platform-metric-card dl > div {
+  display: grid;
+  gap: 3px;
+  padding: 9px;
+  border-radius: 12px;
+  background: var(--partner-panel);
+}
+
+.partner-platform-metric-card dt {
+  color: var(--partner-muted);
+  font-size: 0.63rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.partner-platform-metric-card dd {
+  overflow: hidden;
+  margin: 0;
+  color: var(--partner-text);
+  font: 800 0.8rem/1.2 "Space Grotesk", sans-serif;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 body.is-dashboard .admin-build-badge {
   border-color: var(--partner-border);
   background: rgba(37, 37, 37, 0.9);
@@ -4040,6 +4191,12 @@ body.is-dashboard[data-partner-theme='light'] .admin-build-badge {
 
   .partner-product-row i {
     width: 100%;
+  }
+
+  .partner-platform-profile-form,
+  .partner-platform-profile-list,
+  .partner-platform-metrics {
+    grid-template-columns: 1fr;
   }
 }
 

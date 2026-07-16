@@ -110,7 +110,7 @@ function jg_partner_data_status(): array
     $tables = [];
 
     if ($pdo instanceof PDO) {
-        foreach (['partner_orders', 'partner_order_labels'] as $tableName) {
+        foreach (['partner_orders', 'partner_order_labels', 'partner_platform_options'] as $tableName) {
             $stmt = $pdo->prepare(
                 'SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES
                  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = :table_name'
@@ -195,6 +195,14 @@ function jg_partner_data_ensure_schema(PDO $pdo): void
             KEY idx_partner_order_labels_partner (partner_code, created_at),
             KEY idx_partner_order_labels_expiry (deleted_at, expires_at),
             CONSTRAINT fk_partner_order_labels_order FOREIGN KEY (order_id) REFERENCES partner_orders(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci',
+        'CREATE TABLE IF NOT EXISTS partner_platform_options (
+            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+            partner_code VARCHAR(64) NOT NULL,
+            platform_name VARCHAR(32) NOT NULL,
+            created_at DATETIME NOT NULL,
+            UNIQUE KEY uniq_partner_platform_name (partner_code, platform_name),
+            KEY idx_partner_platform_partner (partner_code, created_at)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci',
     ];
 

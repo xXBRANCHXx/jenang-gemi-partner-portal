@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once dirname(__DIR__, 2) . '/partner-auth.php';
+require_once dirname(__DIR__, 2) . '/partner-platform-storage.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
@@ -12,9 +13,18 @@ if ($method === 'GET') {
     $partner = jg_partner_current_profile();
     $safePartner = is_array($partner) ? $partner : [];
     unset($safePartner['code']);
+    $platformOptions = jg_partner_platform_builtins();
+    $platformOptionsError = '';
+    try {
+        $platformOptions = jg_partner_platform_options(jg_partner_current_code());
+    } catch (Throwable) {
+        $platformOptionsError = 'Custom platform options are temporarily unavailable.';
+    }
     echo json_encode([
         'partner' => $safePartner,
         'catalog' => jg_partner_source_catalog($partner),
+        'platform_options' => $platformOptions,
+        'platform_options_error' => $platformOptionsError,
         'password_reset_required' => jg_partner_password_reset_required(),
     ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
     exit;
@@ -32,6 +42,35 @@ if ($method === 'POST') {
     $request = json_decode((string) file_get_contents('php://input'), true);
     $request = is_array($request) ? $request : [];
     $action = (string) ($request['action'] ?? '');
+
+    if ($action === 'add_platform') {
+        try {
+            $options = jg_partner_platform_create(jg_partner_current_code(), $request['name'] ?? '');
+            echo json_encode(['ok' => true, 'platform_options' => $options], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        } catch (InvalidArgumentException $exception) {
+            http_response_code(422);
+            echo json_encode(['error' => $exception->getMessage()], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+        } catch (Throwable) {
+            http_response_code(503);
+            echo json_encode(['error' => 'Platform options are temporarily unavailable.'], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+        }
+        exit;
+    }
+
+    if ($action === 'delete_platform') {
+        try {
+            $options = jg_partner_platform_delete(jg_partner_current_code(), $request['id'] ?? '');
+            echo json_encode(['ok' => true, 'platform_options' => $options], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        } catch (InvalidArgumentException $exception) {
+            http_response_code(422);
+            echo json_encode(['error' => $exception->getMessage()], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+        } catch (Throwable) {
+            http_response_code(503);
+            echo json_encode(['error' => 'Platform options are temporarily unavailable.'], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+        }
+        exit;
+    }
+
     if ($action !== 'change_password') {
         http_response_code(400);
         echo json_encode(['error' => 'Unknown action.'], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);

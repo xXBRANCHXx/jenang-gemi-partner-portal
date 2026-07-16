@@ -43,7 +43,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const platformLabel = document.querySelector('[data-platform-label]');
   const platformCaption = document.querySelector('[data-platform-caption]');
   const platformMenu = document.querySelector('[data-platform-menu]');
-  const platformOptions = Array.from(document.querySelectorAll('[data-platform-option]'));
+  let platformOptions = Array.from(document.querySelectorAll('[data-platform-option]'));
   const skuSearchInput = document.querySelector('[data-sku-search]');
   const productFilter = document.querySelector('[data-product-filter]');
   const flavorFilter = document.querySelector('[data-flavor-filter]');
@@ -56,6 +56,10 @@ document.addEventListener('DOMContentLoaded', () => {
   const themeSwitches = Array.from(document.querySelectorAll('[data-theme-switch]'));
   const labelLibrary = document.querySelector('[data-label-library]');
   const productMix = document.querySelector('[data-product-mix]');
+  const platformMetrics = document.querySelector('[data-platform-metrics]');
+  const platformProfileForm = document.querySelector('[data-platform-profile-form]');
+  const platformProfileList = document.querySelector('[data-platform-profile-list]');
+  const platformProfileError = document.querySelector('[data-platform-profile-error]');
   const analyticsNodes = {
     active: document.querySelector('[data-analytics-active]'),
     fulfilled: document.querySelector('[data-analytics-fulfilled]'),
@@ -71,6 +75,7 @@ document.addEventListener('DOMContentLoaded', () => {
     catalog: {},
     skuIndex: {},
     approvedSkus: [],
+    platformOptions: [],
     orders: [],
     selectedTimeframe: '30d',
     selectedMonth: currentChartMonth,
@@ -97,6 +102,17 @@ document.addEventListener('DOMContentLoaded', () => {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
+
+  const defaultPlatformOptions = [
+    { id: 'builtin-shopee', name: 'Shopee', caption: 'Shopee marketplace order', kind: 'shopee', removable: false },
+    { id: 'builtin-tiktok-toped', name: 'TikTok/Toped', caption: 'TikTok/Toped marketplace order', kind: 'tiktok', removable: false }
+  ];
+
+  const platformBadgeText = (option = {}) => {
+    if (option.kind === 'shopee') return 'S';
+    if (option.kind === 'tiktok') return 'T';
+    return String(option.name || 'R').trim().charAt(0).toLocaleUpperCase('id-ID') || 'R';
+  };
 
   const requestJson = async (url, options = {}) => {
     const response = await fetch(url, {
@@ -149,13 +165,17 @@ document.addEventListener('DOMContentLoaded', () => {
   const setPlatformValue = (value, dispatchChange = true) => {
     const normalized = String(value || '');
     const selected = platformOptions.find((option) => option.getAttribute('data-platform-option') === normalized) || null;
+    const selectedKind = selected?.getAttribute('data-platform-kind') || '';
+    const selectedCaption = selected?.getAttribute('data-platform-caption') || '';
+    const selectedBadge = selected?.getAttribute('data-platform-badge-text') || '?';
     if (platformSelect instanceof HTMLInputElement) platformSelect.value = selected ? normalized : '';
     if (platformLabel) platformLabel.textContent = selected ? normalized : 'Select platform';
-    if (platformCaption) platformCaption.textContent = selected ? 'Ready for Store Ops' : 'Required for every order';
-    if (platformTriggerBadge) platformTriggerBadge.textContent = selected ? (normalized === 'TikTok Shop' ? 'T' : 'S') : '?';
+    if (platformCaption) platformCaption.textContent = selected ? (selectedCaption || 'Custom reseller order') : 'Required for every order';
+    if (platformTriggerBadge) platformTriggerBadge.textContent = selected ? selectedBadge : '?';
     if (platformTrigger instanceof HTMLButtonElement) {
       platformTrigger.classList.toggle('has-value', Boolean(selected));
       platformTrigger.setAttribute('data-platform-value', selected ? normalized : '');
+      platformTrigger.setAttribute('data-platform-kind', selected ? selectedKind : '');
     }
     platformOptions.forEach((option) => {
       option.setAttribute('aria-selected', option === selected ? 'true' : 'false');
@@ -164,6 +184,59 @@ document.addEventListener('DOMContentLoaded', () => {
     if (dispatchChange && platformSelect instanceof HTMLInputElement) {
       platformSelect.dispatchEvent(new Event('change', { bubbles: true }));
     }
+  };
+
+  const renderPlatformProfiles = () => {
+    if (!platformProfileList) return;
+    const options = state.platformOptions.length ? state.platformOptions : defaultPlatformOptions;
+    platformProfileList.innerHTML = options.map((option) => `
+      <article class="partner-platform-profile-card" data-platform-kind="${escapeHtml(option.kind || 'custom')}">
+        <span class="partner-platform-badge" aria-hidden="true">${escapeHtml(platformBadgeText(option))}</span>
+        <div>
+          <strong>${escapeHtml(option.name || '')}</strong>
+          <small>${escapeHtml(option.removable ? 'Custom reseller profile' : 'Built-in marketplace')}</small>
+        </div>
+        ${option.removable ? `<button type="button" class="admin-ghost-btn" data-remove-platform="${escapeHtml(option.id || '')}">Remove</button>` : '<span class="partner-platform-locked">Built in</span>'}
+      </article>
+    `).join('');
+  };
+
+  const renderPlatformOptions = (options) => {
+    const normalizedOptions = Array.isArray(options) && options.length ? options : defaultPlatformOptions;
+    state.platformOptions = normalizedOptions.map((option) => ({
+      id: String(option.id || ''),
+      name: String(option.name || ''),
+      caption: String(option.caption || ''),
+      kind: ['shopee', 'tiktok'].includes(String(option.kind || '')) ? String(option.kind) : 'custom',
+      removable: Boolean(option.removable)
+    })).filter((option) => option.name);
+
+    const currentValue = platformSelect?.value || '';
+    if (platformMenu) {
+      platformMenu.innerHTML = state.platformOptions.map((option) => `
+        <button
+          type="button"
+          class="partner-platform-option"
+          role="option"
+          aria-selected="false"
+          data-platform-option="${escapeHtml(option.name)}"
+          data-platform-kind="${escapeHtml(option.kind)}"
+          data-platform-caption="${escapeHtml(option.caption || (option.removable ? 'Custom reseller order' : 'Marketplace order'))}"
+          data-platform-badge-text="${escapeHtml(platformBadgeText(option))}"
+        >
+          <span class="partner-platform-badge" aria-hidden="true">${escapeHtml(platformBadgeText(option))}</span>
+          <span>
+            <strong>${escapeHtml(option.name)}</strong>
+            <small>${escapeHtml(option.caption || (option.removable ? 'Custom reseller profile' : 'Marketplace order'))}</small>
+          </span>
+          <span class="partner-platform-check" aria-hidden="true">✓</span>
+        </button>
+      `).join('');
+      platformOptions = Array.from(platformMenu.querySelectorAll('[data-platform-option]'));
+    }
+    setPlatformValue(currentValue, false);
+    renderPlatformProfiles();
+    renderAnalytics();
   };
 
   const renderPasswordResetState = () => {
@@ -335,6 +408,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const orderUnits = (order = {}) => (order.items || []).reduce((sum, item) => sum + Number(item.quantity || 0), 0);
   const orderRevenue = (order = {}) => Number(order.revenue_total || (order.items || []).reduce((sum, item) => sum + Number(item.line_revenue || 0), 0));
+  const canonicalPlatformName = (value) => {
+    const raw = String(value || '').trim();
+    const normalized = raw.toLocaleLowerCase('en-US').replace(/\s+/g, ' ');
+    if (['tiktok', 'tiktok shop', 'tiktok/toped', 'tiktok toped', 'tiktok/tokopedia', 'tiktok tokopedia', 'tokopedia'].includes(normalized)) return 'TikTok/Toped';
+    if (['shopee', 'spx'].includes(normalized)) return 'Shopee';
+    return raw || 'Unassigned';
+  };
+  const platformKindForName = (name) => {
+    const canonical = canonicalPlatformName(name);
+    if (canonical === 'Shopee') return 'shopee';
+    if (canonical === 'TikTok/Toped') return 'tiktok';
+    return 'custom';
+  };
   const isArchived = (order = {}) => String(order.archived_at || '').trim() !== '';
   const canCancel = (order = {}) => ['IS_LISTED', 'LISTED', ''].includes(String(order.status || 'IS_LISTED').trim().toUpperCase());
   const statusLabel = (order = {}) => {
@@ -435,6 +521,56 @@ document.addEventListener('DOMContentLoaded', () => {
     if (analyticsNodes.fulfilled) analyticsNodes.fulfilled.textContent = String(fulfilled);
     if (analyticsNodes.cancelRate) analyticsNodes.cancelRate.textContent = total ? `${Math.round((cancelled / total) * 100)}%` : '0%';
     if (analyticsNodes.revenueOrder) analyticsNodes.revenueOrder.textContent = formatCurrency(total ? revenue / total : 0);
+
+    if (platformMetrics) {
+      const metricMap = new Map();
+      const configuredOptions = state.platformOptions.length ? state.platformOptions : defaultPlatformOptions;
+      configuredOptions.forEach((option) => {
+        const name = canonicalPlatformName(option.name);
+        metricMap.set(name, {
+          name,
+          kind: option.kind || platformKindForName(name),
+          orders: 0,
+          units: 0,
+          cost: 0,
+          fulfilled: 0
+        });
+      });
+      state.orders.forEach((order) => {
+        const name = canonicalPlatformName(order.marketplace_platform);
+        if (!metricMap.has(name)) {
+          metricMap.set(name, { name, kind: platformKindForName(name), orders: 0, units: 0, cost: 0, fulfilled: 0 });
+        }
+        const metric = metricMap.get(name);
+        const status = String(order.status || '').toUpperCase();
+        const isCancelledOrder = ['CANCELLED', 'CANCELED'].includes(status);
+        metric.orders += 1;
+        if (!isCancelledOrder) {
+          metric.units += orderUnits(order);
+          metric.cost += orderRevenue(order);
+        }
+        if (['FULFILLED', 'COMPLETED', 'SHIPPED'].includes(status)) metric.fulfilled += 1;
+      });
+
+      const metrics = [...metricMap.values()];
+      platformMetrics.innerHTML = metrics.length ? metrics.map((metric) => `
+        <article class="partner-platform-metric-card" data-platform-kind="${escapeHtml(metric.kind)}">
+          <div class="partner-platform-metric-head">
+            <span class="partner-platform-badge" aria-hidden="true">${escapeHtml(platformBadgeText(metric))}</span>
+            <div>
+              <strong>${escapeHtml(metric.name)}</strong>
+              <small>${escapeHtml(metric.kind === 'custom' ? 'Custom reseller' : 'Built-in marketplace')}</small>
+            </div>
+          </div>
+          <dl>
+            <div><dt>Orders</dt><dd>${escapeHtml(metric.orders)}</dd></div>
+            <div><dt>SKU units</dt><dd>${escapeHtml(metric.units)}</dd></div>
+            <div><dt>Partner cost</dt><dd>${escapeHtml(formatCurrency(metric.cost))}</dd></div>
+            <div><dt>Fulfilled</dt><dd>${escapeHtml(metric.fulfilled)}</dd></div>
+          </dl>
+        </article>
+      `).join('') : '<p class="admin-empty">Platform metrics will appear after orders are created.</p>';
+    }
 
     if (!productMix) return;
     const productUnits = new Map();
@@ -902,6 +1038,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const payload = await requestJson(sessionEndpoint);
     state.partner = payload.partner || null;
     state.catalog = payload.catalog || {};
+    renderPlatformOptions(payload.platform_options || defaultPlatformOptions);
+    setError(payload.platform_options_error || '', platformProfileError);
     state.passwordResetRequired = Boolean(payload.password_reset_required);
     flattenCatalog();
     if (partnerNameNode) partnerNameNode.textContent = state.partner?.name || 'Partner';
@@ -999,6 +1137,49 @@ document.addEventListener('DOMContentLoaded', () => {
   document.addEventListener('click', (event) => {
     if (!(platformPicker instanceof HTMLElement) || !(event.target instanceof Node) || platformPicker.contains(event.target)) return;
     closePlatformMenu();
+  });
+
+  platformProfileForm?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    setError('', platformProfileError);
+    const formData = new window.FormData(platformProfileForm);
+    const name = String(formData.get('platform_name') || '').trim();
+    if (!name) {
+      setError('Enter a reseller or platform name.', platformProfileError);
+      return;
+    }
+
+    const submitButton = platformProfileForm.querySelector('[type="submit"]');
+    if (submitButton instanceof HTMLButtonElement) submitButton.disabled = true;
+    try {
+      const payload = await requestJson(sessionEndpoint, {
+        method: 'POST',
+        body: { action: 'add_platform', name }
+      });
+      renderPlatformOptions(payload.platform_options || state.platformOptions);
+      platformProfileForm.reset();
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Unable to add platform.', platformProfileError);
+    } finally {
+      if (submitButton instanceof HTMLButtonElement) submitButton.disabled = false;
+    }
+  });
+
+  platformProfileList?.addEventListener('click', async (event) => {
+    const button = event.target instanceof Element ? event.target.closest('[data-remove-platform]') : null;
+    if (!(button instanceof HTMLButtonElement)) return;
+    setError('', platformProfileError);
+    button.disabled = true;
+    try {
+      const payload = await requestJson(sessionEndpoint, {
+        method: 'POST',
+        body: { action: 'delete_platform', id: button.getAttribute('data-remove-platform') || '' }
+      });
+      renderPlatformOptions(payload.platform_options || state.platformOptions);
+    } catch (error) {
+      button.disabled = false;
+      setError(error instanceof Error ? error.message : 'Unable to remove platform.', platformProfileError);
+    }
   });
 
   skuSearchInput?.addEventListener('input', () => {

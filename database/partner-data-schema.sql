@@ -47,3 +47,13 @@ CREATE TABLE IF NOT EXISTS `partner_order_labels` (
     FOREIGN KEY (`order_id`) REFERENCES `partner_orders` (`id`)
     ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `partner_platform_options` (
+  `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `partner_code` VARCHAR(64) NOT NULL,
+  `platform_name` VARCHAR(32) NOT NULL,
+  `created_at` DATETIME NOT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uniq_partner_platform_name` (`partner_code`, `platform_name`),
+  KEY `idx_partner_platform_partner` (`partner_code`, `created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

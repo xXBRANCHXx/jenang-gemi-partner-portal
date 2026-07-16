@@ -42,6 +42,7 @@ If phpMyAdmin needs the tables created manually, import `database/partner-data-s
 - New partner-created orders require a shipment label PDF in the same create request, are saved with `status: IS_LISTED`, and become visible to Store Ops immediately.
 - Partner order deadlines range from 12 to 48 hours and default to 24 hours. Partner orders can contain any number of approved SKU lines within normal server request limits.
 - Partner pricing is stored and charged at the SKU level. ASTRA ratios affect inventory units only and do not multiply partner revenue.
+- Partners can add up to 20 custom reseller/platform profiles in Settings. These options appear after Shopee and TikTok/Toped in new orders and receive separate platform metric cards in Analytics.
 - Store Ops can read labeled partner orders from the token-protected `/api/store-orders/` feed, so direct database access is optional.
 - Partner access is bound to unique partner URLs like `/{partner_slug}/`; one partner code cannot be used on another partner's landing page.
 - Shipping-label PDFs are stored outside the public web root. Partner downloads require the owning session; Store Ops downloads use five-minute signed links from the existing order feed.

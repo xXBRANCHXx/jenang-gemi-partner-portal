@@ -55,6 +55,11 @@ $signature = jg_partner_order_sign_store_download('PO123', $expires, $token);
 label_security_expect(true, jg_partner_order_verify_store_download('PO123', $expires, $signature, $token, $now), 'Valid Store Ops signatures should pass.');
 label_security_expect(false, jg_partner_order_verify_store_download('PO124', $expires, $signature, $token, $now), 'A signature must be bound to its order.');
 label_security_expect(false, jg_partner_order_verify_store_download('PO123', $now - 1, $signature, $token, $now), 'Expired Store Ops signatures should fail.');
+label_security_expect(
+    hash_hmac('sha256', "jenang-gemi/store-ops/orders/v1\ntest_partner_db", 'test-db-password'),
+    jg_partner_order_derive_store_ops_token('test_partner_db', 'test-db-password'),
+    'The Partner Portal should derive a scoped Store Ops token from its shared database credential.'
+);
 
 $uploadDirectory = jg_partner_order_upload_directory();
 label_security_expect($testRoot . '/private/shipping-labels', $uploadDirectory, 'Labels should use private storage.');

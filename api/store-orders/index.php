@@ -15,7 +15,7 @@ function jg_store_orders_fail(string $message, int $status = 422): void
 
 function jg_store_orders_token(): string
 {
-    return jg_partner_portal_config_value('JG_STORE_OPS_ORDERS_TOKEN', 'store_ops_orders_token');
+    return jg_partner_order_store_ops_token();
 }
 
 function jg_store_orders_request_token(): string
@@ -178,12 +178,17 @@ function jg_store_orders_normalize(array $order): array
     ];
 }
 
-$configuredToken = jg_store_orders_token();
-if ($configuredToken === '') {
+$configuredTokens = jg_partner_order_store_ops_tokens();
+if ($configuredTokens === []) {
     jg_store_orders_fail('Store Ops order feed token is not configured.', 503);
 }
 
-if (!hash_equals($configuredToken, jg_store_orders_request_token())) {
+$requestToken = jg_store_orders_request_token();
+$authorized = false;
+foreach ($configuredTokens as $configuredToken) {
+    $authorized = hash_equals($configuredToken, $requestToken) || $authorized;
+}
+if (!$authorized) {
     jg_store_orders_fail('Unauthorized.', 401);
 }
 

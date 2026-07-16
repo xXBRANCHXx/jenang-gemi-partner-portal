@@ -57,6 +57,41 @@ function jg_partner_order_sign_store_download(string $orderId, int $expires, str
     return hash_hmac('sha256', trim($orderId) . "\n" . $expires, $token);
 }
 
+function jg_partner_order_derive_store_ops_token(string $databaseName, string $databasePassword): string
+{
+    $databaseName = trim($databaseName);
+    if ($databaseName === '' || $databasePassword === '') {
+        return '';
+    }
+
+    return hash_hmac('sha256', "jenang-gemi/store-ops/orders/v1\n" . $databaseName, $databasePassword);
+}
+
+function jg_partner_order_store_ops_token(): string
+{
+    return jg_partner_order_store_ops_tokens()[0] ?? '';
+}
+
+function jg_partner_order_store_ops_tokens(): array
+{
+    $tokens = [];
+    $configured = jg_partner_portal_config_value('JG_STORE_OPS_ORDERS_TOKEN', 'store_ops_orders_token');
+    if ($configured !== '') {
+        $tokens[] = $configured;
+    }
+
+    $database = jg_partner_data_db_config();
+    $derived = jg_partner_order_derive_store_ops_token(
+        (string) ($database['name'] ?? ''),
+        (string) ($database['pass'] ?? '')
+    );
+    if ($derived !== '' && !in_array($derived, $tokens, true)) {
+        $tokens[] = $derived;
+    }
+
+    return $tokens;
+}
+
 function jg_partner_order_verify_store_download(string $orderId, int $expires, string $signature, string $token, ?int $now = null): bool
 {
     $now ??= time();

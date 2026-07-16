@@ -20,9 +20,11 @@ if (strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET')) !== 'GET') {
 $orderId = trim((string) ($_GET['order_id'] ?? ''));
 $expires = (int) ($_GET['expires'] ?? 0);
 $signature = strtolower(trim((string) ($_GET['signature'] ?? '')));
-$token = jg_partner_portal_config_value('JG_STORE_OPS_ORDERS_TOKEN', 'store_ops_orders_token');
-
-if (!jg_partner_order_verify_store_download($orderId, $expires, $signature, $token)) {
+$authorized = false;
+foreach (jg_partner_order_store_ops_tokens() as $token) {
+    $authorized = jg_partner_order_verify_store_download($orderId, $expires, $signature, $token) || $authorized;
+}
+if (!$authorized) {
     jg_store_label_fail('Unauthorized.', 401);
 }
 

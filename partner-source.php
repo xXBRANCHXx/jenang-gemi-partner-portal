@@ -210,8 +210,7 @@ function jg_partner_source_catalog(?array $partner = null): array
         $volume = jg_partner_source_float($sku['volume'] ?? 0);
         $astraValue = jg_partner_source_float($sku['astra_value'] ?? $sku['astra'] ?? 0);
         $unitCount = jg_partner_source_unit_count($volume, $astraValue);
-        $partnerUnitPrice = max(0.0, jg_partner_source_float($sku['partner_unit_price'] ?? $pricing[$skuCode] ?? 0));
-        $partnerSkuPrice = max(0.0, jg_partner_source_float($sku['partner_price'] ?? ($partnerUnitPrice * $unitCount)));
+        $partnerSkuPrice = max(0.0, jg_partner_source_float($pricing[$skuCode] ?? $sku['partner_price'] ?? $sku['partner_unit_price'] ?? 0));
 
         if (!isset($catalog[$brandName])) {
             $catalog[$brandName] = [];
@@ -237,7 +236,7 @@ function jg_partner_source_catalog(?array $partner = null): array
             'unit_count' => $unitCount,
             'stock' => (int) ($sku['current_stock'] ?? 0),
             'tag' => trim((string) ($sku['tag'] ?? '')),
-            'partner_unit_price' => $partnerUnitPrice,
+            'partner_unit_price' => $partnerSkuPrice,
             'partner_price' => $partnerSkuPrice,
         ];
     }

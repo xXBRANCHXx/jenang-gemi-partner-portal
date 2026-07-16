@@ -173,8 +173,7 @@ function jg_partner_order_allowed_sku_index(?array $partner): array
         $volume = is_numeric($sku['volume'] ?? null) ? (float) $sku['volume'] : 0.0;
         $astraValue = is_numeric($sku['astra_value'] ?? $sku['astra'] ?? null) ? (float) ($sku['astra_value'] ?? $sku['astra']) : 0.0;
         $unitCount = ($volume > 0 && $astraValue > 0) ? max(1.0, round($volume / $astraValue, 4)) : max(1.0, (float) ($sku['unit_count'] ?? 1));
-        $partnerUnitPrice = max(0.0, (float) ($sku['partner_unit_price'] ?? $pricing[$skuCode] ?? 0));
-        $partnerSkuPrice = max(0.0, (float) ($sku['partner_price'] ?? ($partnerUnitPrice * $unitCount)));
+        $partnerSkuPrice = max(0.0, (float) ($pricing[$skuCode] ?? $sku['partner_price'] ?? $sku['partner_unit_price'] ?? 0));
 
         $index[$skuCode] = [
             'sku' => $skuCode,
@@ -190,7 +189,7 @@ function jg_partner_order_allowed_sku_index(?array $partner): array
             'volume' => $volume,
             'astra_value' => $astraValue,
             'unit_count' => $unitCount,
-            'partner_unit_price' => $partnerUnitPrice,
+            'partner_unit_price' => $partnerSkuPrice,
             'partner_price' => $partnerSkuPrice,
         ];
     }
@@ -711,7 +710,7 @@ function jg_partner_order_normalize_items(?array $partner, mixed $value): array
         $quantity = max(1, (int) ($item['quantity'] ?? 1));
         $unitCount = max(1.0, (float) ($sku['unit_count'] ?? 1));
         $partnerUnitPrice = max(0.0, (float) ($sku['partner_unit_price'] ?? 0));
-        $unitRevenue = max(0.0, (float) ($sku['partner_price'] ?? ($partnerUnitPrice * $unitCount)));
+        $unitRevenue = max(0.0, (float) ($sku['partner_price'] ?? $partnerUnitPrice));
         $billableUnits = round($quantity * $unitCount, 4);
 
         $items[] = [

@@ -216,7 +216,7 @@ document.addEventListener('DOMContentLoaded', () => {
           if (!sku?.sku) return;
           const unitCount = Math.max(1, Number(sku.unit_count || 1));
           const partnerUnitPrice = Number(sku.partner_unit_price ?? sku.partner_price ?? 0);
-          const partnerPrice = Number(sku.partner_price ?? (partnerUnitPrice * unitCount));
+          const partnerPrice = Number(sku.partner_price ?? partnerUnitPrice);
           const row = {
             ...sku,
             sku: String(sku.sku || ''),

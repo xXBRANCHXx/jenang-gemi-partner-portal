@@ -13,6 +13,9 @@ function partner_order_expect(mixed $expected, mixed $actual, string $message): 
 }
 
 $partner = [
+    'pricing' => [
+        'JG-001' => 20000,
+    ],
     'selected_sku_records' => [
         [
             'sku' => 'JG-001',
@@ -51,6 +54,8 @@ partner_order_expect(12, $shopeeOrder['deadline_hours'], 'Marketplace order dead
 partner_order_expect(24, jg_partner_order_normalize_deadline_hours(null), 'Partner order deadlines should default to 24 hours.');
 partner_order_expect(48, jg_partner_order_normalize_deadline_hours(72), 'Partner order deadlines should have a 48-hour maximum.');
 partner_order_expect(40000.0, $partnerOrder['revenue_total'], 'Partner order revenue should sum all item lines.');
+partner_order_expect(20000.0, $partnerOrder['items'][0]['unit_revenue'], 'Partner pricing should remain the configured SKU-level price.');
+partner_order_expect(20000.0, $partnerOrder['items'][0]['partner_unit_price'], 'Partner unit pricing should remain at SKU level.');
 partner_order_expect(2, count($partnerOrder['items']) === 1 ? $partnerOrder['items'][0]['quantity'] : 0, 'Partner orders should preserve selected SKU quantities.');
 
 $retentionNow = strtotime('2026-07-16T00:00:00Z');

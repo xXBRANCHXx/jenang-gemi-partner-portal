@@ -58,6 +58,14 @@ partner_order_expect(20000.0, $partnerOrder['items'][0]['unit_revenue'], 'Partne
 partner_order_expect(20000.0, $partnerOrder['items'][0]['partner_unit_price'], 'Partner unit pricing should remain at SKU level.');
 partner_order_expect(2, count($partnerOrder['items']) === 1 ? $partnerOrder['items'][0]['quantity'] : 0, 'Partner orders should preserve selected SKU quantities.');
 
+$missingPlatformRejected = false;
+try {
+    jg_partner_order_build_record('ACME', $partner, $basePayload);
+} catch (InvalidArgumentException $error) {
+    $missingPlatformRejected = $error->getMessage() === 'Order platform is required.';
+}
+partner_order_expect(true, $missingPlatformRejected, 'New partner orders should require a selected platform.');
+
 $retentionNow = strtotime('2026-07-16T00:00:00Z');
 partner_order_expect(false, jg_partner_order_archive_is_expired([
     'archived_at' => '2026-06-17T00:00:01Z',

@@ -184,18 +184,23 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   };
 
-  const detectPlatformFromFileName = (fileName = '') => {
-    const normalized = String(fileName || '').toLowerCase();
-    if (normalized.includes('shopee') || normalized.includes('spx')) return 'Shopee';
-    if (normalized.includes('tiktok') || normalized.includes('tik tok') || normalized.includes('tts')) return 'TikTok Shop';
-    return 'Needs review';
-  };
-
   const skuProductName = (sku = {}) => String(sku.base_product_name || sku.product_name || 'Product').trim() || 'Product';
   const skuFlavorName = (sku = {}) => String(sku.flavor_name || sku.flavor || '').trim();
   const skuDisplayName = (sku = {}) => [sku.product_name || skuProductName(sku), skuFlavorName(sku)]
     .filter((value, index, values) => value && values.indexOf(value) === index)
     .join(' · ') || sku.sku || 'Approved SKU';
+  const titleCaseWords = (value = '') => String(value)
+    .trim()
+    .toLocaleLowerCase('id-ID')
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toLocaleUpperCase('id-ID') + word.slice(1))
+    .join(' ');
+  const compactSkuDisplayName = (sku = {}) => [
+    skuProductName(sku),
+    titleCaseWords(skuFlavorName(sku)),
+    Number(sku.volume || 0) > 0 ? formatNumber(sku.volume) : ''
+  ].filter(Boolean).join(' ') || sku.sku || 'Approved SKU';
 
   const unitFormula = (sku = {}) => {
     const volume = Number(sku.volume || 0);
@@ -714,7 +719,7 @@ document.addEventListener('DOMContentLoaded', () => {
             <strong>${escapeHtml(formatCurrency(sku.partner_price || 0))}</strong>
           </div>
           <div class="partner-sku-actions">
-            ${[1, 2, 3].map((qty) => `<button type="button" data-add-sku="${escapeHtml(sku.sku)}" data-add-qty="${qty}">+${qty}</button>`).join('')}
+            <button type="button" data-add-sku="${escapeHtml(sku.sku)}" data-add-qty="1" aria-label="Add one ${escapeHtml(skuDisplayName(sku))}">+</button>
             ${inCart ? `<span>${escapeHtml(inCart.quantity)} selected</span>` : ''}
           </div>
         </article>
@@ -727,26 +732,26 @@ document.addEventListener('DOMContentLoaded', () => {
     const unitCount = Math.max(1, Number(item.unit_count || 1));
     totals.quantity += quantity;
     totals.billableUnits += quantity * unitCount;
-    totals.revenue += quantity * Number(item.partner_price || 0);
+    totals.partnerCost += quantity * Number(item.partner_price || 0);
     return totals;
-  }, { quantity: 0, billableUnits: 0, revenue: 0 });
+  }, { quantity: 0, billableUnits: 0, partnerCost: 0 });
 
   const canSubmitCurrentOrder = () => Boolean(state.labelFile && state.cart.length && !state.submitting);
 
   const renderPreview = () => {
     const totals = cartTotals();
-    const platform = platformSelect?.value || 'Needs review';
+    const platform = platformSelect?.value || 'Not selected';
     const customerName = customerNameInput?.value.trim() || 'Label recipient';
     if (orderPreview) {
       const cartMarkup = state.cart.length ? state.cart.map((item) => `
         <article class="partner-cart-row">
           <div>
-            <strong>${escapeHtml(skuDisplayName(item))}</strong>
+            <strong>${escapeHtml(compactSkuDisplayName(item))}</strong>
             <span>${escapeHtml(item.sku || '')} · ${escapeHtml(formatCurrency(item.partner_price || 0))} per SKU</span>
           </div>
           <div class="partner-cart-controls">
             <button type="button" data-cart-qty="${escapeHtml(item.sku)}" data-cart-delta="-1">-</button>
-            <input type="number" min="0" step="1" value="${escapeHtml(item.quantity || 0)}" data-cart-input="${escapeHtml(item.sku)}" aria-label="Quantity for ${escapeHtml(skuDisplayName(item))}">
+            <input type="number" min="0" step="1" value="${escapeHtml(item.quantity || 0)}" data-cart-input="${escapeHtml(item.sku)}" aria-label="Quantity for ${escapeHtml(compactSkuDisplayName(item))}">
             <button type="button" data-cart-qty="${escapeHtml(item.sku)}" data-cart-delta="1">+</button>
           </div>
         </article>
@@ -758,7 +763,7 @@ document.addEventListener('DOMContentLoaded', () => {
         <article><span>SKU quantity</span><strong>${escapeHtml(totals.quantity)}</strong></article>
         <article><span>Billable units</span><strong>${escapeHtml(formatNumber(totals.billableUnits))}</strong></article>
         <article><span>Deadline</span><strong>${escapeHtml(deadlineRange?.value || 24)}h</strong></article>
-        <article><span>Revenue</span><strong>${escapeHtml(formatCurrency(totals.revenue))}</strong></article>
+        <article><span>Cost to partner</span><strong>${escapeHtml(formatCurrency(totals.partnerCost))}</strong></article>
         <div class="partner-cart-list">${cartMarkup}</div>
       `;
     }
@@ -786,9 +791,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     state.labelFile = file;
     setError('', modalErrorNode);
-    if (file && platformSelect instanceof HTMLSelectElement && platformSelect.value === 'Needs review') {
-      platformSelect.value = detectPlatformFromFileName(file.name);
-    }
     renderLabelQueue();
     renderPreview();
   };
@@ -805,7 +807,7 @@ document.addEventListener('DOMContentLoaded', () => {
     orderForm.reset();
     if (orderForm.elements.order_timestamp) orderForm.elements.order_timestamp.value = datetimeLocalValue();
     if (deadlineRange instanceof HTMLInputElement) deadlineRange.value = '24';
-    if (platformSelect instanceof HTMLSelectElement) platformSelect.value = 'Needs review';
+    if (platformSelect instanceof HTMLSelectElement) platformSelect.value = '';
     if (skuSearchInput instanceof HTMLInputElement) skuSearchInput.value = '';
     setError('', modalErrorNode);
     renderDeadline();
@@ -971,8 +973,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     try {
       const formData = new window.FormData(orderForm);
-      const platform = formData.get('marketplace_platform') || platformSelect?.value || 'Needs review';
+      const platform = String(formData.get('marketplace_platform') || platformSelect?.value || '').trim();
       const customerName = formData.get('customer_name') || '';
+      if (!platform) {
+        setError('Select an order platform.', modalErrorNode);
+        return;
+      }
       const orderPayload = {
         action: 'create',
         order_timestamp: formData.get('order_timestamp'),
@@ -987,7 +993,7 @@ document.addEventListener('DOMContentLoaded', () => {
           source: 'manual_approved_sku_selection',
           platform: {
             platform,
-            confidence: platform === 'Needs review' ? 0 : 1,
+            confidence: 1,
             reasons: state.labelFile ? ['label_uploaded'] : []
           },
           customer_name: String(customerName || ''),

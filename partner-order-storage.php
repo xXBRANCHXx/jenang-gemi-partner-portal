@@ -787,6 +787,9 @@ function jg_partner_order_build_record(string $partnerCode, ?array $partner, arr
     $deadlineHours = jg_partner_order_normalize_deadline_hours($payload['deadline_hours'] ?? ($existing['deadline_hours'] ?? 24));
     $inference = jg_partner_order_normalize_inference($payload['inference'] ?? ($existing['inference'] ?? []));
     $marketplacePlatform = jg_partner_order_normalize_marketplace_platform($payload['marketplace_platform'] ?? ($inference['platform']['platform'] ?? $existing['marketplace_platform'] ?? 'Needs review'));
+    if ($existing === null && $marketplacePlatform === 'Needs review') {
+        throw new InvalidArgumentException('Order platform is required.');
+    }
     $deadlineAt = jg_partner_order_deadline_at($orderTimestamp, $deadlineHours);
     $customerName = jg_partner_order_normalize_text($payload['customer_name'] ?? ($inference['customer_name'] ?? ''), 'Customer name', 160, false);
     if ($customerName === '') {

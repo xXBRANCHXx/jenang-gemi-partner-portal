@@ -3151,8 +3151,18 @@ button, input {
   padding: 12px;
 }
 
+.partner-cart-row > div:first-child {
+  min-width: 0;
+}
+
+.partner-cart-row strong,
+.partner-cart-row span {
+  display: block;
+}
+
 .partner-cart-controls {
   display: flex;
+  min-width: 0;
   align-items: center;
   gap: 4px;
 }

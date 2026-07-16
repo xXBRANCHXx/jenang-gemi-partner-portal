@@ -46,8 +46,10 @@ $shopeeOrder = jg_partner_order_build_record('ACME', $partner, $basePayload + [
 ]);
 
 partner_order_expect(['pdf'], jg_partner_order_allowed_extensions(), 'Shipment labels should be PDF-only.');
-partner_order_expect(24, $partnerOrder['deadline_hours'], 'Non-marketplace partner orders should have at least 24 hours.');
-partner_order_expect(2, $shopeeOrder['deadline_hours'], 'Shopee partner orders should keep shorter marketplace deadlines.');
+partner_order_expect(12, $partnerOrder['deadline_hours'], 'Partner order deadlines should allow 12 hours.');
+partner_order_expect(12, $shopeeOrder['deadline_hours'], 'Marketplace order deadlines should have the same 12-hour minimum.');
+partner_order_expect(24, jg_partner_order_normalize_deadline_hours(null), 'Partner order deadlines should default to 24 hours.');
+partner_order_expect(48, jg_partner_order_normalize_deadline_hours(72), 'Partner order deadlines should have a 48-hour maximum.');
 partner_order_expect(40000.0, $partnerOrder['revenue_total'], 'Partner order revenue should sum all item lines.');
 partner_order_expect(2, count($partnerOrder['items']) === 1 ? $partnerOrder['items'][0]['quantity'] : 0, 'Partner orders should preserve selected SKU quantities.');
 

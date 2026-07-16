@@ -40,7 +40,7 @@ If phpMyAdmin needs the tables created manually, import `database/partner-data-s
 - Partner profile access currently reads from the executive dashboard partner registry endpoint, with `data/partners.json` as local fallback.
 - Partner-created orders use MySQL when configured, otherwise local JSON storage in `data/orders.json`. If MySQL is configured but unavailable, the portal now fails closed instead of silently switching storage backends.
 - New partner-created orders require a shipment label PDF in the same create request, are saved with `status: IS_LISTED`, and become visible to Store Ops immediately.
-- Non-Shopee/TikTok partner orders are stored with a minimum 24-hour deadline. Partner orders can contain any number of approved SKU lines within normal server request limits.
+- Partner order deadlines range from 12 to 48 hours and default to 24 hours. Partner orders can contain any number of approved SKU lines within normal server request limits.
 - Store Ops can read labeled partner orders from the token-protected `/api/store-orders/` feed, so direct database access is optional.
 - Partner access is bound to unique partner URLs like `/{partner_slug}/`; one partner code cannot be used on another partner's landing page.
 - Shipping-label PDFs are stored outside the public web root. Partner downloads require the owning session; Store Ops downloads use five-minute signed links from the existing order feed.

@@ -54,7 +54,7 @@ $sectionUrl = static function (string $section) use ($dashboardPath): string {
     <link rel="stylesheet" href="/admin.css?v=<?php echo urlencode($adminCssVersion ?: '1'); ?>">
 </head>
 <body class="admin-body is-dashboard">
-    <div class="admin-build-badge" aria-label="Partner portal build version">Build 1.02.04</div>
+    <div class="admin-build-badge" aria-label="Partner portal build version">Build 1.02.05</div>
     <div
         class="partner-dashboard-app partner-workspace"
         data-partner-dashboard
@@ -270,7 +270,7 @@ $sectionUrl = static function (string $section) use ($dashboardPath): string {
                         <label class="partner-label-field">
                             <span>Deadline</span>
                             <strong data-deadline-value>24h</strong>
-                            <input type="range" name="deadline_hours" min="24" max="48" value="24" data-deadline-range>
+                            <input type="range" name="deadline_hours" min="12" max="48" value="24" data-deadline-range>
                         </label>
                     </div>
 

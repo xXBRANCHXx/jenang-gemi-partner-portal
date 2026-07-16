@@ -6,6 +6,24 @@ require __DIR__ . '/partner-source.php';
 const JG_PARTNER_SESSION_LIFETIME = 43200;
 const JG_PARTNER_SESSION_IDLE_TIMEOUT = 7200;
 
+function jg_partner_profile_has_complete_sku_access(mixed $profile): bool
+{
+    if (!is_array($profile)) {
+        return false;
+    }
+
+    $selectedSkuCodes = array_values(array_filter(array_map(
+        static fn (mixed $value): string => trim((string) $value),
+        (array) ($profile['selected_skus'] ?? [])
+    )));
+    if ($selectedSkuCodes === []) {
+        return true;
+    }
+
+    return is_array($profile['selected_sku_records'] ?? null)
+        && count($profile['selected_sku_records']) > 0;
+}
+
 function jg_partner_start_session(): void
 {
     if (session_status() === PHP_SESSION_ACTIVE) {
@@ -31,8 +49,8 @@ function jg_partner_start_session(): void
         if ($now - $loginAt > JG_PARTNER_SESSION_LIFETIME || $now - $lastActivity > JG_PARTNER_SESSION_IDLE_TIMEOUT) {
             $_SESSION = [];
             session_regenerate_id(true);
-        } elseif (!is_array($_SESSION['jg_partner_profile'] ?? null)) {
-            // Sessions created before profile caching cannot safely use the narrowed public registry.
+        } elseif (!jg_partner_profile_has_complete_sku_access($_SESSION['jg_partner_profile'] ?? null)) {
+            // Incomplete cached profiles cannot safely validate or display approved SKUs.
             $_SESSION = [];
             session_regenerate_id(true);
         } else {

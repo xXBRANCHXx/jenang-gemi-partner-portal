@@ -650,7 +650,7 @@ function jg_partner_order_normalize_deadline_hours(mixed $value): int
         return 24;
     }
 
-    return max(1, min(48, $hours));
+    return max(12, min(48, $hours));
 }
 
 function jg_partner_order_deadline_at(string $orderTimestamp, int $deadlineHours): string
@@ -788,9 +788,6 @@ function jg_partner_order_build_record(string $partnerCode, ?array $partner, arr
     $deadlineHours = jg_partner_order_normalize_deadline_hours($payload['deadline_hours'] ?? ($existing['deadline_hours'] ?? 24));
     $inference = jg_partner_order_normalize_inference($payload['inference'] ?? ($existing['inference'] ?? []));
     $marketplacePlatform = jg_partner_order_normalize_marketplace_platform($payload['marketplace_platform'] ?? ($inference['platform']['platform'] ?? $existing['marketplace_platform'] ?? 'Needs review'));
-    if (!in_array($marketplacePlatform, ['Shopee', 'TikTok Shop'], true)) {
-        $deadlineHours = max(24, $deadlineHours);
-    }
     $deadlineAt = jg_partner_order_deadline_at($orderTimestamp, $deadlineHours);
     $customerName = jg_partner_order_normalize_text($payload['customer_name'] ?? ($inference['customer_name'] ?? ''), 'Customer name', 160, false);
     if ($customerName === '') {

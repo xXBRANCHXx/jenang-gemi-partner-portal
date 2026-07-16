@@ -468,7 +468,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const renderRecentOrders = () => {
     if (!recentOrders) return;
-    const rows = state.orders.slice(0, 4);
+    const start = timeframeStart('7d');
+    const rows = state.orders.filter((order) => {
+      const timestamp = orderTime(order);
+      return !isArchived(order) && timestamp && start && timestamp >= start;
+    }).slice(0, 4);
     recentOrders.innerHTML = rows.length ? rows.map((order) => `
       <article class="partner-recent-order">
         <div>
@@ -480,7 +484,7 @@ document.addEventListener('DOMContentLoaded', () => {
           <span>${escapeHtml(formatTimestamp(order.order_timestamp || order.created_at || ''))}</span>
         </div>
       </article>
-    `).join('') : '<p class="admin-empty">No orders yet.</p>';
+    `).join('') : '<p class="admin-empty">No orders from the last 7 days.</p>';
   };
 
   const renderOrders = () => {
@@ -508,7 +512,7 @@ document.addEventListener('DOMContentLoaded', () => {
           <div class="partner-order-card-main">
             <strong>${escapeHtml(order.id || '')}</strong>
             <span>${escapeHtml(order.marketplace_platform || 'Needs review')} · ${escapeHtml(statusLabel(order))}</span>
-            ${isArchived(order) ? '<em>Archived from charts</em>' : ''}
+            ${isArchived(order) ? '<em>Archived · removed after 30 days</em>' : ''}
           </div>
           <div class="partner-order-card-items">${items || '<span>No selected SKUs</span>'}</div>
           <div class="partner-order-card-meta">

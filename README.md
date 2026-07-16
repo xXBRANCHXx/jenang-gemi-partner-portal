@@ -45,6 +45,7 @@ If phpMyAdmin needs the tables created manually, import `database/partner-data-s
 - Partner access is bound to unique partner URLs like `/{partner_slug}/`; one partner code cannot be used on another partner's landing page.
 - Shipping-label PDFs are stored outside the public web root. Partner downloads require the owning session; Store Ops downloads use five-minute signed links from the existing order feed.
 - Labels have a seven-day maximum lifetime, shortened to three days after fulfillment and one day after cancellation. Expired files are removed automatically whenever partners or Store Ops access the order flow; no external cron job is required.
+- The dashboard's recent-order panel shows only unarchived orders from the last seven days. Archived orders remain restorable for 30 days, then are permanently removed during normal partner or Store Ops order reads.
 - Label uploads are PDF-only and limited to 10 MB.
 
 ## Production deployment order

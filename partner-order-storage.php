@@ -9,6 +9,7 @@ const JG_PARTNER_LABEL_MAX_BYTES = 10 * 1024 * 1024;
 const JG_PARTNER_LABEL_OPEN_RETENTION_SECONDS = 7 * 86400;
 const JG_PARTNER_LABEL_FULFILLED_RETENTION_SECONDS = 3 * 86400;
 const JG_PARTNER_LABEL_CANCELLED_RETENTION_SECONDS = 86400;
+const JG_PARTNER_ARCHIVED_ORDER_RETENTION_SECONDS = 30 * 86400;
 
 function jg_partner_order_private_storage_root(): string
 {
@@ -880,7 +881,7 @@ function jg_partner_order_attach_labels(array $orders, array $labelsByOrder): ar
 
 function jg_partner_order_list(string $partnerCode): array
 {
-    jg_partner_order_cleanup_expired_labels();
+    jg_partner_order_cleanup_retention();
     $pdo = jg_partner_data_db();
     if ($pdo instanceof PDO) {
         $stmt = $pdo->prepare(
@@ -997,7 +998,7 @@ function jg_partner_order_fetch_all_labels_mysql(PDO $pdo): array
 
 function jg_partner_order_list_all(): array
 {
-    jg_partner_order_cleanup_expired_labels();
+    jg_partner_order_cleanup_retention();
     $pdo = jg_partner_data_db();
     if ($pdo instanceof PDO) {
         $stmt = $pdo->query(
@@ -1087,6 +1088,17 @@ function jg_partner_order_is_editable(array $order): bool
 function jg_partner_order_is_archived(array $order): bool
 {
     return trim((string) ($order['archived_at'] ?? '')) !== '';
+}
+
+function jg_partner_order_archive_is_expired(array $order, ?int $now = null): bool
+{
+    $archivedAt = strtotime(trim((string) ($order['archived_at'] ?? '')));
+    if ($archivedAt === false) {
+        return false;
+    }
+
+    $now ??= time();
+    return $archivedAt <= $now - JG_PARTNER_ARCHIVED_ORDER_RETENTION_SECONDS;
 }
 
 function jg_partner_order_assert_editable(array $order): void
@@ -1602,6 +1614,87 @@ function jg_partner_order_unlink_labels(array $labels): bool
         }
     }
     return $deleted;
+}
+
+function jg_partner_order_cleanup_expired_archives(?int $now = null): int
+{
+    static $ranAt = 0;
+    $now ??= time();
+    if ($ranAt > 0 && $now - $ranAt < 60) {
+        return 0;
+    }
+    $ranAt = $now;
+
+    $pdo = jg_partner_data_db();
+    if ($pdo instanceof PDO) {
+        $stmt = $pdo->prepare(
+            'SELECT o.id AS order_id,
+                    l.original_name, l.stored_name, l.relative_path, l.mime_type, l.size_bytes, l.expires_at, l.created_at
+             FROM partner_orders o
+             LEFT JOIN partner_order_labels l ON l.order_id = o.id AND l.deleted_at IS NULL
+             WHERE o.archived_at IS NOT NULL
+               AND o.archived_at <= :cutoff'
+        );
+        $cutoff = gmdate('Y-m-d H:i:s', $now - JG_PARTNER_ARCHIVED_ORDER_RETENTION_SECONDS);
+        $stmt->execute([':cutoff' => $cutoff]);
+
+        $labelsByOrder = [];
+        foreach ($stmt->fetchAll() as $row) {
+            $orderId = trim((string) ($row['order_id'] ?? ''));
+            if ($orderId === '') {
+                continue;
+            }
+            $labelsByOrder[$orderId] ??= [];
+            if (trim((string) ($row['stored_name'] ?? '')) !== '') {
+                $labelsByOrder[$orderId][] = $row;
+            }
+        }
+
+        $deletableIds = [];
+        foreach ($labelsByOrder as $orderId => $labels) {
+            if (jg_partner_order_unlink_labels($labels)) {
+                $deletableIds[] = $orderId;
+            }
+        }
+        if ($deletableIds === []) {
+            return 0;
+        }
+
+        $placeholders = implode(',', array_fill(0, count($deletableIds), '?'));
+        $delete = $pdo->prepare(
+            'DELETE FROM partner_orders
+             WHERE archived_at IS NOT NULL
+               AND archived_at <= ?
+               AND id IN (' . $placeholders . ')'
+        );
+        $delete->execute(array_merge([$cutoff], $deletableIds));
+        return $delete->rowCount();
+    }
+
+    $database = jg_partner_order_read_json_database();
+    $retained = [];
+    $deleted = 0;
+    foreach ($database['orders'] as $order) {
+        if (!jg_partner_order_archive_is_expired($order, $now)
+            || !jg_partner_order_unlink_labels((array) ($order['labels'] ?? []))) {
+            $retained[] = $order;
+            continue;
+        }
+        $deleted += 1;
+    }
+    if ($deleted > 0) {
+        $database['orders'] = $retained;
+        jg_partner_order_write_json_database($database);
+    }
+    return $deleted;
+}
+
+function jg_partner_order_cleanup_retention(?int $now = null): array
+{
+    return [
+        'orders' => jg_partner_order_cleanup_expired_archives($now),
+        'labels' => jg_partner_order_cleanup_expired_labels($now),
+    ];
 }
 
 function jg_partner_order_cleanup_expired_labels(?int $now = null): int

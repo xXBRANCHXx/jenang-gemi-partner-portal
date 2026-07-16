@@ -51,4 +51,15 @@ partner_order_expect(2, $shopeeOrder['deadline_hours'], 'Shopee partner orders s
 partner_order_expect(40000.0, $partnerOrder['revenue_total'], 'Partner order revenue should sum all item lines.');
 partner_order_expect(2, count($partnerOrder['items']) === 1 ? $partnerOrder['items'][0]['quantity'] : 0, 'Partner orders should preserve selected SKU quantities.');
 
+$retentionNow = strtotime('2026-07-16T00:00:00Z');
+partner_order_expect(false, jg_partner_order_archive_is_expired([
+    'archived_at' => '2026-06-17T00:00:01Z',
+], $retentionNow), 'Archived orders should remain available until 30 full days have elapsed.');
+partner_order_expect(true, jg_partner_order_archive_is_expired([
+    'archived_at' => '2026-06-16T00:00:00Z',
+], $retentionNow), 'Archived orders should expire at the 30-day boundary.');
+partner_order_expect(false, jg_partner_order_archive_is_expired([
+    'archived_at' => '',
+], $retentionNow), 'Active orders should never expire under archive retention.');
+
 echo "partner-order-rules-test: ok\n";

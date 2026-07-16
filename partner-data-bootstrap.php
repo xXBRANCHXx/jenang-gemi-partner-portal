@@ -175,7 +175,8 @@ function jg_partner_data_ensure_schema(PDO $pdo): void
             updated_at DATETIME NOT NULL,
             KEY idx_partner_orders_partner_created (partner_code, created_at),
             KEY idx_partner_orders_partner_status (partner_code, status),
-            KEY idx_partner_orders_partner_sku (partner_code, sku_code)
+            KEY idx_partner_orders_partner_sku (partner_code, sku_code),
+            KEY idx_partner_orders_archived (archived_at)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci',
         'CREATE TABLE IF NOT EXISTS partner_order_labels (
             id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
@@ -212,6 +213,7 @@ function jg_partner_data_ensure_schema(PDO $pdo): void
     jg_partner_data_ensure_column($pdo, 'partner_order_labels', 'expires_at', 'DATETIME NULL DEFAULT NULL');
     jg_partner_data_ensure_column($pdo, 'partner_order_labels', 'deleted_at', 'DATETIME NULL DEFAULT NULL');
     jg_partner_data_ensure_column($pdo, 'partner_order_labels', 'deletion_reason', 'VARCHAR(64) NOT NULL DEFAULT ""');
+    jg_partner_data_ensure_index($pdo, 'partner_orders', 'idx_partner_orders_archived', '(archived_at)');
     jg_partner_data_ensure_index($pdo, 'partner_order_labels', 'idx_partner_order_labels_expiry', '(deleted_at, expires_at)');
 }
 

@@ -22,7 +22,8 @@ CREATE TABLE IF NOT EXISTS `partner_orders` (
   PRIMARY KEY (`id`),
   KEY `idx_partner_orders_partner_created` (`partner_code`, `created_at`),
   KEY `idx_partner_orders_partner_status` (`partner_code`, `status`),
-  KEY `idx_partner_orders_partner_sku` (`partner_code`, `sku_code`)
+  KEY `idx_partner_orders_partner_sku` (`partner_code`, `sku_code`),
+  KEY `idx_partner_orders_archived` (`archived_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `partner_order_labels` (

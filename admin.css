@@ -3473,10 +3473,29 @@ body.is-dashboard[data-partner-theme='light'] .partner-sidebar-nav a:hover {
   border-radius: 999px;
   background: rgba(24, 24, 24, 0.14);
   color: inherit;
-  font-size: 1.2rem;
-  font-weight: 600;
-  line-height: 1;
+  font-size: 0;
   transform: translateY(-50%);
+}
+
+.partner-sidebar-primary .partner-sidebar-primary-icon::before,
+.partner-sidebar-primary .partner-sidebar-primary-icon::after {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  border-radius: 999px;
+  background: currentColor;
+  content: "";
+  transform: translate(-50%, -50%);
+}
+
+.partner-sidebar-primary .partner-sidebar-primary-icon::before {
+  width: 10px;
+  height: 2px;
+}
+
+.partner-sidebar-primary .partner-sidebar-primary-icon::after {
+  width: 2px;
+  height: 10px;
 }
 
 .partner-sidebar-primary .partner-sidebar-primary-label {

@@ -3442,10 +3442,11 @@ body.is-dashboard[data-partner-theme='light'] .partner-sidebar-nav a:hover {
 }
 
 .partner-sidebar-primary {
+  position: relative;
   width: 100%;
   min-height: 52px;
   justify-content: center;
-  gap: 10px;
+  padding: 0 48px;
   border: 1px solid var(--partner-border);
   box-shadow: 0 12px 24px rgba(0, 0, 0, 0.2);
   transition: transform 150ms ease, box-shadow 150ms ease;
@@ -3461,6 +3462,9 @@ body.is-dashboard[data-partner-theme='light'] .partner-sidebar-nav a:hover {
 }
 
 .partner-sidebar-primary .partner-sidebar-primary-icon {
+  position: absolute;
+  top: 50%;
+  left: 14px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -3472,6 +3476,15 @@ body.is-dashboard[data-partner-theme='light'] .partner-sidebar-nav a:hover {
   font-size: 1.2rem;
   font-weight: 600;
   line-height: 1;
+  transform: translateY(-50%);
+}
+
+.partner-sidebar-primary .partner-sidebar-primary-label {
+  display: block;
+  width: 100%;
+  color: inherit;
+  line-height: 1;
+  text-align: center;
 }
 
 body.is-dashboard[data-partner-theme='light'] .partner-sidebar-primary,

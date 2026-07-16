@@ -360,9 +360,9 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   const renderMetrics = () => {
-    const last30 = filteredOrders('30d');
-    const units = last30.reduce((sum, order) => sum + orderUnits(order), 0);
-    const revenue = last30.reduce((sum, order) => sum + orderRevenue(order), 0);
+    const orders = filteredOrders();
+    const units = orders.reduce((sum, order) => sum + orderUnits(order), 0);
+    const revenue = orders.reduce((sum, order) => sum + orderRevenue(order), 0);
     const nodes = {
       units: document.querySelector('[data-metric-units]'),
       orders: document.querySelector('[data-metric-orders]'),
@@ -370,9 +370,12 @@ document.addEventListener('DOMContentLoaded', () => {
       revenue: document.querySelector('[data-metric-revenue]')
     };
     if (nodes.units) nodes.units.textContent = String(units);
-    if (nodes.orders) nodes.orders.textContent = String(last30.length);
-    if (nodes.average) nodes.average.textContent = last30.length ? (units / last30.length).toFixed(1) : '0.0';
+    if (nodes.orders) nodes.orders.textContent = String(orders.length);
+    if (nodes.average) nodes.average.textContent = orders.length ? (units / orders.length).toFixed(1) : '0.0';
     if (nodes.revenue) nodes.revenue.textContent = formatCurrency(revenue);
+    document.querySelectorAll('[data-metric-window]').forEach((node) => {
+      node.textContent = timeframeLabel();
+    });
   };
 
   const renderAnalytics = () => {
@@ -1055,6 +1058,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const nextTimeframe = target.getAttribute('data-timeframe');
     if (!nextTimeframe) return;
     state.selectedTimeframe = nextTimeframe;
+    renderMetrics();
     renderChart();
   });
 
@@ -1065,6 +1069,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!/^\d{4}-\d{2}$/.test(chartMonthInput.value)) return;
       state.selectedMonth = chartMonthInput.value;
       state.selectedTimeframe = 'month';
+      renderMetrics();
       renderChart();
     });
   }

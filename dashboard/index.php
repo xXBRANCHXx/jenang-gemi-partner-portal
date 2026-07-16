@@ -54,7 +54,7 @@ $sectionUrl = static function (string $section) use ($dashboardPath): string {
     <link rel="stylesheet" href="/admin.css?v=<?php echo urlencode($adminCssVersion ?: '1'); ?>">
 </head>
 <body class="admin-body is-dashboard">
-    <div class="admin-build-badge" aria-label="Partner portal build version">Build 1.02.02</div>
+    <div class="admin-build-badge" aria-label="Partner portal build version">Build 1.02.03</div>
     <div
         class="partner-dashboard-app partner-workspace"
         data-partner-dashboard
@@ -84,7 +84,7 @@ $sectionUrl = static function (string $section) use ($dashboardPath): string {
 
             <button type="button" class="partner-sidebar-primary" data-open-order-modal>
                 <span class="partner-sidebar-primary-icon" aria-hidden="true">+</span>
-                <span>New Order</span>
+                <span class="partner-sidebar-primary-label">New Order</span>
             </button>
 
             <div class="partner-sidebar-profile">
@@ -108,10 +108,10 @@ $sectionUrl = static function (string $section) use ($dashboardPath): string {
 
             <section class="partner-section <?php echo $activeSection === 'overview' ? 'is-active' : ''; ?>" data-partner-section="overview">
                 <section class="partner-metric-grid">
-                    <article><span>30D units</span><strong data-metric-units>0</strong><small>Recent sell-through</small></article>
-                    <article><span>Orders created</span><strong data-metric-orders>0</strong><small>This window</small></article>
-                    <article><span>Avg. units/order</span><strong data-metric-average>0.0</strong><small>Last 30 days</small></article>
-                    <article><span>Revenue</span><strong data-metric-revenue>Rp0</strong><small>Partner pricing</small></article>
+                    <article><span>Units sold</span><strong data-metric-units>0</strong><small data-metric-window>Last 30 days</small></article>
+                    <article><span>Orders created</span><strong data-metric-orders>0</strong><small data-metric-window>Last 30 days</small></article>
+                    <article><span>Avg. units/order</span><strong data-metric-average>0.0</strong><small data-metric-window>Last 30 days</small></article>
+                    <article><span>Revenue</span><strong data-metric-revenue>Rp0</strong><small data-metric-window>Last 30 days</small></article>
                 </section>
 
                 <section class="partner-overview-grid">

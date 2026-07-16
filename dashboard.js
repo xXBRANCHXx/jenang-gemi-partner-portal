@@ -25,6 +25,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const partnerNameNode = document.querySelector('[data-partner-name]');
   const partnerCodeNode = document.querySelector('[data-partner-code]');
   const timeframeToggle = document.querySelector('[data-timeframe-toggle]');
+  const monthPicker = document.querySelector('[data-month-picker]');
+  const chartMonthInput = document.querySelector('[data-chart-month]');
   const salesChart = document.querySelector('[data-sales-chart]');
   const salesChartTitle = document.querySelector('[data-sales-chart-title]');
   const labelDropzone = document.querySelector('[data-label-dropzone]');
@@ -54,6 +56,9 @@ document.addEventListener('DOMContentLoaded', () => {
     revenueOrder: document.querySelector('[data-analytics-revenue-order]')
   };
 
+  const now = new Date();
+  const currentChartMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
   const state = {
     partner: null,
     catalog: {},
@@ -61,6 +66,7 @@ document.addEventListener('DOMContentLoaded', () => {
     approvedSkus: [],
     orders: [],
     selectedTimeframe: '30d',
+    selectedMonth: currentChartMonth,
     activeSection: root.dataset.activeSection || 'overview',
     theme: window.localStorage.getItem('partner-theme') || 'system',
     labelFile: null,
@@ -298,6 +304,20 @@ document.addEventListener('DOMContentLoaded', () => {
     return Number.isNaN(timestamp.getTime()) ? null : timestamp;
   };
 
+  const selectedMonthBounds = () => {
+    const match = /^(\d{4})-(\d{2})$/.exec(state.selectedMonth);
+    if (!match) return null;
+    const year = Number(match[1]);
+    const monthIndex = Number(match[2]) - 1;
+    if (monthIndex < 0 || monthIndex > 11) return null;
+    return {
+      start: new Date(year, monthIndex, 1),
+      end: new Date(year, monthIndex + 1, 1),
+      year,
+      monthIndex
+    };
+  };
+
   const timeframeStart = (range) => {
     const now = new Date();
     if (range === '24h') return new Date(now.getTime() - 24 * 60 * 60 * 1000);
@@ -309,22 +329,35 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   const filteredOrders = (range = state.selectedTimeframe) => {
-    const start = timeframeStart(range);
     const chartOrders = state.orders.filter((order) => !isArchived(order) && String(order.status || '').toUpperCase() !== 'CANCELLED');
+    if (range === 'month') {
+      const bounds = selectedMonthBounds();
+      return bounds ? chartOrders.filter((order) => {
+        const timestamp = orderTime(order);
+        return timestamp && timestamp >= bounds.start && timestamp < bounds.end;
+      }) : [];
+    }
+    const start = timeframeStart(range);
     return start ? chartOrders.filter((order) => {
       const timestamp = orderTime(order);
       return timestamp && timestamp >= start;
     }) : chartOrders;
   };
 
-  const timeframeLabel = () => ({
-    '24h': 'Last 24 hours',
-    '7d': 'Last 7 days',
-    '30d': 'Last 30 days',
-    '90d': 'Last 90 days',
-    year: 'This year',
-    all: 'All time'
-  })[state.selectedTimeframe] || 'Last 30 days';
+  const timeframeLabel = () => {
+    if (state.selectedTimeframe === 'month') {
+      const bounds = selectedMonthBounds();
+      return bounds ? bounds.start.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : 'Selected month';
+    }
+    return ({
+      '24h': 'Last 24 hours',
+      '7d': 'Last 7 days',
+      '30d': 'Last 30 days',
+      '90d': 'Last 90 days',
+      year: 'This year',
+      all: 'All time'
+    })[state.selectedTimeframe] || 'Last 30 days';
+  };
 
   const renderMetrics = () => {
     const last30 = filteredOrders('30d');
@@ -410,6 +443,13 @@ document.addEventListener('DOMContentLoaded', () => {
       value: 0
     });
 
+    if (range === 'month') {
+      const bounds = selectedMonthBounds();
+      if (!bounds) return [];
+      const days = new Date(bounds.year, bounds.monthIndex + 1, 0).getDate();
+      return Array.from({ length: days }, (_, index) => makeDay(new Date(bounds.year, bounds.monthIndex, index + 1)));
+    }
+
     if (range === '24h') {
       return Array.from({ length: 24 }, (_, index) => {
         const date = new Date(now.getTime() - (23 - index) * 60 * 60 * 1000);
@@ -440,6 +480,10 @@ document.addEventListener('DOMContentLoaded', () => {
         button.classList.toggle('is-active', button.getAttribute('data-timeframe') === state.selectedTimeframe);
       });
     }
+    monthPicker?.classList.toggle('is-active', state.selectedTimeframe === 'month');
+    if (chartMonthInput instanceof HTMLInputElement && chartMonthInput.value !== state.selectedMonth) {
+      chartMonthInput.value = state.selectedMonth;
+    }
     if (salesChartTitle) salesChartTitle.textContent = timeframeLabel();
 
     const orders = filteredOrders();
@@ -448,9 +492,10 @@ document.addEventListener('DOMContentLoaded', () => {
     orders.forEach((order) => {
       const timestamp = orderTime(order);
       if (!timestamp) return;
+      const usesDailyBuckets = ['7d', '30d', '90d', 'month'].includes(state.selectedTimeframe);
       const key = state.selectedTimeframe === '24h'
         ? `${timestamp.getFullYear()}-${timestamp.getMonth()}-${timestamp.getDate()}-${timestamp.getHours()}`
-        : (state.selectedTimeframe === '7d' || state.selectedTimeframe === '30d' || state.selectedTimeframe === '90d')
+        : usesDailyBuckets
           ? `${timestamp.getFullYear()}-${timestamp.getMonth()}-${timestamp.getDate()}`
           : `${timestamp.getFullYear()}-${timestamp.getMonth()}`;
       const bucket = bucketMap.get(key);
@@ -1012,6 +1057,17 @@ document.addEventListener('DOMContentLoaded', () => {
     state.selectedTimeframe = nextTimeframe;
     renderChart();
   });
+
+  if (chartMonthInput instanceof HTMLInputElement) {
+    chartMonthInput.max = currentChartMonth;
+    chartMonthInput.value = state.selectedMonth;
+    chartMonthInput.addEventListener('change', () => {
+      if (!/^\d{4}-\d{2}$/.test(chartMonthInput.value)) return;
+      state.selectedMonth = chartMonthInput.value;
+      state.selectedTimeframe = 'month';
+      renderChart();
+    });
+  }
 
   sectionLinks.forEach((link) => {
     link.addEventListener('click', (event) => {

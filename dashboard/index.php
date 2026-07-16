@@ -54,7 +54,7 @@ $sectionUrl = static function (string $section) use ($dashboardPath): string {
     <link rel="stylesheet" href="/admin.css?v=<?php echo urlencode($adminCssVersion ?: '1'); ?>">
 </head>
 <body class="admin-body is-dashboard">
-    <div class="admin-build-badge" aria-label="Partner portal build version">Build 1.02.01</div>
+    <div class="admin-build-badge" aria-label="Partner portal build version">Build 1.02.02</div>
     <div
         class="partner-dashboard-app partner-workspace"
         data-partner-dashboard
@@ -82,7 +82,10 @@ $sectionUrl = static function (string $section) use ($dashboardPath): string {
                 <a href="<?php echo htmlspecialchars($sectionUrl('settings'), ENT_QUOTES); ?>" class="<?php echo $activeSection === 'settings' ? 'is-active' : ''; ?>" data-partner-section-link="settings">Settings</a>
             </nav>
 
-            <button type="button" class="partner-sidebar-primary" data-open-order-modal>New Order</button>
+            <button type="button" class="partner-sidebar-primary" data-open-order-modal>
+                <span class="partner-sidebar-primary-icon" aria-hidden="true">+</span>
+                <span>New Order</span>
+            </button>
 
             <div class="partner-sidebar-profile">
                 <strong><?php echo htmlspecialchars($partnerName, ENT_QUOTES); ?></strong>
@@ -90,7 +93,6 @@ $sectionUrl = static function (string $section) use ($dashboardPath): string {
             </div>
 
             <div class="partner-sidebar-actions">
-                <button type="button" data-open-password-modal>Change Password</button>
                 <button type="button" data-partner-logout>Logout</button>
             </div>
         </aside>
@@ -121,13 +123,19 @@ $sectionUrl = static function (string $section) use ($dashboardPath): string {
                             </div>
                             <button type="button" class="admin-ghost-btn" data-refresh-orders>Refresh</button>
                         </div>
-                        <div class="partner-timeframe-toggle" data-timeframe-toggle>
-                            <button type="button" data-timeframe="24h">24H</button>
-                            <button type="button" data-timeframe="7d">7D</button>
-                            <button type="button" data-timeframe="30d">30D</button>
-                            <button type="button" data-timeframe="90d">90D</button>
-                            <button type="button" data-timeframe="year">Year</button>
-                            <button type="button" data-timeframe="all">All</button>
+                        <div class="partner-chart-range-controls">
+                            <div class="partner-timeframe-toggle" data-timeframe-toggle>
+                                <button type="button" data-timeframe="24h">24H</button>
+                                <button type="button" data-timeframe="7d">7D</button>
+                                <button type="button" data-timeframe="30d">30D</button>
+                                <button type="button" data-timeframe="90d">90D</button>
+                                <button type="button" data-timeframe="year">Year</button>
+                                <button type="button" data-timeframe="all">All</button>
+                            </div>
+                            <label class="partner-month-picker" data-month-picker>
+                                <span>Month</span>
+                                <input type="month" data-chart-month aria-label="Choose chart month">
+                            </label>
                         </div>
                         <div class="partner-bars" data-sales-chart></div>
                     </article>

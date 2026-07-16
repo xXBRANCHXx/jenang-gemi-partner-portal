@@ -28,6 +28,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const monthPicker = document.querySelector('[data-month-picker]');
   const chartMonthInput = document.querySelector('[data-chart-month]');
   const salesChart = document.querySelector('[data-sales-chart]');
+  const salesChartBreakdown = document.querySelector('[data-sales-chart-breakdown]');
+  const salesChartLegend = document.querySelector('[data-sales-chart-legend]');
   const salesChartTitle = document.querySelector('[data-sales-chart-title]');
   const labelDropzone = document.querySelector('[data-label-dropzone]');
   const labelDropzoneCopy = document.querySelector('[data-label-dropzone-copy]');
@@ -421,6 +423,16 @@ document.addEventListener('DOMContentLoaded', () => {
     if (canonical === 'TikTok/Toped') return 'tiktok';
     return 'custom';
   };
+  const platformColorForName = (name) => {
+    const canonical = canonicalPlatformName(name);
+    if (canonical === 'Shopee') return '#ee4d2d';
+    if (canonical === 'TikTok/Toped') return '#25d881';
+    let hash = 0;
+    Array.from(canonical).forEach((character) => {
+      hash = ((hash * 31) + (character.codePointAt(0) || 0)) >>> 0;
+    });
+    return `hsl(${hash % 360} 68% 58%)`;
+  };
   const isArchived = (order = {}) => String(order.archived_at || '').trim() !== '';
   const canCancel = (order = {}) => ['IS_LISTED', 'LISTED', ''].includes(String(order.status || 'IS_LISTED').trim().toUpperCase());
   const statusLabel = (order = {}) => {
@@ -625,7 +637,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const makeDay = (date) => ({
       key: `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`,
       label: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-      value: 0
+      value: 0,
+      platforms: new Map()
     });
 
     if (range === 'month') {
@@ -638,7 +651,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (range === '24h') {
       return Array.from({ length: 24 }, (_, index) => {
         const date = new Date(now.getTime() - (23 - index) * 60 * 60 * 1000);
-        return { key: `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}-${date.getHours()}`, label: `${String(date.getHours()).padStart(2, '0')}:00`, value: 0 };
+        return { key: `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}-${date.getHours()}`, label: `${String(date.getHours()).padStart(2, '0')}:00`, value: 0, platforms: new Map() };
       });
     }
 
@@ -654,8 +667,49 @@ document.addEventListener('DOMContentLoaded', () => {
     const months = ((last.getFullYear() - first.getFullYear()) * 12) + (last.getMonth() - first.getMonth()) + 1;
     return Array.from({ length: months }, (_, index) => {
       const date = new Date(first.getFullYear(), first.getMonth() + index, 1);
-      return { key: `${date.getFullYear()}-${date.getMonth()}`, label: date.toLocaleDateString('en-US', { month: 'short' }), value: 0 };
+      return { key: `${date.getFullYear()}-${date.getMonth()}`, label: date.toLocaleDateString('en-US', { month: 'short' }), value: 0, platforms: new Map() };
     });
+  };
+
+  const clearChartInspection = () => {
+    salesChart?.classList.remove('is-inspecting');
+    salesChart?.querySelectorAll('[data-chart-bucket]').forEach((bar) => bar.classList.remove('is-active'));
+    if (salesChartBreakdown instanceof HTMLElement) {
+      salesChartBreakdown.classList.remove('is-left');
+      salesChartBreakdown.hidden = true;
+      salesChartBreakdown.innerHTML = '';
+    }
+  };
+
+  const inspectChartBucket = (bucket, series, bar) => {
+    if (!(salesChart instanceof HTMLElement) || !(salesChartBreakdown instanceof HTMLElement)) return;
+    salesChart.classList.add('is-inspecting');
+    salesChart.querySelectorAll('[data-chart-bucket]').forEach((candidate) => {
+      candidate.classList.toggle('is-active', candidate === bar);
+    });
+    const rows = series.filter((platform) => Number(bucket.platforms.get(platform.name) || 0) > 0).map((platform) => {
+      const units = Number(bucket.platforms.get(platform.name) || 0);
+      return `
+        <div class="partner-chart-breakdown-row">
+          <span class="partner-chart-swatch" style="--platform-color:${platform.color}" aria-hidden="true"></span>
+          <strong>${escapeHtml(platform.name)}</strong>
+          <b>${escapeHtml(units)} unit${units === 1 ? '' : 's'}</b>
+        </div>
+      `;
+    }).join('');
+    salesChartBreakdown.innerHTML = `
+      <div class="partner-chart-breakdown-head">
+        <strong>${escapeHtml(bucket.label)}</strong>
+        <span>${escapeHtml(bucket.value)} total unit${bucket.value === 1 ? '' : 's'}</span>
+      </div>
+      <div class="partner-chart-breakdown-list">
+        ${rows || '<span class="partner-chart-breakdown-empty">No platform units in this period.</span>'}
+      </div>
+    `;
+    const chartBounds = salesChart.getBoundingClientRect();
+    const barBounds = bar.getBoundingClientRect();
+    salesChartBreakdown.classList.toggle('is-left', barBounds.left + (barBounds.width / 2) > chartBounds.left + (chartBounds.width / 2));
+    salesChartBreakdown.hidden = false;
   };
 
   const renderChart = () => {
@@ -674,6 +728,17 @@ document.addEventListener('DOMContentLoaded', () => {
     const orders = filteredOrders();
     const buckets = buildBuckets(orders);
     const bucketMap = new Map(buckets.map((bucket) => [bucket.key, bucket]));
+    const orderPlatformNames = [...new Set(orders.map((order) => canonicalPlatformName(order.marketplace_platform)))];
+    const configuredPlatformNames = state.platformOptions.map((option) => canonicalPlatformName(option.name));
+    const seriesNames = [
+      ...configuredPlatformNames.filter((name) => orderPlatformNames.includes(name)),
+      ...orderPlatformNames.filter((name) => !configuredPlatformNames.includes(name))
+    ];
+    const series = seriesNames.map((name) => ({
+      name,
+      kind: platformKindForName(name),
+      color: platformColorForName(name)
+    }));
     orders.forEach((order) => {
       const timestamp = orderTime(order);
       if (!timestamp) return;
@@ -684,16 +749,49 @@ document.addEventListener('DOMContentLoaded', () => {
           ? `${timestamp.getFullYear()}-${timestamp.getMonth()}-${timestamp.getDate()}`
           : `${timestamp.getFullYear()}-${timestamp.getMonth()}`;
       const bucket = bucketMap.get(key);
-      if (bucket) bucket.value += orderUnits(order);
+      if (bucket) {
+        const units = orderUnits(order);
+        const platformName = canonicalPlatformName(order.marketplace_platform);
+        bucket.value += units;
+        bucket.platforms.set(platformName, Number(bucket.platforms.get(platformName) || 0) + units);
+      }
     });
 
     const maxValue = Math.max(1, ...buckets.map((bucket) => bucket.value));
-    salesChart.innerHTML = buckets.map((bucket) => `
-      <div class="partner-bar" title="${escapeHtml(bucket.label)}: ${escapeHtml(bucket.value)} units">
-        <i style="height:${Math.max(4, Math.round((bucket.value / maxValue) * 100))}%"></i>
-        <span>${escapeHtml(bucket.label)}</span>
-      </div>
-    `).join('');
+    clearChartInspection();
+    salesChart.innerHTML = buckets.map((bucket, index) => {
+      const segments = series.map((platform) => {
+        const units = Number(bucket.platforms.get(platform.name) || 0);
+        if (units <= 0) return '';
+        return `<span class="partner-bar-segment" style="--platform-color:${platform.color};flex-grow:${units}" title="${escapeHtml(platform.name)}: ${escapeHtml(units)} units"></span>`;
+      }).join('');
+      const height = bucket.value > 0 ? Math.max(4, Math.round((bucket.value / maxValue) * 100)) : 1;
+      return `
+        <button type="button" class="partner-bar" data-chart-bucket="${index}" aria-label="${escapeHtml(bucket.label)}: ${escapeHtml(bucket.value)} total units. Focus for platform breakdown.">
+          <span class="partner-bar-plot" aria-hidden="true">
+            <span class="partner-bar-stack${bucket.value > 0 ? '' : ' is-empty'}" style="height:${height}%">${segments}</span>
+          </span>
+          <span class="partner-bar-label">${escapeHtml(bucket.label)}</span>
+        </button>
+      `;
+    }).join('');
+
+    if (salesChartLegend) {
+      salesChartLegend.innerHTML = series.length ? series.map((platform) => `
+        <span><i class="partner-chart-swatch" style="--platform-color:${platform.color}" aria-hidden="true"></i>${escapeHtml(platform.name)}</span>
+      `).join('') : '<span class="partner-chart-legend-empty">Platform colors appear after the first order.</span>';
+    }
+
+    salesChart.querySelectorAll('[data-chart-bucket]').forEach((bar) => {
+      const bucket = buckets[Number(bar.getAttribute('data-chart-bucket'))];
+      if (!bucket) return;
+      bar.addEventListener('pointerenter', () => inspectChartBucket(bucket, series, bar));
+      bar.addEventListener('pointerleave', () => {
+        if (document.activeElement !== bar) clearChartInspection();
+      });
+      bar.addEventListener('focus', () => inspectChartBucket(bucket, series, bar));
+      bar.addEventListener('blur', clearChartInspection);
+    });
   };
 
   const renderRecentOrders = () => {

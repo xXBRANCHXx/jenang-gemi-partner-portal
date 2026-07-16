@@ -54,7 +54,7 @@ $sectionUrl = static function (string $section) use ($dashboardPath): string {
     <link rel="stylesheet" href="/admin.css?v=<?php echo urlencode($adminCssVersion ?: '1'); ?>">
 </head>
 <body class="admin-body is-dashboard">
-    <div class="admin-build-badge" aria-label="Partner portal build version">Build 1.02.09</div>
+    <div class="admin-build-badge" aria-label="Partner portal build version">Build 1.02.10</div>
     <div
         class="partner-dashboard-app partner-workspace"
         data-partner-dashboard
@@ -137,7 +137,11 @@ $sectionUrl = static function (string $section) use ($dashboardPath): string {
                                 <input type="month" data-chart-month aria-label="Choose chart month">
                             </label>
                         </div>
-                        <div class="partner-bars" data-sales-chart></div>
+                        <div class="partner-chart-visual">
+                            <div class="partner-chart-breakdown" data-sales-chart-breakdown aria-live="polite" hidden></div>
+                            <div class="partner-bars" data-sales-chart></div>
+                        </div>
+                        <div class="partner-chart-legend" data-sales-chart-legend aria-label="Platform colors"></div>
                     </article>
 
                     <article class="partner-panel">

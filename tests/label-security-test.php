@@ -88,5 +88,25 @@ label_security_expect(true, $oversizeRejected, 'Oversized labels should be rejec
 $candidates = jg_partner_order_label_file_candidates(['stored_name' => '../../secret.pdf']);
 label_security_expect(true, str_ends_with($candidates[0] ?? '', '/shipping-labels/secret.pdf'), 'Stored filenames should be reduced to a basename.');
 
+$availablePdfPath = $uploadDirectory . '/available-label.pdf';
+file_put_contents($availablePdfPath, "%PDF-1.4\n%%EOF\n");
+label_security_expect($availablePdfPath, jg_partner_order_label_pdf_file_path([
+    'stored_name' => 'available-label.pdf',
+    'created_at' => gmdate(DATE_ATOM),
+]), 'An available PDF should resolve to its private file.');
+label_security_expect(true, jg_partner_order_has_available_label_pdf([
+    'labels' => [[
+        'stored_name' => 'available-label.pdf',
+        'created_at' => gmdate(DATE_ATOM),
+    ]],
+]), 'Orders with an available PDF should be eligible for the Store Ops feed.');
+file_put_contents($uploadDirectory . '/not-a-pdf.pdf', "not a pdf\n");
+label_security_expect(null, jg_partner_order_label_pdf_file_path([
+    'stored_name' => 'not-a-pdf.pdf',
+    'created_at' => gmdate(DATE_ATOM),
+]), 'Non-PDF files must not be exposed as Store Ops shipping labels.');
+@unlink($availablePdfPath);
+@unlink($uploadDirectory . '/not-a-pdf.pdf');
+
 label_security_remove_tree($testRoot);
 echo "label-security-test: ok\n";

@@ -78,5 +78,12 @@ partner_order_expect(true, jg_partner_order_archive_is_expired([
 partner_order_expect(false, jg_partner_order_archive_is_expired([
     'archived_at' => '',
 ], $retentionNow), 'Active orders should never expire under archive retention.');
+partner_order_expect(true, jg_partner_order_status_can_transition('IS_LISTED', 'IS_BEING_FULFILLED'), 'Store Ops should be able to start a listed order.');
+partner_order_expect(false, jg_partner_order_status_can_transition('IS_BEING_FULFILLED', 'CANCELLED'), 'A started order must no longer be cancellable.');
+partner_order_expect(false, jg_partner_order_status_can_transition('FULFILLED', 'IS_LISTED'), 'A fulfilled order must not return to the Store Ops queue.');
+partner_order_expect(false, jg_partner_order_status_can_transition('CANCELLED', 'IS_BEING_FULFILLED'), 'A stale Store Ops client must not revive a cancelled order.');
+partner_order_expect(true, jg_partner_order_is_store_visible(['status' => 'IS_LISTED']), 'Listed orders should appear in Store Ops.');
+partner_order_expect(false, jg_partner_order_is_store_visible(['status' => 'CANCELLED']), 'Cancelled orders should disappear from Store Ops.');
+partner_order_expect(false, jg_partner_order_is_store_visible(['status' => 'IS_BEING_FULFILLED']), 'Orders already handed to Store Ops should not be re-listed.');
 
 echo "partner-order-rules-test: ok\n";

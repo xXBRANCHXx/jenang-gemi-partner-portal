@@ -89,6 +89,37 @@ function jg_partner_order_label_file_path(array $label): ?string
     return null;
 }
 
+function jg_partner_order_label_pdf_file_path(array $label): ?string
+{
+    if (jg_partner_order_label_is_expired($label)) {
+        return null;
+    }
+
+    $path = jg_partner_order_label_file_path($label);
+    if ($path === null) {
+        return null;
+    }
+
+    $handle = @fopen($path, 'rb');
+    if ($handle === false) {
+        return null;
+    }
+    $signature = fread($handle, 5);
+    fclose($handle);
+    return $signature === '%PDF-' ? $path : null;
+}
+
+function jg_partner_order_has_available_label_pdf(array $order): bool
+{
+    foreach ((array) ($order['labels'] ?? []) as $label) {
+        if (is_array($label) && jg_partner_order_label_pdf_file_path($label) !== null) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 function jg_partner_order_default_database(): array
 {
     return [
@@ -1084,6 +1115,38 @@ function jg_partner_order_is_editable(array $order): bool
     return $status === '' || in_array($status, ['LISTED', 'IS_LISTED'], true);
 }
 
+function jg_partner_order_normalize_status(string $status): string
+{
+    $normalized = strtoupper(trim($status));
+    return match ($normalized) {
+        '', 'LISTED' => 'IS_LISTED',
+        'PROCESSING' => 'IS_BEING_FULFILLED',
+        'COMPLETED', 'SHIPPED' => 'FULFILLED',
+        'CANCELED' => 'CANCELLED',
+        default => $normalized,
+    };
+}
+
+function jg_partner_order_status_can_transition(string $currentStatus, string $nextStatus): bool
+{
+    $current = jg_partner_order_normalize_status($currentStatus);
+    $next = jg_partner_order_normalize_status($nextStatus);
+    if ($current === $next) {
+        return true;
+    }
+
+    return match ($current) {
+        'IS_LISTED' => in_array($next, ['IS_BEING_FULFILLED', 'FULFILLED', 'CANCELLED'], true),
+        'IS_BEING_FULFILLED' => $next === 'FULFILLED',
+        default => false,
+    };
+}
+
+function jg_partner_order_is_store_visible(array $order): bool
+{
+    return jg_partner_order_normalize_status((string) ($order['status'] ?? 'IS_LISTED')) === 'IS_LISTED';
+}
+
 function jg_partner_order_is_archived(array $order): bool
 {
     return trim((string) ($order['archived_at'] ?? '')) !== '';
@@ -1103,7 +1166,7 @@ function jg_partner_order_archive_is_expired(array $order, ?int $now = null): bo
 function jg_partner_order_assert_editable(array $order): void
 {
     if (!jg_partner_order_is_editable($order)) {
-        throw new InvalidArgumentException('Only IS_LISTED partner orders can be canceled.');
+        throw new InvalidArgumentException('This order can no longer be canceled because Store Ops has started fulfillment. You can still archive it.');
     }
 }
 
@@ -1205,7 +1268,9 @@ function jg_partner_order_cancel(string $partnerCode, string $orderId): array
         $stmt = $pdo->prepare(
             'UPDATE partner_orders
              SET status = :status, updated_at = :updated_at
-             WHERE id = :id AND partner_code = :partner_code'
+             WHERE id = :id
+               AND partner_code = :partner_code
+               AND (status = "" OR status = "LISTED" OR status = "IS_LISTED")'
         );
         $stmt->execute([
             ':status' => 'CANCELLED',
@@ -1213,6 +1278,15 @@ function jg_partner_order_cancel(string $partnerCode, string $orderId): array
             ':id' => $normalizedId,
             ':partner_code' => $partnerCode,
         ]);
+
+        if ($stmt->rowCount() === 0) {
+            $fresh = jg_partner_order_find($partnerCode, $normalizedId);
+            if (!is_array($fresh)) {
+                throw new RuntimeException('Order not found.');
+            }
+            jg_partner_order_assert_editable($fresh);
+            throw new RuntimeException('Order status changed before it could be canceled. Refresh and try again.');
+        }
 
         jg_partner_order_schedule_label_expiration($normalizedId, 'CANCELLED');
 
@@ -1399,22 +1473,33 @@ function jg_partner_order_delete(string $partnerCode, string $orderId): void
 function jg_partner_order_set_status(string $orderId, string $status): bool
 {
     $normalizedId = jg_partner_order_normalize_text($orderId, 'Order id');
-    $normalizedStatus = strtoupper(trim($status));
+    $normalizedStatus = jg_partner_order_normalize_status($status);
     if (!in_array($normalizedStatus, ['IS_LISTED', 'IS_BEING_FULFILLED', 'FULFILLED', 'CANCELLED'], true)) {
         throw new InvalidArgumentException('Order status is invalid.');
     }
 
     $pdo = jg_partner_data_db();
     if ($pdo instanceof PDO) {
+        $currentStmt = $pdo->prepare('SELECT status FROM partner_orders WHERE id = :id LIMIT 1');
+        $currentStmt->execute([':id' => $normalizedId]);
+        $currentStatus = $currentStmt->fetchColumn();
+        if ($currentStatus === false) {
+            return false;
+        }
+        if (!jg_partner_order_status_can_transition((string) $currentStatus, $normalizedStatus)) {
+            throw new InvalidArgumentException('Order status cannot move backward after fulfillment or cancellation has started.');
+        }
+
         $stmt = $pdo->prepare(
             'UPDATE partner_orders
              SET status = :status, updated_at = :updated_at
-             WHERE id = :id'
+             WHERE id = :id AND status = :current_status'
         );
         $stmt->execute([
             ':status' => $normalizedStatus,
             ':updated_at' => gmdate('Y-m-d H:i:s'),
             ':id' => $normalizedId,
+            ':current_status' => (string) $currentStatus,
         ]);
 
         if ($stmt->rowCount() > 0) {
@@ -1422,16 +1507,14 @@ function jg_partner_order_set_status(string $orderId, string $status): bool
             return true;
         }
 
-        $checkStmt = $pdo->prepare('SELECT COUNT(*) FROM partner_orders WHERE id = :id AND status = :status');
-        $checkStmt->execute([
-            ':id' => $normalizedId,
-            ':status' => $normalizedStatus,
-        ]);
-        $exists = (int) $checkStmt->fetchColumn() > 0;
-        if ($exists) {
+        $checkStmt = $pdo->prepare('SELECT status FROM partner_orders WHERE id = :id LIMIT 1');
+        $checkStmt->execute([':id' => $normalizedId]);
+        $freshStatus = $checkStmt->fetchColumn();
+        $updated = $freshStatus !== false && jg_partner_order_normalize_status((string) $freshStatus) === $normalizedStatus;
+        if ($updated) {
             jg_partner_order_schedule_label_expiration($normalizedId, $normalizedStatus);
         }
-        return $exists;
+        return $updated;
     }
 
     $database = jg_partner_order_read_json_database();
@@ -1439,6 +1522,9 @@ function jg_partner_order_set_status(string $orderId, string $status): bool
     foreach ($database['orders'] as &$order) {
         if ((string) ($order['id'] ?? '') !== $normalizedId) {
             continue;
+        }
+        if (!jg_partner_order_status_can_transition((string) ($order['status'] ?? 'IS_LISTED'), $normalizedStatus)) {
+            throw new InvalidArgumentException('Order status cannot move backward after fulfillment or cancellation has started.');
         }
         $order['status'] = $normalizedStatus;
         $order['updated_at'] = gmdate(DATE_ATOM);
@@ -1768,12 +1854,9 @@ function jg_partner_order_cleanup_expired_labels(?int $now = null): int
 
 function jg_partner_order_stream_label(array $label): never
 {
-    if (jg_partner_order_label_is_expired($label)) {
-        throw new RuntimeException('Shipping label has expired.');
-    }
-    $path = jg_partner_order_label_file_path($label);
+    $path = jg_partner_order_label_pdf_file_path($label);
     if ($path === null) {
-        throw new RuntimeException('Shipping label file is unavailable.');
+        throw new RuntimeException('Shipping label PDF is unavailable.');
     }
 
     $downloadName = trim((string) ($label['name'] ?? 'shipping-label.pdf'));

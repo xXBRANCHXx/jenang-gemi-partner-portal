@@ -15,6 +15,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const orderModal = document.querySelector('[data-order-modal]');
   const orderForm = document.querySelector('[data-order-form]');
   const passwordModal = document.querySelector('[data-password-modal]');
+  const faviconModal = document.querySelector('[data-favicon-modal]');
+  const platformSettingsModal = document.querySelector('[data-platform-settings-modal]');
   const passwordForm = document.querySelector('[data-password-form]');
   const currentPasswordField = document.querySelector('[data-current-password-field]');
   const currentPasswordInput = document.querySelector('[data-current-password-input]');
@@ -64,7 +66,10 @@ document.addEventListener('DOMContentLoaded', () => {
   const platformProfileForm = document.querySelector('[data-platform-profile-form]');
   const platformProfileList = document.querySelector('[data-platform-profile-list]');
   const platformProfileError = document.querySelector('[data-platform-profile-error]');
+  const platformSettingsSummary = document.querySelector('[data-platform-settings-summary]');
   const faviconForms = Array.from(document.querySelectorAll('[data-favicon-form]'));
+  const faviconSummary = document.querySelector('[data-favicon-summary]');
+  const faviconSummaryPreviews = Array.from(document.querySelectorAll('[data-favicon-summary-preview]'));
   const faviconLinks = {
     light: document.querySelector('link[data-partner-favicon="light"]'),
     dark: document.querySelector('link[data-partner-favicon="dark"]')
@@ -222,6 +227,12 @@ document.addEventListener('DOMContentLoaded', () => {
   const renderPlatformProfiles = () => {
     if (!platformProfileList) return;
     const options = state.platformOptions.length ? state.platformOptions : defaultPlatformOptions;
+    const customCount = options.filter((option) => option.removable).length;
+    if (platformSettingsSummary) {
+      platformSettingsSummary.textContent = customCount > 0
+        ? `${options.length} available · ${customCount} custom`
+        : `${options.length} available · Built-ins only`;
+    }
     platformProfileList.innerHTML = options.map((option) => `
       <article class="partner-platform-profile-card" data-platform-kind="${escapeHtml(option.kind || 'custom')}">
         <span class="partner-platform-badge" aria-hidden="true">${escapeHtml(platformBadgeText(option))}</span>
@@ -445,6 +456,25 @@ document.addEventListener('DOMContentLoaded', () => {
       if (name) name.textContent = favicon.configured ? String(favicon.name || 'Custom favicon') : 'No custom favicon';
       if (choose) choose.textContent = favicon.configured ? 'Replace' : 'Upload';
       if (remove instanceof HTMLButtonElement) remove.hidden = !favicon.configured;
+    });
+    const configuredThemes = ['light', 'dark'].filter((theme) => state.favicons[theme]?.configured);
+    if (faviconSummary) {
+      faviconSummary.textContent = configuredThemes.length === 0
+        ? 'Using the default icon'
+        : (configuredThemes.length === 2 ? 'Custom light and dark icons' : `Custom ${configuredThemes[0]} icon`);
+    }
+    faviconSummaryPreviews.forEach((preview) => {
+      const theme = String(preview.dataset.faviconSummaryPreview || '');
+      const favicon = state.favicons[theme] || { configured: false, url: '' };
+      const image = preview.querySelector('img');
+      const initial = preview.querySelector('b');
+      preview.classList.toggle('is-configured', Boolean(favicon.configured));
+      if (image instanceof HTMLImageElement) {
+        image.hidden = !favicon.configured;
+        if (favicon.configured && favicon.url) image.src = String(favicon.url);
+        else image.removeAttribute('src');
+      }
+      if (initial instanceof HTMLElement) initial.hidden = Boolean(favicon.configured);
     });
     applyFaviconLinks();
   };
@@ -1204,6 +1234,30 @@ document.addEventListener('DOMContentLoaded', () => {
     renderPasswordResetState();
   };
 
+  const openFaviconModal = () => {
+    if (!(faviconModal instanceof HTMLElement)) return;
+    faviconModal.hidden = false;
+    faviconModal.querySelector('[data-choose-favicon]')?.focus();
+  };
+
+  const closeFaviconModal = () => {
+    if (!(faviconModal instanceof HTMLElement)) return;
+    faviconModal.hidden = true;
+    faviconModal.querySelectorAll('[data-favicon-error]').forEach((node) => setError('', node));
+  };
+
+  const openPlatformSettingsModal = () => {
+    if (!(platformSettingsModal instanceof HTMLElement)) return;
+    platformSettingsModal.hidden = false;
+    platformProfileForm?.querySelector('input')?.focus();
+  };
+
+  const closePlatformSettingsModal = () => {
+    if (!(platformSettingsModal instanceof HTMLElement)) return;
+    platformSettingsModal.hidden = true;
+    setError('', platformProfileError);
+  };
+
   const loadOrders = async () => {
     const payload = await requestJson(ordersEndpoint);
     state.orders = payload.orders || [];
@@ -1242,6 +1296,23 @@ document.addEventListener('DOMContentLoaded', () => {
   document.querySelector('[data-open-password-modal]')?.addEventListener('click', openPasswordModal);
   document.querySelectorAll('[data-close-password-modal]').forEach((button) => {
     button.addEventListener('click', closePasswordModal);
+  });
+  document.querySelectorAll('[data-open-favicon-modal]').forEach((button) => {
+    button.addEventListener('click', openFaviconModal);
+  });
+  document.querySelectorAll('[data-close-favicon-modal]').forEach((button) => {
+    button.addEventListener('click', closeFaviconModal);
+  });
+  document.querySelectorAll('[data-open-platform-settings-modal]').forEach((button) => {
+    button.addEventListener('click', openPlatformSettingsModal);
+  });
+  document.querySelectorAll('[data-close-platform-settings-modal]').forEach((button) => {
+    button.addEventListener('click', closePlatformSettingsModal);
+  });
+  document.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape') return;
+    if (faviconModal instanceof HTMLElement && !faviconModal.hidden) closeFaviconModal();
+    if (platformSettingsModal instanceof HTMLElement && !platformSettingsModal.hidden) closePlatformSettingsModal();
   });
 
   deadlineRange?.addEventListener('input', renderDeadline);

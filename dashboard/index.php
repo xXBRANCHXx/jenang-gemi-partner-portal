@@ -38,6 +38,16 @@ try {
 }
 $lightFaviconUrl = (string) ($faviconSettings['light']['url'] ?? '') ?: $defaultFaviconUrl;
 $darkFaviconUrl = (string) ($faviconSettings['dark']['url'] ?? '') ?: $defaultFaviconUrl;
+$configuredFaviconThemes = array_values(array_filter(
+    ['light', 'dark'],
+    static fn (string $theme): bool => !empty($faviconSettings[$theme]['configured'])
+));
+$faviconSummary = match ($configuredFaviconThemes) {
+    [] => 'Using the default icon',
+    ['light'] => 'Custom light icon',
+    ['dark'] => 'Custom dark icon',
+    default => 'Custom light and dark icons',
+};
 $dashboardSections = ['overview', 'orders', 'labels', 'analytics', 'settings'];
 $dashboardRouteParts = $requestPath === '' ? [] : explode('/', $requestPath);
 $dashboardIndex = array_search('dashboard', $dashboardRouteParts, true);
@@ -240,90 +250,88 @@ $sectionUrl = static function (string $section) use ($dashboardPath): string {
             </section>
 
             <section class="partner-section <?php echo $activeSection === 'settings' ? 'is-active' : ''; ?>" data-partner-section="settings">
-                <section class="partner-settings-grid">
-                    <article class="partner-panel partner-settings-card">
-                        <div class="partner-panel-head">
-                            <div>
-                                <span>Appearance</span>
-                                <h3>Theme</h3>
-                            </div>
-                        </div>
-                        <div class="partner-settings-row">
-                            <span>Follow your device or choose a fixed theme.</span>
-                            <div class="partner-theme-switch is-inline" data-theme-switch aria-label="Theme preference">
-                                <button type="button" data-theme-option="system">System</button>
-                                <button type="button" data-theme-option="light">Light</button>
-                                <button type="button" data-theme-option="dark">Dark</button>
-                            </div>
-                        </div>
-                    </article>
-
-                    <article class="partner-panel partner-settings-card">
-                        <div class="partner-panel-head">
-                            <div>
-                                <span>Security</span>
-                                <h3>Password</h3>
-                            </div>
-                        </div>
-                        <div class="partner-settings-row">
-                            <span>Update your account password.</span>
-                            <button type="button" class="admin-ghost-btn" data-open-password-modal>Change password</button>
-                        </div>
-                    </article>
-
-                    <article class="partner-panel partner-settings-card partner-favicon-settings-panel">
-                        <div class="partner-panel-head">
-                            <div>
-                                <span>Browser identity</span>
-                                <h3>Custom favicon</h3>
-                            </div>
-                        </div>
-                        <p class="partner-settings-copy">Optional light and dark browser icons. Empty slots use the Jenang Gemi icon.</p>
-                        <div class="partner-favicon-grid" data-favicon-settings>
-                            <?php foreach (['light' => 'Light mode', 'dark' => 'Dark mode'] as $faviconTheme => $faviconLabel): ?>
-                                <?php $favicon = $faviconSettings[$faviconTheme] ?? ['configured' => false, 'url' => '', 'name' => '']; ?>
-                                <form class="partner-favicon-card" data-favicon-form data-favicon-theme="<?php echo $faviconTheme; ?>">
-                                    <div class="partner-favicon-preview <?php echo !empty($favicon['configured']) ? 'is-configured' : ''; ?>" data-favicon-preview>
-                                        <img <?php if (!empty($favicon['configured'])): ?>src="<?php echo htmlspecialchars((string) ($favicon['url'] ?? ''), ENT_QUOTES); ?>"<?php endif; ?> alt="" <?php echo empty($favicon['configured']) ? 'hidden' : ''; ?>>
-                                        <span data-favicon-empty <?php echo !empty($favicon['configured']) ? 'hidden' : ''; ?>>Empty</span>
+                <div class="partner-settings-layout">
+                    <section class="partner-settings-group" aria-labelledby="appearance-settings-title">
+                        <header class="partner-settings-group-head">
+                            <span>Personalization</span>
+                            <h3 id="appearance-settings-title">Appearance</h3>
+                            <p>Control how your workspace and browser tab look.</p>
+                        </header>
+                        <div class="partner-settings-list">
+                            <article class="partner-settings-item">
+                                <div class="partner-settings-item-copy">
+                                    <strong>Theme</strong>
+                                    <span>Follow your device or keep this workspace light or dark.</span>
+                                </div>
+                                <div class="partner-settings-item-control">
+                                    <div class="partner-theme-switch is-inline" data-theme-switch aria-label="Theme preference">
+                                        <button type="button" data-theme-option="system">System</button>
+                                        <button type="button" data-theme-option="light">Light</button>
+                                        <button type="button" data-theme-option="dark">Dark</button>
                                     </div>
-                                    <div class="partner-favicon-card-copy">
-                                        <strong><?php echo $faviconLabel; ?></strong>
-                                        <span data-favicon-name><?php echo htmlspecialchars((string) ($favicon['name'] ?? '') ?: 'No custom favicon', ENT_QUOTES); ?></span>
+                                </div>
+                            </article>
+                            <article class="partner-settings-item">
+                                <div class="partner-settings-item-copy">
+                                    <strong>Browser favicon</strong>
+                                    <span>Use separate icons that stay clear in light and dark mode.</span>
+                                </div>
+                                <div class="partner-settings-item-control">
+                                    <div class="partner-favicon-summary-visual" aria-hidden="true">
+                                        <?php foreach (['light' => 'L', 'dark' => 'D'] as $faviconTheme => $faviconInitial): ?>
+                                            <?php $favicon = $faviconSettings[$faviconTheme] ?? ['configured' => false, 'url' => '']; ?>
+                                            <span class="partner-favicon-summary-preview <?php echo !empty($favicon['configured']) ? 'is-configured' : ''; ?>" data-favicon-summary-preview="<?php echo $faviconTheme; ?>">
+                                                <img <?php if (!empty($favicon['configured'])): ?>src="<?php echo htmlspecialchars((string) ($favicon['url'] ?? ''), ENT_QUOTES); ?>"<?php endif; ?> alt="" <?php echo empty($favicon['configured']) ? 'hidden' : ''; ?>>
+                                                <b <?php echo !empty($favicon['configured']) ? 'hidden' : ''; ?>><?php echo $faviconInitial; ?></b>
+                                            </span>
+                                        <?php endforeach; ?>
                                     </div>
-                                    <input type="file" name="favicon" accept=".png,.ico,image/png,image/x-icon" data-favicon-input hidden>
-                                    <div class="partner-favicon-actions">
-                                        <button type="button" class="admin-ghost-btn" data-choose-favicon><?php echo !empty($favicon['configured']) ? 'Replace' : 'Upload'; ?></button>
-                                        <button type="button" class="admin-danger-btn" data-remove-favicon <?php echo empty($favicon['configured']) ? 'hidden' : ''; ?>>Remove</button>
-                                    </div>
-                                    <p class="admin-form-error" data-favicon-error hidden></p>
-                                </form>
-                            <?php endforeach; ?>
+                                    <span class="partner-settings-status" data-favicon-summary><?php echo htmlspecialchars($faviconSummary, ENT_QUOTES); ?></span>
+                                    <button type="button" class="admin-ghost-btn" data-open-favicon-modal>Manage</button>
+                                </div>
+                            </article>
                         </div>
-                        <small class="partner-favicon-help">PNG or ICO, maximum 1 MB. PNG files must be square, from 16×16 to 1024×1024.</small>
-                    </article>
+                    </section>
 
-                    <article class="partner-panel partner-settings-card partner-platform-settings-panel">
-                        <div class="partner-panel-head">
-                            <div>
-                                <span>Order routing</span>
-                                <h3>Platform options</h3>
-                            </div>
+                    <section class="partner-settings-group" aria-labelledby="security-settings-title">
+                        <header class="partner-settings-group-head">
+                            <span>Account</span>
+                            <h3 id="security-settings-title">Security</h3>
+                            <p>Keep access to this partner workspace protected.</p>
+                        </header>
+                        <div class="partner-settings-list">
+                            <article class="partner-settings-item">
+                                <div class="partner-settings-item-copy">
+                                    <strong>Password</strong>
+                                    <span>Choose a strong password you do not use elsewhere.</span>
+                                </div>
+                                <div class="partner-settings-item-control">
+                                    <button type="button" class="admin-ghost-btn" data-open-password-modal>Change password</button>
+                                </div>
+                            </article>
                         </div>
-                        <p class="partner-settings-copy">Manage reseller profiles used for order entry and reporting.</p>
-                        <form class="partner-platform-profile-form" data-platform-profile-form>
-                            <label>
-                                <span>Reseller or platform name</span>
-                                <input type="text" name="platform_name" maxlength="32" placeholder="e.g. Bandung Reseller" autocomplete="off" required>
-                            </label>
-                            <button type="submit" class="admin-primary-btn">Add platform</button>
-                        </form>
-                        <p class="admin-form-error" data-platform-profile-error hidden></p>
-                        <div class="partner-platform-profile-list" data-platform-profile-list>
-                            <p class="admin-empty">Loading platform options.</p>
+                    </section>
+
+                    <section class="partner-settings-group" aria-labelledby="workflow-settings-title">
+                        <header class="partner-settings-group-head">
+                            <span>Orders</span>
+                            <h3 id="workflow-settings-title">Order workflow</h3>
+                            <p>Choose which sales channels are available when creating orders.</p>
+                        </header>
+                        <div class="partner-settings-list">
+                            <article class="partner-settings-item">
+                                <div class="partner-settings-item-copy">
+                                    <strong>Platform options</strong>
+                                    <span>Built-in marketplaces and your custom reseller profiles.</span>
+                                </div>
+                                <div class="partner-settings-item-control">
+                                    <span class="partner-settings-status" data-platform-settings-summary>Loading options…</span>
+                                    <button type="button" class="admin-ghost-btn" data-open-platform-settings-modal>Manage</button>
+                                </div>
+                            </article>
                         </div>
-                    </article>
-                </section>
+                    </section>
+                </div>
             </section>
         </main>
     </div>
@@ -435,6 +443,67 @@ $sectionUrl = static function (string $section) use ($dashboardPath): string {
                 </aside>
             </section>
         </form>
+    </div>
+
+    <div class="admin-modal-shell partner-settings-modal" data-favicon-modal hidden>
+        <div class="admin-modal-backdrop" data-close-favicon-modal></div>
+        <div class="admin-modal-card" role="dialog" aria-modal="true" aria-labelledby="favicon-modal-title">
+            <div class="admin-modal-head">
+                <div>
+                    <span class="admin-panel-kicker">Appearance</span>
+                    <h3 id="favicon-modal-title">Browser favicon</h3>
+                </div>
+                <button type="button" class="admin-ghost-btn" data-close-favicon-modal>Close</button>
+            </div>
+            <p class="partner-settings-modal-copy">Upload one icon for light mode and another for dark mode. Empty slots use the Jenang Gemi icon.</p>
+            <div class="partner-favicon-grid" data-favicon-settings>
+                <?php foreach (['light' => 'Light mode', 'dark' => 'Dark mode'] as $faviconTheme => $faviconLabel): ?>
+                    <?php $favicon = $faviconSettings[$faviconTheme] ?? ['configured' => false, 'url' => '', 'name' => '']; ?>
+                    <form class="partner-favicon-card" data-favicon-form data-favicon-theme="<?php echo $faviconTheme; ?>">
+                        <div class="partner-favicon-preview <?php echo !empty($favicon['configured']) ? 'is-configured' : ''; ?>" data-favicon-preview>
+                            <img <?php if (!empty($favicon['configured'])): ?>src="<?php echo htmlspecialchars((string) ($favicon['url'] ?? ''), ENT_QUOTES); ?>"<?php endif; ?> alt="" <?php echo empty($favicon['configured']) ? 'hidden' : ''; ?>>
+                            <span data-favicon-empty <?php echo !empty($favicon['configured']) ? 'hidden' : ''; ?>>Empty</span>
+                        </div>
+                        <div class="partner-favicon-card-copy">
+                            <strong><?php echo $faviconLabel; ?></strong>
+                            <span data-favicon-name><?php echo htmlspecialchars((string) ($favicon['name'] ?? '') ?: 'No custom favicon', ENT_QUOTES); ?></span>
+                        </div>
+                        <input type="file" name="favicon" accept=".png,.ico,image/png,image/x-icon" data-favicon-input hidden>
+                        <div class="partner-favicon-actions">
+                            <button type="button" class="admin-ghost-btn" data-choose-favicon><?php echo !empty($favicon['configured']) ? 'Replace' : 'Upload'; ?></button>
+                            <button type="button" class="admin-danger-btn" data-remove-favicon <?php echo empty($favicon['configured']) ? 'hidden' : ''; ?>>Remove</button>
+                        </div>
+                        <p class="admin-form-error" data-favicon-error hidden></p>
+                    </form>
+                <?php endforeach; ?>
+            </div>
+            <small class="partner-favicon-help">PNG or ICO, maximum 1 MB. PNG files must be square, from 16×16 to 1024×1024.</small>
+        </div>
+    </div>
+
+    <div class="admin-modal-shell partner-settings-modal" data-platform-settings-modal hidden>
+        <div class="admin-modal-backdrop" data-close-platform-settings-modal></div>
+        <div class="admin-modal-card" role="dialog" aria-modal="true" aria-labelledby="platform-settings-modal-title">
+            <div class="admin-modal-head">
+                <div>
+                    <span class="admin-panel-kicker">Order workflow</span>
+                    <h3 id="platform-settings-modal-title">Platform options</h3>
+                </div>
+                <button type="button" class="admin-ghost-btn" data-close-platform-settings-modal>Close</button>
+            </div>
+            <p class="partner-settings-modal-copy">Add reseller profiles for order entry and reporting. Built-in marketplaces are always available.</p>
+            <form class="partner-platform-profile-form" data-platform-profile-form>
+                <label>
+                    <span>Reseller or platform name</span>
+                    <input type="text" name="platform_name" maxlength="32" placeholder="e.g. Bandung Reseller" autocomplete="off" required>
+                </label>
+                <button type="submit" class="admin-primary-btn">Add platform</button>
+            </form>
+            <p class="admin-form-error" data-platform-profile-error hidden></p>
+            <div class="partner-platform-profile-list" data-platform-profile-list>
+                <p class="admin-empty">Loading platform options.</p>
+            </div>
+        </div>
     </div>
 
     <div class="admin-modal-shell" data-password-modal hidden>

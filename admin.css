@@ -4268,6 +4268,42 @@ body.is-dashboard[data-partner-theme='light'] .partner-month-picker input {
   font-size: 0.76rem;
 }
 
+.partner-settings-select {
+  min-width: 220px;
+  min-height: 42px;
+  padding: 0 38px 0 13px;
+  border: 1px solid var(--partner-border);
+  border-radius: 12px;
+  outline: 0;
+  background: var(--partner-panel-soft);
+  color: var(--partner-text);
+  font: 750 0.78rem/1 "Plus Jakarta Sans", sans-serif;
+  cursor: pointer;
+}
+
+.partner-settings-select:focus {
+  border-color: var(--partner-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--partner-accent) 16%, transparent);
+}
+
+.partner-settings-save-status {
+  min-height: 20px;
+  margin: 0;
+  padding: 8px 18px;
+  border-top: 1px solid var(--partner-border);
+  color: var(--partner-muted);
+  font-size: 0.7rem;
+  text-align: right;
+}
+
+.partner-settings-save-status:empty {
+  display: none;
+}
+
+.partner-settings-save-status.is-error {
+  color: var(--partner-danger);
+}
+
 .partner-favicon-summary-visual {
   display: flex;
   padding-left: 7px;
@@ -4614,6 +4650,11 @@ body.is-dashboard[data-partner-theme='light'] .admin-build-badge {
 
   .partner-settings-item .partner-theme-switch {
     width: 100%;
+  }
+
+  .partner-settings-select {
+    width: 100%;
+    min-width: 0;
   }
 
   .partner-settings-modal {

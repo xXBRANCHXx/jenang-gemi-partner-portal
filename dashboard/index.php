@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require_once dirname(__DIR__) . '/partner-auth.php';
 require_once dirname(__DIR__) . '/partner-favicon-storage.php';
+require_once dirname(__DIR__) . '/partner-preference-storage.php';
 
 if (!jg_partner_is_authenticated()) {
     header('Location: /');
@@ -38,6 +39,11 @@ try {
 }
 $lightFaviconUrl = (string) ($faviconSettings['light']['url'] ?? '') ?: $defaultFaviconUrl;
 $darkFaviconUrl = (string) ($faviconSettings['dark']['url'] ?? '') ?: $defaultFaviconUrl;
+try {
+    $partnerPreferences = jg_partner_preferences(jg_partner_current_code());
+} catch (Throwable) {
+    $partnerPreferences = jg_partner_preference_defaults();
+}
 $configuredFaviconThemes = array_values(array_filter(
     ['light', 'dark'],
     static fn (string $theme): bool => !empty($faviconSettings[$theme]['configured'])
@@ -64,7 +70,7 @@ $sectionUrl = static function (string $section) use ($dashboardPath): string {
 };
 ?>
 <!DOCTYPE html>
-<html lang="id">
+<html lang="<?php echo htmlspecialchars($partnerPreferences['language'], ENT_QUOTES); ?>">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover, user-scalable=no">
@@ -91,6 +97,8 @@ $sectionUrl = static function (string $section) use ($dashboardPath): string {
         data-favicon-light-name="<?php echo htmlspecialchars((string) ($faviconSettings['light']['name'] ?? ''), ENT_QUOTES); ?>"
         data-favicon-dark-url="<?php echo htmlspecialchars((string) ($faviconSettings['dark']['url'] ?? ''), ENT_QUOTES); ?>"
         data-favicon-dark-name="<?php echo htmlspecialchars((string) ($faviconSettings['dark']['name'] ?? ''), ENT_QUOTES); ?>"
+        data-partner-language="<?php echo htmlspecialchars($partnerPreferences['language'], ENT_QUOTES); ?>"
+        data-partner-timezone="<?php echo htmlspecialchars($partnerPreferences['timezone'], ENT_QUOTES); ?>"
         data-csrf-token="<?php echo htmlspecialchars(jg_partner_csrf_token(), ENT_QUOTES); ?>"
         data-logout-url="<?php echo htmlspecialchars($logoutUrl, ENT_QUOTES); ?>"
         data-dashboard-base="<?php echo htmlspecialchars($dashboardPath, ENT_QUOTES); ?>"
@@ -291,6 +299,43 @@ $sectionUrl = static function (string $section) use ($dashboardPath): string {
                                 </div>
                             </article>
                         </div>
+                    </section>
+
+                    <section class="partner-settings-group" aria-labelledby="regional-settings-title">
+                        <header class="partner-settings-group-head">
+                            <span>Regional</span>
+                            <h3 id="regional-settings-title">Language &amp; time</h3>
+                            <p>Set the language and local time used throughout this workspace.</p>
+                        </header>
+                        <form class="partner-settings-list" data-regional-settings-form>
+                            <article class="partner-settings-item">
+                                <div class="partner-settings-item-copy">
+                                    <strong>Language</strong>
+                                    <span>Changes interface text and regional number formatting.</span>
+                                </div>
+                                <div class="partner-settings-item-control">
+                                    <select name="language" class="partner-settings-select" data-language-setting aria-label="Language">
+                                        <?php foreach (jg_partner_preference_languages() as $languageCode => $languageLabel): ?>
+                                            <option value="<?php echo htmlspecialchars($languageCode, ENT_QUOTES); ?>" <?php echo $partnerPreferences['language'] === $languageCode ? 'selected' : ''; ?>><?php echo htmlspecialchars($languageLabel, ENT_QUOTES); ?></option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                </div>
+                            </article>
+                            <article class="partner-settings-item">
+                                <div class="partner-settings-item-copy">
+                                    <strong>Time zone</strong>
+                                    <span>Controls the time shown for orders, labels, and reporting.</span>
+                                </div>
+                                <div class="partner-settings-item-control">
+                                    <select name="timezone" class="partner-settings-select" data-timezone-setting aria-label="Time zone">
+                                        <?php foreach (jg_partner_preference_timezones() as $timezoneCode => $timezoneLabel): ?>
+                                            <option value="<?php echo htmlspecialchars($timezoneCode, ENT_QUOTES); ?>" <?php echo $partnerPreferences['timezone'] === $timezoneCode ? 'selected' : ''; ?>><?php echo htmlspecialchars($timezoneLabel, ENT_QUOTES); ?></option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                </div>
+                            </article>
+                            <p class="partner-settings-save-status" data-regional-settings-status aria-live="polite"></p>
+                        </form>
                     </section>
 
                     <section class="partner-settings-group" aria-labelledby="security-settings-title">

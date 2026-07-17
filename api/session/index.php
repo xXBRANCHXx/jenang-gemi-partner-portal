@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require_once dirname(__DIR__, 2) . '/partner-auth.php';
 require_once dirname(__DIR__, 2) . '/partner-platform-storage.php';
+require_once dirname(__DIR__, 2) . '/partner-preference-storage.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
@@ -20,11 +21,20 @@ if ($method === 'GET') {
     } catch (Throwable) {
         $platformOptionsError = 'Custom platform options are temporarily unavailable.';
     }
+    $preferences = jg_partner_preference_defaults();
+    $preferencesError = '';
+    try {
+        $preferences = jg_partner_preferences(jg_partner_current_code());
+    } catch (Throwable) {
+        $preferencesError = 'Regional preferences are temporarily unavailable.';
+    }
     echo json_encode([
         'partner' => $safePartner,
         'catalog' => jg_partner_source_catalog($partner),
         'platform_options' => $platformOptions,
         'platform_options_error' => $platformOptionsError,
+        'preferences' => $preferences,
+        'preferences_error' => $preferencesError,
         'password_reset_required' => jg_partner_password_reset_required(),
     ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
     exit;
@@ -67,6 +77,20 @@ if ($method === 'POST') {
         } catch (Throwable) {
             http_response_code(503);
             echo json_encode(['error' => 'Platform options are temporarily unavailable.'], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+        }
+        exit;
+    }
+
+    if ($action === 'update_preferences') {
+        try {
+            $preferences = jg_partner_preferences_save(jg_partner_current_code(), $request);
+            echo json_encode(['ok' => true, 'preferences' => $preferences], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        } catch (InvalidArgumentException $exception) {
+            http_response_code(422);
+            echo json_encode(['error' => $exception->getMessage()], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+        } catch (Throwable) {
+            http_response_code(503);
+            echo json_encode(['error' => 'Regional preferences are temporarily unavailable.'], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
         }
         exit;
     }

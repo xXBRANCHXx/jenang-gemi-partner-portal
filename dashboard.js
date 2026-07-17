@@ -67,6 +67,10 @@ document.addEventListener('DOMContentLoaded', () => {
   const platformProfileList = document.querySelector('[data-platform-profile-list]');
   const platformProfileError = document.querySelector('[data-platform-profile-error]');
   const platformSettingsSummary = document.querySelector('[data-platform-settings-summary]');
+  const regionalSettingsForm = document.querySelector('[data-regional-settings-form]');
+  const regionalSettingsStatus = document.querySelector('[data-regional-settings-status]');
+  const languageSetting = document.querySelector('[data-language-setting]');
+  const timezoneSetting = document.querySelector('[data-timezone-setting]');
   const faviconForms = Array.from(document.querySelectorAll('[data-favicon-form]'));
   const faviconSummary = document.querySelector('[data-favicon-summary]');
   const faviconSummaryPreviews = Array.from(document.querySelectorAll('[data-favicon-summary-preview]'));
@@ -102,6 +106,10 @@ document.addEventListener('DOMContentLoaded', () => {
     cart: [],
     submitting: false,
     passwordResetRequired: false,
+    language: ['id', 'en'].includes(root.dataset.partnerLanguage || '') ? root.dataset.partnerLanguage : 'id',
+    timezone: ['Asia/Jakarta', 'Asia/Makassar', 'Asia/Jayapura'].includes(root.dataset.partnerTimezone || '')
+      ? root.dataset.partnerTimezone
+      : 'Asia/Jakarta',
     favicons: {
       light: {
         configured: Boolean(root.dataset.faviconLightUrl),
@@ -122,6 +130,156 @@ document.addEventListener('DOMContentLoaded', () => {
     analytics: 'Analytics',
     settings: 'Settings'
   };
+  const indonesianTranslations = new Map([
+    ['Partner Workspace', 'Ruang Kerja Mitra'],
+    ['Direct ordering portal', 'Portal pemesanan langsung'],
+    ['Overview', 'Ringkasan'],
+    ['Orders', 'Pesanan'],
+    ['Labels', 'Label Pengiriman'],
+    ['Analytics', 'Analitik'],
+    ['Settings', 'Pengaturan'],
+    ['New Order', 'Pesanan Baru'],
+    ['Active partner', 'Mitra aktif'],
+    ['Logout', 'Keluar'],
+    ['Partner portal', 'Portal mitra'],
+    ['Create Order', 'Buat Pesanan'],
+    ['Personalization', 'Personalisasi'],
+    ['Appearance', 'Tampilan'],
+    ['Control how your workspace and browser tab look.', 'Atur tampilan ruang kerja dan tab browser Anda.'],
+    ['Theme', 'Tema'],
+    ['Follow your device or keep this workspace light or dark.', 'Ikuti perangkat atau gunakan tema terang maupun gelap.'],
+    ['System', 'Sistem'],
+    ['Light', 'Terang'],
+    ['Dark', 'Gelap'],
+    ['Browser favicon', 'Favicon browser'],
+    ['Use separate icons that stay clear in light and dark mode.', 'Gunakan ikon terpisah agar tetap jelas dalam mode terang dan gelap.'],
+    ['Using the default icon', 'Menggunakan ikon bawaan'],
+    ['Manage', 'Kelola'],
+    ['Regional', 'Regional'],
+    ['Language & time', 'Bahasa & waktu'],
+    ['Set the language and local time used throughout this workspace.', 'Atur bahasa dan waktu lokal untuk seluruh ruang kerja.'],
+    ['Language', 'Bahasa'],
+    ['Changes interface text and regional number formatting.', 'Mengubah teks antarmuka dan format angka regional.'],
+    ['Time zone', 'Zona waktu'],
+    ['Controls the time shown for orders, labels, and reporting.', 'Mengatur waktu yang ditampilkan pada pesanan, label, dan laporan.'],
+    ['Account', 'Akun'],
+    ['Security', 'Keamanan'],
+    ['Keep access to this partner workspace protected.', 'Jaga keamanan akses ke ruang kerja mitra ini.'],
+    ['Password', 'Kata sandi'],
+    ['Choose a strong password you do not use elsewhere.', 'Gunakan kata sandi kuat yang tidak dipakai di tempat lain.'],
+    ['Change password', 'Ubah kata sandi'],
+    ['Order workflow', 'Alur pesanan'],
+    ['Choose which sales channels are available when creating orders.', 'Pilih kanal penjualan yang tersedia saat membuat pesanan.'],
+    ['Platform options', 'Opsi platform'],
+    ['Built-in marketplaces and your custom reseller profiles.', 'Marketplace bawaan dan profil reseller khusus Anda.'],
+    ['Loading options…', 'Memuat opsi…'],
+    ['Built in', 'Bawaan'],
+    ['Remove', 'Hapus'],
+    ['Close', 'Tutup'],
+    ['Upload', 'Unggah'],
+    ['Replace', 'Ganti'],
+    ['Empty', 'Kosong'],
+    ['No custom favicon', 'Belum ada favicon khusus'],
+    ['Add platform', 'Tambah platform'],
+    ['Reseller or platform name', 'Nama reseller atau platform'],
+    ['Built-in marketplace', 'Marketplace bawaan'],
+    ['Custom reseller profile', 'Profil reseller khusus'],
+    ['Units sold', 'Unit terjual'],
+    ['Last 30 days', '30 hari terakhir'],
+    ['Orders created', 'Pesanan dibuat'],
+    ['Avg. units/order', 'Rata-rata unit/pesanan'],
+    ['Partner cost', 'Biaya mitra'],
+    ['Sales window', 'Periode penjualan'],
+    ['Units sold by timeframe', 'Unit terjual berdasarkan periode'],
+    ['Refresh', 'Perbarui'],
+    ['Year', 'Tahun'],
+    ['All', 'Semua'],
+    ['Month', 'Bulan'],
+    ['Recent orders', 'Pesanan terbaru'],
+    ['Last 7 days', '7 hari terakhir'],
+    ['Order history', 'Riwayat pesanan'],
+    ['No orders yet.', 'Belum ada pesanan.'],
+    ['Temporary shipping labels', 'Label pengiriman sementara'],
+    ['Upload Label', 'Unggah Label'],
+    ['Labels are kept for up to seven days, shortened to three days after fulfillment and one day after cancellation.', 'Label disimpan hingga tujuh hari, menjadi tiga hari setelah dipenuhi dan satu hari setelah dibatalkan.'],
+    ['No labels uploaded yet.', 'Belum ada label yang diunggah.'],
+    ['Active orders', 'Pesanan aktif'],
+    ['Not canceled or archived', 'Tidak dibatalkan atau diarsipkan'],
+    ['Fulfilled', 'Dipenuhi'],
+    ['Completed orders', 'Pesanan selesai'],
+    ['Cancel rate', 'Tingkat pembatalan'],
+    ['All partner orders', 'Semua pesanan mitra'],
+    ['Cost/order', 'Biaya/pesanan'],
+    ['Average partner cost', 'Rata-rata biaya mitra'],
+    ['Reseller performance', 'Kinerja reseller'],
+    ['Platform metrics', 'Metrik platform'],
+    ['Platform metrics will appear after orders are created.', 'Metrik platform akan muncul setelah pesanan dibuat.'],
+    ['Product mix', 'Komposisi produk'],
+    ['Product units', 'Unit produk'],
+    ['No product data yet.', 'Belum ada data produk.'],
+    ['New order', 'Pesanan baru'],
+    ['Upload label, then choose approved SKUs', 'Unggah label, lalu pilih SKU yang disetujui'],
+    ['Customer name', 'Nama pelanggan'],
+    ['Creation time', 'Waktu pembuatan'],
+    ['Optional customer name', 'Nama pelanggan (opsional)'],
+    ['Platform', 'Platform'],
+    ['Select platform', 'Pilih platform'],
+    ['Required for every order', 'Wajib untuk setiap pesanan'],
+    ['Deadline', 'Batas waktu'],
+    ['Upload shipping label', 'Unggah label pengiriman'],
+    ['Archive', 'Arsipkan'],
+    ['Restore', 'Pulihkan'],
+    ['Cancel', 'Batalkan'],
+    ['Needs review', 'Perlu ditinjau'],
+    ['No selected SKUs', 'Tidak ada SKU terpilih'],
+    ['No label', 'Tidak ada label'],
+    ['No label file selected.', 'Belum ada file label yang dipilih.'],
+    ['Label selected', 'Label dipilih'],
+    ['Save Password', 'Simpan Kata Sandi'],
+    ['Cancel changes', 'Batalkan perubahan']
+  ]);
+  const englishTranslations = new Map(Array.from(indonesianTranslations, ([english, indonesian]) => [indonesian, english]));
+  const translateTextNode = (node) => {
+    const value = String(node.nodeValue || '');
+    const trimmed = value.trim();
+    if (!trimmed) return;
+    const dictionary = state.language === 'id' ? indonesianTranslations : englishTranslations;
+    const translated = dictionary.get(trimmed);
+    if (translated && translated !== trimmed) node.nodeValue = value.replace(trimmed, translated);
+  };
+  const translateElementAttributes = (element) => {
+    if (!(element instanceof Element)) return;
+    const dictionary = state.language === 'id' ? indonesianTranslations : englishTranslations;
+    ['aria-label', 'placeholder', 'title'].forEach((attribute) => {
+      const value = element.getAttribute(attribute);
+      const translated = value ? dictionary.get(value.trim()) : '';
+      if (translated && translated !== value) element.setAttribute(attribute, translated);
+    });
+  };
+  const translateTree = (target = document.body) => {
+    if (!target) return;
+    if (target.nodeType === Node.TEXT_NODE) {
+      translateTextNode(target);
+      return;
+    }
+    translateElementAttributes(target);
+    target.querySelectorAll?.('*').forEach(translateElementAttributes);
+    const walker = document.createTreeWalker(target, NodeFilter.SHOW_TEXT);
+    let node = walker.nextNode();
+    while (node) {
+      translateTextNode(node);
+      node = walker.nextNode();
+    }
+  };
+  const translationObserver = new MutationObserver((mutations) => {
+    mutations.forEach((mutation) => {
+      if (mutation.type === 'characterData') translateTextNode(mutation.target);
+      mutation.addedNodes.forEach((node) => translateTree(node));
+    });
+  });
+  translationObserver.observe(document.body, { childList: true, characterData: true, subtree: true });
+  const localeCode = () => state.language === 'id' ? 'id-ID' : 'en-US';
+  const localizedText = (english, indonesian) => state.language === 'id' ? indonesian : english;
 
   const escapeHtml = (value) => String(value)
     .replace(/&/g, '&amp;')
@@ -137,7 +295,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const platformBadgeText = (option = {}) => {
     if (option.kind === 'shopee') return 'S';
     if (option.kind === 'tiktok') return 'T';
-    return String(option.name || 'R').trim().charAt(0).toLocaleUpperCase('id-ID') || 'R';
+    return String(option.name || 'R').trim().charAt(0).toLocaleUpperCase(localeCode()) || 'R';
   };
 
   const requestJson = async (url, options = {}) => {
@@ -230,8 +388,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const customCount = options.filter((option) => option.removable).length;
     if (platformSettingsSummary) {
       platformSettingsSummary.textContent = customCount > 0
-        ? `${options.length} available · ${customCount} custom`
-        : `${options.length} available · Built-ins only`;
+        ? localizedText(`${options.length} available · ${customCount} custom`, `${options.length} tersedia · ${customCount} khusus`)
+        : localizedText(`${options.length} available · Built-ins only`, `${options.length} tersedia · Hanya bawaan`);
     }
     platformProfileList.innerHTML = options.map((option) => `
       <article class="partner-platform-profile-card" data-platform-kind="${escapeHtml(option.kind || 'custom')}">
@@ -299,22 +457,32 @@ document.addEventListener('DOMContentLoaded', () => {
   const formatTimestamp = (value) => {
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return '--';
-    return date.toLocaleString('en-US', {
+    return date.toLocaleString(localeCode(), {
       month: 'short',
       day: 'numeric',
       hour: '2-digit',
-      minute: '2-digit'
+      minute: '2-digit',
+      timeZone: state.timezone,
+      timeZoneName: 'short'
     });
   };
 
   const datetimeLocalValue = (value = '') => {
     const date = value ? new Date(value) : new Date();
     if (Number.isNaN(date.getTime())) return '';
-    const offsetDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
-    return offsetDate.toISOString().slice(0, 16);
+    const parts = Object.fromEntries(new Intl.DateTimeFormat('en-CA', {
+      timeZone: state.timezone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hourCycle: 'h23'
+    }).formatToParts(date).filter((part) => part.type !== 'literal').map((part) => [part.type, part.value]));
+    return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}`;
   };
 
-  const formatCurrency = (value) => new Intl.NumberFormat('id-ID', {
+  const formatCurrency = (value) => new Intl.NumberFormat(localeCode(), {
     style: 'currency',
     currency: 'IDR',
     maximumFractionDigits: 0
@@ -337,7 +505,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const formatNumber = (value) => {
     const number = Number(value || 0);
     if (!Number.isFinite(number)) return '0';
-    return number.toLocaleString('id-ID', {
+    return number.toLocaleString(localeCode(), {
       maximumFractionDigits: number % 1 === 0 ? 0 : 2
     });
   };
@@ -349,10 +517,10 @@ document.addEventListener('DOMContentLoaded', () => {
     .join(' · ') || sku.sku || 'Approved SKU';
   const titleCaseWords = (value = '') => String(value)
     .trim()
-    .toLocaleLowerCase('id-ID')
+    .toLocaleLowerCase(localeCode())
     .split(/\s+/)
     .filter(Boolean)
-    .map((word) => word.charAt(0).toLocaleUpperCase('id-ID') + word.slice(1))
+    .map((word) => word.charAt(0).toLocaleUpperCase(localeCode()) + word.slice(1))
     .join(' ');
   const compactSkuDisplayName = (sku = {}) => [
     skuProductName(sku),
@@ -460,8 +628,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const configuredThemes = ['light', 'dark'].filter((theme) => state.favicons[theme]?.configured);
     if (faviconSummary) {
       faviconSummary.textContent = configuredThemes.length === 0
-        ? 'Using the default icon'
-        : (configuredThemes.length === 2 ? 'Custom light and dark icons' : `Custom ${configuredThemes[0]} icon`);
+        ? localizedText('Using the default icon', 'Menggunakan ikon bawaan')
+        : (configuredThemes.length === 2
+          ? localizedText('Custom light and dark icons', 'Ikon terang dan gelap khusus')
+          : localizedText(`Custom ${configuredThemes[0]} icon`, `Ikon ${configuredThemes[0] === 'light' ? 'terang' : 'gelap'} khusus`));
     }
     faviconSummaryPreviews.forEach((preview) => {
       const theme = String(preview.dataset.faviconSummaryPreview || '');
@@ -545,9 +715,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const canCancel = (order = {}) => ['IS_LISTED', 'LISTED', ''].includes(String(order.status || 'IS_LISTED').trim().toUpperCase());
   const statusLabel = (order = {}) => {
     const status = String(order.status || 'IS_LISTED').trim().toUpperCase();
-    if (status === 'IS_BEING_FULFILLED' || status === 'PROCESSING') return 'Processing';
-    if (status === 'FULFILLED' || status === 'COMPLETED') return 'Fulfilled';
-    if (status === 'CANCELLED') return 'Cancelled';
+    if (status === 'IS_BEING_FULFILLED' || status === 'PROCESSING') return localizedText('Processing', 'Diproses');
+    if (status === 'FULFILLED' || status === 'COMPLETED') return localizedText('Fulfilled', 'Dipenuhi');
+    if (status === 'CANCELLED') return localizedText('Cancelled', 'Dibatalkan');
     return 'IS_LISTED';
   };
 
@@ -599,16 +769,16 @@ document.addEventListener('DOMContentLoaded', () => {
   const timeframeLabel = () => {
     if (state.selectedTimeframe === 'month') {
       const bounds = selectedMonthBounds();
-      return bounds ? bounds.start.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : 'Selected month';
+      return bounds ? bounds.start.toLocaleDateString(localeCode(), { month: 'long', year: 'numeric', timeZone: state.timezone }) : localizedText('Selected month', 'Bulan terpilih');
     }
     return ({
-      '24h': 'Last 24 hours',
-      '7d': 'Last 7 days',
-      '30d': 'Last 30 days',
-      '90d': 'Last 90 days',
-      year: 'This year',
-      all: 'All time'
-    })[state.selectedTimeframe] || 'Last 30 days';
+      '24h': localizedText('Last 24 hours', '24 jam terakhir'),
+      '7d': localizedText('Last 7 days', '7 hari terakhir'),
+      '30d': localizedText('Last 30 days', '30 hari terakhir'),
+      '90d': localizedText('Last 90 days', '90 hari terakhir'),
+      year: localizedText('This year', 'Tahun ini'),
+      all: localizedText('All time', 'Sepanjang waktu')
+    })[state.selectedTimeframe] || localizedText('Last 30 days', '30 hari terakhir');
   };
 
   const renderMetrics = () => {
@@ -744,7 +914,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const now = new Date();
     const makeDay = (date) => ({
       key: `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`,
-      label: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+      label: date.toLocaleDateString(localeCode(), { month: 'short', day: 'numeric', timeZone: state.timezone }),
       value: 0,
       platforms: new Map()
     });
@@ -775,7 +945,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const months = ((last.getFullYear() - first.getFullYear()) * 12) + (last.getMonth() - first.getMonth()) + 1;
     return Array.from({ length: months }, (_, index) => {
       const date = new Date(first.getFullYear(), first.getMonth() + index, 1);
-      return { key: `${date.getFullYear()}-${date.getMonth()}`, label: date.toLocaleDateString('en-US', { month: 'short' }), value: 0, platforms: new Map() };
+      return { key: `${date.getFullYear()}-${date.getMonth()}`, label: date.toLocaleDateString(localeCode(), { month: 'short', timeZone: state.timezone }), value: 0, platforms: new Map() };
     });
   };
 
@@ -1258,6 +1428,28 @@ document.addEventListener('DOMContentLoaded', () => {
     setError('', platformProfileError);
   };
 
+  const applyRegionalPreferences = (preferences = {}, refresh = false) => {
+    state.language = ['id', 'en'].includes(String(preferences.language || '')) ? String(preferences.language) : 'id';
+    state.timezone = ['Asia/Jakarta', 'Asia/Makassar', 'Asia/Jayapura'].includes(String(preferences.timezone || ''))
+      ? String(preferences.timezone)
+      : 'Asia/Jakarta';
+    root.dataset.partnerLanguage = state.language;
+    root.dataset.partnerTimezone = state.timezone;
+    document.documentElement.lang = state.language;
+    if (languageSetting instanceof HTMLSelectElement) languageSetting.value = state.language;
+    if (timezoneSetting instanceof HTMLSelectElement) timezoneSetting.value = state.timezone;
+    translateTree(document.body);
+    if (!refresh) return;
+    renderPlatformProfiles();
+    renderFaviconSettings();
+    renderOrders();
+    renderDeadline();
+    renderLabelQueue();
+    renderSkuList();
+    setActiveSection(state.activeSection, false);
+    translateTree(document.body);
+  };
+
   const loadOrders = async () => {
     const payload = await requestJson(ordersEndpoint);
     state.orders = payload.orders || [];
@@ -1266,6 +1458,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const loadSession = async () => {
     const payload = await requestJson(sessionEndpoint);
+    applyRegionalPreferences(payload.preferences || {}, false);
+    if (payload.preferences_error && regionalSettingsStatus) {
+      regionalSettingsStatus.classList.add('is-error');
+      regionalSettingsStatus.textContent = String(payload.preferences_error);
+    }
     state.partner = payload.partner || null;
     state.catalog = payload.catalog || {};
     renderPlatformOptions(payload.platform_options || defaultPlatformOptions);
@@ -1273,7 +1470,9 @@ document.addEventListener('DOMContentLoaded', () => {
     state.passwordResetRequired = Boolean(payload.password_reset_required);
     flattenCatalog();
     if (partnerNameNode) partnerNameNode.textContent = state.partner?.name || 'Partner';
-    if (partnerCodeNode) partnerCodeNode.textContent = state.partner?.code ? `Workspace ${state.partner.code}` : 'Direct ordering portal';
+    if (partnerCodeNode) partnerCodeNode.textContent = state.partner?.code
+      ? localizedText(`Workspace ${state.partner.code}`, `Ruang kerja ${state.partner.code}`)
+      : localizedText('Direct ordering portal', 'Portal pemesanan langsung');
     renderPasswordResetState();
     if (state.passwordResetRequired && passwordModal instanceof HTMLElement && passwordModal.hidden) {
       openPasswordModal();
@@ -1313,6 +1512,36 @@ document.addEventListener('DOMContentLoaded', () => {
     if (event.key !== 'Escape') return;
     if (faviconModal instanceof HTMLElement && !faviconModal.hidden) closeFaviconModal();
     if (platformSettingsModal instanceof HTMLElement && !platformSettingsModal.hidden) closePlatformSettingsModal();
+  });
+
+  regionalSettingsForm?.addEventListener('change', async () => {
+    if (!(languageSetting instanceof HTMLSelectElement) || !(timezoneSetting instanceof HTMLSelectElement)) return;
+    const previous = { language: state.language, timezone: state.timezone };
+    const next = { language: languageSetting.value, timezone: timezoneSetting.value };
+    applyRegionalPreferences(next, true);
+    if (regionalSettingsStatus) {
+      regionalSettingsStatus.classList.remove('is-error');
+      regionalSettingsStatus.textContent = localizedText('Saving…', 'Menyimpan…');
+    }
+    languageSetting.disabled = true;
+    timezoneSetting.disabled = true;
+    try {
+      const payload = await requestJson(sessionEndpoint, {
+        method: 'POST',
+        body: { action: 'update_preferences', ...next }
+      });
+      applyRegionalPreferences(payload.preferences || next, true);
+      if (regionalSettingsStatus) regionalSettingsStatus.textContent = localizedText('Regional settings saved.', 'Pengaturan regional tersimpan.');
+    } catch (error) {
+      applyRegionalPreferences(previous, true);
+      if (regionalSettingsStatus) {
+        regionalSettingsStatus.classList.add('is-error');
+        regionalSettingsStatus.textContent = error instanceof Error ? error.message : localizedText('Unable to save regional settings.', 'Pengaturan regional tidak dapat disimpan.');
+      }
+    } finally {
+      languageSetting.disabled = false;
+      timezoneSetting.disabled = false;
+    }
   });
 
   deadlineRange?.addEventListener('input', renderDeadline);
@@ -1736,6 +1965,7 @@ document.addEventListener('DOMContentLoaded', () => {
     loadOrders().catch(() => {});
   }, 15000);
 
+  applyRegionalPreferences({ language: state.language, timezone: state.timezone }, false);
   applyTheme(state.theme);
   renderFaviconSettings();
   window.history.replaceState({ section: state.activeSection }, '', window.location.href);

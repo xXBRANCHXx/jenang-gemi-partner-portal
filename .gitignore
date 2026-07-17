@@ -2,3 +2,4 @@ config.local.php
 data/partners.runtime.json
 data/platform-options.json
 data/partner-favicons.json
+data/partner-preferences.json

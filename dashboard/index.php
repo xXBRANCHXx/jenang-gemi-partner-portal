@@ -241,7 +241,7 @@ $sectionUrl = static function (string $section) use ($dashboardPath): string {
 
             <section class="partner-section <?php echo $activeSection === 'settings' ? 'is-active' : ''; ?>" data-partner-section="settings">
                 <section class="partner-settings-grid">
-                    <article class="partner-panel">
+                    <article class="partner-panel partner-settings-card">
                         <div class="partner-panel-head">
                             <div>
                                 <span>Appearance</span>
@@ -249,7 +249,7 @@ $sectionUrl = static function (string $section) use ($dashboardPath): string {
                             </div>
                         </div>
                         <div class="partner-settings-row">
-                            <span>Default follows your device. Choose Light or Dark to override it on this browser.</span>
+                            <span>Follow your device or choose a fixed theme.</span>
                             <div class="partner-theme-switch is-inline" data-theme-switch aria-label="Theme preference">
                                 <button type="button" data-theme-option="system">System</button>
                                 <button type="button" data-theme-option="light">Light</button>
@@ -258,14 +258,27 @@ $sectionUrl = static function (string $section) use ($dashboardPath): string {
                         </div>
                     </article>
 
-                    <article class="partner-panel partner-favicon-settings-panel">
+                    <article class="partner-panel partner-settings-card">
+                        <div class="partner-panel-head">
+                            <div>
+                                <span>Security</span>
+                                <h3>Password</h3>
+                            </div>
+                        </div>
+                        <div class="partner-settings-row">
+                            <span>Update your account password.</span>
+                            <button type="button" class="admin-ghost-btn" data-open-password-modal>Change password</button>
+                        </div>
+                    </article>
+
+                    <article class="partner-panel partner-settings-card partner-favicon-settings-panel">
                         <div class="partner-panel-head">
                             <div>
                                 <span>Browser identity</span>
                                 <h3>Custom favicon</h3>
                             </div>
                         </div>
-                        <p class="partner-settings-copy">Optional. Add separate square icons for light and dark mode. Empty slots use the standard Jenang Gemi icon.</p>
+                        <p class="partner-settings-copy">Optional light and dark browser icons. Empty slots use the Jenang Gemi icon.</p>
                         <div class="partner-favicon-grid" data-favicon-settings>
                             <?php foreach (['light' => 'Light mode', 'dark' => 'Dark mode'] as $faviconTheme => $faviconLabel): ?>
                                 <?php $favicon = $faviconSettings[$faviconTheme] ?? ['configured' => false, 'url' => '', 'name' => '']; ?>
@@ -290,24 +303,14 @@ $sectionUrl = static function (string $section) use ($dashboardPath): string {
                         <small class="partner-favicon-help">PNG or ICO, maximum 1 MB. PNG files must be square, from 16×16 to 1024×1024.</small>
                     </article>
 
-                    <article class="partner-panel">
-                        <div class="partner-panel-head">
-                            <div>
-                                <span>Security</span>
-                                <h3>Password</h3>
-                            </div>
-                        </div>
-                        <button type="button" class="admin-ghost-btn" data-open-password-modal>Change Password</button>
-                    </article>
-
-                    <article class="partner-panel partner-platform-settings-panel">
+                    <article class="partner-panel partner-settings-card partner-platform-settings-panel">
                         <div class="partner-panel-head">
                             <div>
                                 <span>Order routing</span>
                                 <h3>Platform options</h3>
                             </div>
                         </div>
-                        <p class="partner-settings-copy">Add reseller profiles for order entry and platform-level metrics. Built-in marketplaces stay available automatically.</p>
+                        <p class="partner-settings-copy">Manage reseller profiles used for order entry and reporting.</p>
                         <form class="partner-platform-profile-form" data-platform-profile-form>
                             <label>
                                 <span>Reseller or platform name</span>

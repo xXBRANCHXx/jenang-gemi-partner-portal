@@ -4166,11 +4166,60 @@ body.is-dashboard[data-partner-theme='light'] .partner-month-picker input {
 
 .partner-settings-grid {
   grid-template-columns: minmax(0, 1.2fr) minmax(300px, 0.8fr);
+  width: min(100%, 1120px);
+  gap: 10px;
 }
 
 .partner-settings-row {
-  align-items: flex-start;
+  align-items: center;
+  gap: 12px;
   padding: 0;
+}
+
+.partner-settings-grid > .partner-settings-card {
+  padding: 14px;
+  border-radius: 16px;
+  box-shadow: none;
+}
+
+.partner-settings-grid > .partner-settings-card .partner-panel-head {
+  margin-bottom: 10px;
+}
+
+.partner-settings-grid > .partner-settings-card .partner-panel-head span {
+  font-size: 0.58rem;
+}
+
+.partner-settings-grid > .partner-settings-card .partner-panel-head h3 {
+  margin-top: 2px;
+  font-size: 0.98rem;
+}
+
+.partner-settings-grid .partner-settings-row > span {
+  max-width: 430px;
+  font-size: 0.72rem;
+  line-height: 1.45;
+}
+
+.partner-settings-grid :is(.admin-primary-btn, .admin-ghost-btn, .admin-danger-btn) {
+  min-height: 32px;
+  padding: 7px 10px;
+  border-radius: 10px;
+  font-size: 0.7rem;
+  white-space: nowrap;
+}
+
+.partner-settings-grid .partner-theme-switch {
+  width: auto;
+  min-width: 218px;
+  padding: 3px;
+  border-radius: 11px;
+}
+
+.partner-settings-grid .partner-theme-switch button {
+  min-height: 30px;
+  border-radius: 8px;
+  font-size: 0.7rem;
 }
 
 .partner-platform-settings-panel {
@@ -4184,31 +4233,32 @@ body.is-dashboard[data-partner-theme='light'] .partner-month-picker input {
 .partner-favicon-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
-  margin-top: 16px;
+  gap: 8px;
+  margin-top: 10px;
 }
 
 .partner-favicon-card {
   display: grid;
-  grid-template-columns: 64px minmax(0, 1fr) auto;
+  grid-template-columns: 42px minmax(0, 1fr) auto;
   align-items: center;
-  gap: 14px;
-  padding: 14px;
+  gap: 10px;
+  min-width: 0;
+  padding: 9px;
   border: 1px solid var(--partner-border);
-  border-radius: 18px;
+  border-radius: 12px;
   background: var(--partner-panel-soft);
 }
 
 .partner-favicon-preview {
   display: grid;
   place-items: center;
-  width: 64px;
-  height: 64px;
+  width: 42px;
+  height: 42px;
   overflow: hidden;
   border: 1px dashed var(--partner-border);
-  border-radius: 16px;
+  border-radius: 10px;
   color: var(--partner-muted);
-  font-size: 0.7rem;
+  font-size: 0.52rem;
   font-weight: 800;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -4219,32 +4269,33 @@ body.is-dashboard[data-partner-theme='light'] .partner-month-picker input {
 }
 
 .partner-favicon-preview img {
-  width: 42px;
-  height: 42px;
+  width: 28px;
+  height: 28px;
   object-fit: contain;
 }
 
 .partner-favicon-card-copy {
   display: grid;
-  gap: 4px;
+  gap: 2px;
   min-width: 0;
 }
 
 .partner-favicon-card-copy strong {
   color: var(--partner-text);
+  font-size: 0.76rem;
 }
 
 .partner-favicon-card-copy span {
   overflow: hidden;
   color: var(--partner-muted);
-  font-size: 0.78rem;
+  font-size: 0.66rem;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .partner-favicon-actions {
   display: flex;
-  gap: 8px;
+  gap: 5px;
 }
 
 .partner-favicon-card .admin-form-error {
@@ -4254,48 +4305,50 @@ body.is-dashboard[data-partner-theme='light'] .partner-month-picker input {
 
 .partner-favicon-help {
   display: block;
-  margin-top: 12px;
+  margin-top: 8px;
   color: var(--partner-muted);
+  font-size: 0.64rem;
 }
 
 .partner-settings-copy {
-  margin: 0 0 16px;
+  margin: -2px 0 10px;
   color: var(--partner-muted);
-  font-size: 0.78rem;
-  line-height: 1.6;
+  font-size: 0.7rem;
+  line-height: 1.45;
 }
 
 .partner-platform-profile-form {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(220px, 420px) auto;
   align-items: end;
-  gap: 10px;
-  margin-bottom: 12px;
+  justify-content: start;
+  gap: 8px;
+  margin-bottom: 9px;
 }
 
 .partner-platform-profile-form label {
   display: grid;
-  gap: 7px;
+  gap: 5px;
 }
 
 .partner-platform-profile-form label > span {
   color: var(--partner-muted);
-  font-size: 0.7rem;
+  font-size: 0.62rem;
   font-weight: 800;
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
 
 .partner-platform-profile-form input {
-  min-height: 44px;
+  min-height: 36px;
   width: 100%;
   padding: 0 13px;
   border: 1px solid var(--partner-border);
-  border-radius: 14px;
+  border-radius: 10px;
   outline: 0;
   background: var(--partner-panel-soft);
   color: var(--partner-text);
-  font: 750 0.82rem/1 "Plus Jakarta Sans", sans-serif;
+  font: 750 0.76rem/1 "Plus Jakarta Sans", sans-serif;
 }
 
 .partner-platform-profile-form input:focus {
@@ -4305,18 +4358,18 @@ body.is-dashboard[data-partner-theme='light'] .partner-month-picker input {
 .partner-platform-profile-list {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
+  gap: 7px;
 }
 
 .partner-platform-profile-card {
   display: grid;
-  grid-template-columns: 38px minmax(0, 1fr) auto;
+  grid-template-columns: 30px minmax(0, 1fr) auto;
   align-items: center;
-  gap: 11px;
+  gap: 8px;
   min-width: 0;
-  padding: 12px;
+  padding: 8px;
   border: 1px solid var(--partner-border);
-  border-radius: 16px;
+  border-radius: 11px;
   background: var(--partner-panel-soft);
 }
 
@@ -4342,9 +4395,24 @@ body.is-dashboard[data-partner-theme='light'] .partner-month-picker input {
   font-size: 0.67rem;
 }
 
+.partner-settings-grid .partner-platform-profile-card strong {
+  font-size: 0.74rem;
+}
+
+.partner-settings-grid .partner-platform-profile-card small {
+  font-size: 0.61rem;
+}
+
+.partner-settings-grid .partner-platform-profile-card > .partner-platform-badge {
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  font-size: 0.68rem;
+}
+
 .partner-platform-locked {
   color: var(--partner-muted);
-  font-size: 0.68rem;
+  font-size: 0.6rem;
   font-weight: 800;
   text-transform: uppercase;
 }
@@ -4468,15 +4536,14 @@ body.is-dashboard[data-partner-theme='light'] .admin-build-badge {
   }
 
   .partner-favicon-card {
-    grid-template-columns: 56px minmax(0, 1fr);
+    grid-template-columns: 38px minmax(0, 1fr) auto;
   }
 
   .partner-favicon-preview {
-    width: 56px;
-    height: 56px;
+    width: 38px;
+    height: 38px;
   }
 
-  .partner-favicon-actions,
   .partner-favicon-card .admin-form-error {
     grid-column: 1 / -1;
   }

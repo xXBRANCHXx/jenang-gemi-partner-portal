@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once dirname(__DIR__) . '/partner-auth.php';
+require_once dirname(__DIR__) . '/partner-favicon-storage.php';
 
 if (!jg_partner_is_authenticated()) {
     header('Location: /');
@@ -23,8 +24,20 @@ $workspaceBase = $partnerSlug !== '' ? '/' . rawurlencode($partnerSlug) : '';
 $sessionEndpoint = $workspaceBase . '/api/session/';
 $ordersEndpoint = $workspaceBase . '/api/orders/';
 $labelsEndpoint = $workspaceBase . '/api/order-labels/';
+$faviconEndpoint = $workspaceBase . '/api/favicon/';
 $logoutUrl = $workspaceBase . '/logout/';
 $partnerName = (string) ($partner['name'] ?? 'Partner Dashboard');
+$defaultFaviconUrl = 'https://jenanggemi.com/Media/Jenang%20Gemi%20Website%20Logo.png';
+try {
+    $faviconSettings = jg_partner_favicon_public_settings(jg_partner_current_code(), $faviconEndpoint);
+} catch (Throwable) {
+    $faviconSettings = [
+        'light' => ['configured' => false, 'url' => '', 'name' => ''],
+        'dark' => ['configured' => false, 'url' => '', 'name' => ''],
+    ];
+}
+$lightFaviconUrl = (string) ($faviconSettings['light']['url'] ?? '') ?: $defaultFaviconUrl;
+$darkFaviconUrl = (string) ($faviconSettings['dark']['url'] ?? '') ?: $defaultFaviconUrl;
 $dashboardSections = ['overview', 'orders', 'labels', 'analytics', 'settings'];
 $dashboardRouteParts = $requestPath === '' ? [] : explode('/', $requestPath);
 $dashboardIndex = array_search('dashboard', $dashboardRouteParts, true);
@@ -47,7 +60,8 @@ $sectionUrl = static function (string $section) use ($dashboardPath): string {
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover, user-scalable=no">
     <title>Partner Dashboard | Jenang Gemi</title>
     <meta name="robots" content="noindex,nofollow">
-    <link rel="icon" type="image/png" href="https://jenanggemi.com/Media/Jenang%20Gemi%20Website%20Logo.png">
+    <link rel="icon" data-partner-favicon="light" media="(prefers-color-scheme: light)" href="<?php echo htmlspecialchars($lightFaviconUrl, ENT_QUOTES); ?>">
+    <link rel="icon" data-partner-favicon="dark" media="(prefers-color-scheme: dark)" href="<?php echo htmlspecialchars($darkFaviconUrl, ENT_QUOTES); ?>">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap">
@@ -61,6 +75,12 @@ $sectionUrl = static function (string $section) use ($dashboardPath): string {
         data-session-endpoint="<?php echo htmlspecialchars($sessionEndpoint, ENT_QUOTES); ?>"
         data-orders-endpoint="<?php echo htmlspecialchars($ordersEndpoint, ENT_QUOTES); ?>"
         data-labels-endpoint="<?php echo htmlspecialchars($labelsEndpoint, ENT_QUOTES); ?>"
+        data-favicon-endpoint="<?php echo htmlspecialchars($faviconEndpoint, ENT_QUOTES); ?>"
+        data-default-favicon-url="<?php echo htmlspecialchars($defaultFaviconUrl, ENT_QUOTES); ?>"
+        data-favicon-light-url="<?php echo htmlspecialchars((string) ($faviconSettings['light']['url'] ?? ''), ENT_QUOTES); ?>"
+        data-favicon-light-name="<?php echo htmlspecialchars((string) ($faviconSettings['light']['name'] ?? ''), ENT_QUOTES); ?>"
+        data-favicon-dark-url="<?php echo htmlspecialchars((string) ($faviconSettings['dark']['url'] ?? ''), ENT_QUOTES); ?>"
+        data-favicon-dark-name="<?php echo htmlspecialchars((string) ($faviconSettings['dark']['name'] ?? ''), ENT_QUOTES); ?>"
         data-csrf-token="<?php echo htmlspecialchars(jg_partner_csrf_token(), ENT_QUOTES); ?>"
         data-logout-url="<?php echo htmlspecialchars($logoutUrl, ENT_QUOTES); ?>"
         data-dashboard-base="<?php echo htmlspecialchars($dashboardPath, ENT_QUOTES); ?>"
@@ -236,6 +256,38 @@ $sectionUrl = static function (string $section) use ($dashboardPath): string {
                                 <button type="button" data-theme-option="dark">Dark</button>
                             </div>
                         </div>
+                    </article>
+
+                    <article class="partner-panel partner-favicon-settings-panel">
+                        <div class="partner-panel-head">
+                            <div>
+                                <span>Browser identity</span>
+                                <h3>Custom favicon</h3>
+                            </div>
+                        </div>
+                        <p class="partner-settings-copy">Optional. Add separate square icons for light and dark mode. Empty slots use the standard Jenang Gemi icon.</p>
+                        <div class="partner-favicon-grid" data-favicon-settings>
+                            <?php foreach (['light' => 'Light mode', 'dark' => 'Dark mode'] as $faviconTheme => $faviconLabel): ?>
+                                <?php $favicon = $faviconSettings[$faviconTheme] ?? ['configured' => false, 'url' => '', 'name' => '']; ?>
+                                <form class="partner-favicon-card" data-favicon-form data-favicon-theme="<?php echo $faviconTheme; ?>">
+                                    <div class="partner-favicon-preview <?php echo !empty($favicon['configured']) ? 'is-configured' : ''; ?>" data-favicon-preview>
+                                        <img <?php if (!empty($favicon['configured'])): ?>src="<?php echo htmlspecialchars((string) ($favicon['url'] ?? ''), ENT_QUOTES); ?>"<?php endif; ?> alt="" <?php echo empty($favicon['configured']) ? 'hidden' : ''; ?>>
+                                        <span data-favicon-empty <?php echo !empty($favicon['configured']) ? 'hidden' : ''; ?>>Empty</span>
+                                    </div>
+                                    <div class="partner-favicon-card-copy">
+                                        <strong><?php echo $faviconLabel; ?></strong>
+                                        <span data-favicon-name><?php echo htmlspecialchars((string) ($favicon['name'] ?? '') ?: 'No custom favicon', ENT_QUOTES); ?></span>
+                                    </div>
+                                    <input type="file" name="favicon" accept=".png,.ico,image/png,image/x-icon" data-favicon-input hidden>
+                                    <div class="partner-favicon-actions">
+                                        <button type="button" class="admin-ghost-btn" data-choose-favicon><?php echo !empty($favicon['configured']) ? 'Replace' : 'Upload'; ?></button>
+                                        <button type="button" class="admin-danger-btn" data-remove-favicon <?php echo empty($favicon['configured']) ? 'hidden' : ''; ?>>Remove</button>
+                                    </div>
+                                    <p class="admin-form-error" data-favicon-error hidden></p>
+                                </form>
+                            <?php endforeach; ?>
+                        </div>
+                        <small class="partner-favicon-help">PNG or ICO, maximum 1 MB. PNG files must be square, from 16×16 to 1024×1024.</small>
                     </article>
 
                     <article class="partner-panel">

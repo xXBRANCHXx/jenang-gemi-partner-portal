@@ -54,6 +54,12 @@ if ($requestedPartner !== null && $route !== '') {
         exit;
     }
 
+    if ($route === 'api/favicon' || str_starts_with($route, 'api/favicon/')) {
+        jg_partner_require_auth_for_json($requestedPartner);
+        require __DIR__ . '/api/favicon/index.php';
+        exit;
+    }
+
     http_response_code(404);
 }
 

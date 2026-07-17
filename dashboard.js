@@ -5,6 +5,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const sessionEndpoint = root.dataset.sessionEndpoint || '../api/session/';
   const ordersEndpoint = root.dataset.ordersEndpoint || '../api/orders/';
   const labelsEndpoint = root.dataset.labelsEndpoint || '../api/order-labels/';
+  const faviconEndpoint = root.dataset.faviconEndpoint || '../api/favicon/';
+  const defaultFaviconUrl = root.dataset.defaultFaviconUrl || '';
   const logoutUrl = root.dataset.logoutUrl || '../logout/';
   const dashboardBase = root.dataset.dashboardBase || './';
   let csrfToken = root.dataset.csrfToken || '';
@@ -62,6 +64,11 @@ document.addEventListener('DOMContentLoaded', () => {
   const platformProfileForm = document.querySelector('[data-platform-profile-form]');
   const platformProfileList = document.querySelector('[data-platform-profile-list]');
   const platformProfileError = document.querySelector('[data-platform-profile-error]');
+  const faviconForms = Array.from(document.querySelectorAll('[data-favicon-form]'));
+  const faviconLinks = {
+    light: document.querySelector('link[data-partner-favicon="light"]'),
+    dark: document.querySelector('link[data-partner-favicon="dark"]')
+  };
   const analyticsNodes = {
     active: document.querySelector('[data-analytics-active]'),
     fulfilled: document.querySelector('[data-analytics-fulfilled]'),
@@ -89,7 +96,19 @@ document.addEventListener('DOMContentLoaded', () => {
     skuSearch: '',
     cart: [],
     submitting: false,
-    passwordResetRequired: false
+    passwordResetRequired: false,
+    favicons: {
+      light: {
+        configured: Boolean(root.dataset.faviconLightUrl),
+        name: root.dataset.faviconLightName || '',
+        url: root.dataset.faviconLightUrl || ''
+      },
+      dark: {
+        configured: Boolean(root.dataset.faviconDarkUrl),
+        name: root.dataset.faviconDarkName || '',
+        url: root.dataset.faviconDarkUrl || ''
+      }
+    }
   };
   const sectionLabels = {
     overview: 'Overview',
@@ -129,6 +148,18 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(payload.error || `HTTP ${response.status}`);
+    return payload;
+  };
+
+  const requestFormData = async (url, formData) => {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { Accept: 'application/json', 'X-CSRF-Token': csrfToken },
+      credentials: 'same-origin',
+      body: formData
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok || payload.error) throw new Error(payload.error || 'Unable to upload favicon.');
     return payload;
   };
 
@@ -380,6 +411,52 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const normalizeTheme = (theme) => ['system', 'light', 'dark'].includes(theme) ? theme : 'system';
 
+  const applyFaviconLinks = () => {
+    ['light', 'dark'].forEach((theme) => {
+      const link = faviconLinks[theme];
+      if (!(link instanceof HTMLLinkElement)) return;
+      link.href = state.favicons[theme]?.url || defaultFaviconUrl;
+      link.media = state.theme === 'system'
+        ? `(prefers-color-scheme: ${theme})`
+        : (state.theme === theme ? 'all' : 'not all');
+    });
+  };
+
+  const renderFaviconSettings = () => {
+    faviconForms.forEach((form) => {
+      const theme = String(form.dataset.faviconTheme || '');
+      const favicon = state.favicons[theme] || { configured: false, name: '', url: '' };
+      const preview = form.querySelector('[data-favicon-preview]');
+      const image = preview?.querySelector('img');
+      const empty = preview?.querySelector('[data-favicon-empty]');
+      const name = form.querySelector('[data-favicon-name]');
+      const choose = form.querySelector('[data-choose-favicon]');
+      const remove = form.querySelector('[data-remove-favicon]');
+      if (preview) preview.classList.toggle('is-configured', Boolean(favicon.configured));
+      if (image instanceof HTMLImageElement) {
+        image.hidden = !favicon.configured;
+        if (favicon.configured && favicon.url) {
+          image.src = String(favicon.url);
+        } else {
+          image.removeAttribute('src');
+        }
+      }
+      if (empty instanceof HTMLElement) empty.hidden = Boolean(favicon.configured);
+      if (name) name.textContent = favicon.configured ? String(favicon.name || 'Custom favicon') : 'No custom favicon';
+      if (choose) choose.textContent = favicon.configured ? 'Replace' : 'Upload';
+      if (remove instanceof HTMLButtonElement) remove.hidden = !favicon.configured;
+    });
+    applyFaviconLinks();
+  };
+
+  const setFaviconSettings = (favicons = {}) => {
+    state.favicons = {
+      light: { configured: false, name: '', url: '', ...(favicons.light || {}) },
+      dark: { configured: false, name: '', url: '', ...(favicons.dark || {}) }
+    };
+    renderFaviconSettings();
+  };
+
   const applyTheme = (theme = state.theme) => {
     state.theme = normalizeTheme(theme);
     root.dataset.partnerTheme = state.theme;
@@ -390,6 +467,7 @@ document.addEventListener('DOMContentLoaded', () => {
         button.classList.toggle('is-active', button.getAttribute('data-theme-option') === state.theme);
       });
     });
+    applyFaviconLinks();
   };
 
   const setActiveSection = (section, push = false) => {
@@ -1150,6 +1228,11 @@ document.addEventListener('DOMContentLoaded', () => {
     renderPreview();
   };
 
+  const loadFavicons = async () => {
+    const payload = await requestJson(faviconEndpoint);
+    setFaviconSettings(payload.favicons || {});
+  };
+
   document.querySelectorAll('[data-open-order-modal]').forEach((button) => {
     button.addEventListener('click', openOrderModal);
   });
@@ -1472,6 +1555,64 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
+  faviconForms.forEach((form) => {
+    const input = form.querySelector('[data-favicon-input]');
+    const choose = form.querySelector('[data-choose-favicon]');
+    const remove = form.querySelector('[data-remove-favicon]');
+    const errorNode = form.querySelector('[data-favicon-error]');
+    const theme = String(form.dataset.faviconTheme || '');
+
+    choose?.addEventListener('click', () => {
+      if (input instanceof HTMLInputElement) input.click();
+    });
+
+    input?.addEventListener('change', async () => {
+      if (!(input instanceof HTMLInputElement)) return;
+      const file = input.files?.[0];
+      if (!file) return;
+      setError('', errorNode);
+      if (file.size > 1024 * 1024) {
+        setError('Favicon must be no larger than 1 MB.', errorNode);
+        input.value = '';
+        return;
+      }
+
+      const formData = new window.FormData();
+      formData.set('theme', theme);
+      formData.set('favicon', file);
+      if (choose instanceof HTMLButtonElement) choose.disabled = true;
+      if (remove instanceof HTMLButtonElement) remove.disabled = true;
+      try {
+        const payload = await requestFormData(faviconEndpoint, formData);
+        setFaviconSettings(payload.favicons || {});
+      } catch (error) {
+        setError(error instanceof Error ? error.message : 'Unable to upload favicon.', errorNode);
+      } finally {
+        input.value = '';
+        if (choose instanceof HTMLButtonElement) choose.disabled = false;
+        if (remove instanceof HTMLButtonElement) remove.disabled = false;
+      }
+    });
+
+    remove?.addEventListener('click', async () => {
+      setError('', errorNode);
+      if (choose instanceof HTMLButtonElement) choose.disabled = true;
+      if (remove instanceof HTMLButtonElement) remove.disabled = true;
+      try {
+        const payload = await requestJson(faviconEndpoint, {
+          method: 'DELETE',
+          body: { theme }
+        });
+        setFaviconSettings(payload.favicons || {});
+      } catch (error) {
+        setError(error instanceof Error ? error.message : 'Unable to remove favicon.', errorNode);
+      } finally {
+        if (choose instanceof HTMLButtonElement) choose.disabled = false;
+        if (remove instanceof HTMLButtonElement) remove.disabled = false;
+      }
+    });
+  });
+
   document.querySelector('[data-refresh-orders]')?.addEventListener('click', () => {
     loadOrders().catch((error) => setError(error instanceof Error ? error.message : 'Unable to refresh orders.'));
   });
@@ -1525,9 +1666,11 @@ document.addEventListener('DOMContentLoaded', () => {
   }, 15000);
 
   applyTheme(state.theme);
+  renderFaviconSettings();
   window.history.replaceState({ section: state.activeSection }, '', window.location.href);
   setActiveSection(state.activeSection, false);
 
+  loadFavicons().catch(() => {});
   Promise.all([loadSession(), loadOrders()]).catch((error) => {
     setError(error instanceof Error ? error.message : 'Unable to load dashboard.');
   });

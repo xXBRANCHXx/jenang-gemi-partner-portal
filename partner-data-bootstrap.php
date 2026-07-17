@@ -110,7 +110,7 @@ function jg_partner_data_status(): array
     $tables = [];
 
     if ($pdo instanceof PDO) {
-        foreach (['partner_orders', 'partner_order_labels', 'partner_platform_options'] as $tableName) {
+        foreach (['partner_orders', 'partner_order_labels', 'partner_platform_options', 'partner_favicons'] as $tableName) {
             $stmt = $pdo->prepare(
                 'SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES
                  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = :table_name'
@@ -203,6 +203,18 @@ function jg_partner_data_ensure_schema(PDO $pdo): void
             created_at DATETIME NOT NULL,
             UNIQUE KEY uniq_partner_platform_name (partner_code, platform_name),
             KEY idx_partner_platform_partner (partner_code, created_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci',
+        'CREATE TABLE IF NOT EXISTS partner_favicons (
+            partner_code VARCHAR(64) NOT NULL,
+            theme VARCHAR(8) NOT NULL,
+            original_name VARCHAR(255) NOT NULL,
+            stored_name VARCHAR(255) NOT NULL,
+            mime_type VARCHAR(64) NOT NULL,
+            size_bytes BIGINT UNSIGNED NOT NULL DEFAULT 0,
+            created_at DATETIME NOT NULL,
+            updated_at DATETIME NOT NULL,
+            PRIMARY KEY (partner_code, theme),
+            KEY idx_partner_favicons_updated (updated_at)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci',
     ];
 

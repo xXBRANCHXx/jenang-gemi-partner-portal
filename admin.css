@@ -4177,6 +4177,87 @@ body.is-dashboard[data-partner-theme='light'] .partner-month-picker input {
   grid-column: 1 / -1;
 }
 
+.partner-favicon-settings-panel {
+  grid-column: 1 / -1;
+}
+
+.partner-favicon-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 16px;
+}
+
+.partner-favicon-card {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  padding: 14px;
+  border: 1px solid var(--partner-border);
+  border-radius: 18px;
+  background: var(--partner-panel-soft);
+}
+
+.partner-favicon-preview {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  overflow: hidden;
+  border: 1px dashed var(--partner-border);
+  border-radius: 16px;
+  color: var(--partner-muted);
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.partner-favicon-preview.is-configured {
+  border-style: solid;
+}
+
+.partner-favicon-preview img {
+  width: 42px;
+  height: 42px;
+  object-fit: contain;
+}
+
+.partner-favicon-card-copy {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.partner-favicon-card-copy strong {
+  color: var(--partner-text);
+}
+
+.partner-favicon-card-copy span {
+  overflow: hidden;
+  color: var(--partner-muted);
+  font-size: 0.78rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.partner-favicon-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.partner-favicon-card .admin-form-error {
+  grid-column: 2 / -1;
+  margin: 0;
+}
+
+.partner-favicon-help {
+  display: block;
+  margin-top: 12px;
+  color: var(--partner-muted);
+}
+
 .partner-settings-copy {
   margin: 0 0 16px;
   color: var(--partner-muted);
@@ -4381,8 +4462,23 @@ body.is-dashboard[data-partner-theme='light'] .admin-build-badge {
 
   .partner-platform-profile-form,
   .partner-platform-profile-list,
+  .partner-favicon-grid,
   .partner-platform-metrics {
     grid-template-columns: 1fr;
+  }
+
+  .partner-favicon-card {
+    grid-template-columns: 56px minmax(0, 1fr);
+  }
+
+  .partner-favicon-preview {
+    width: 56px;
+    height: 56px;
+  }
+
+  .partner-favicon-actions,
+  .partner-favicon-card .admin-form-error {
+    grid-column: 1 / -1;
   }
 }
 

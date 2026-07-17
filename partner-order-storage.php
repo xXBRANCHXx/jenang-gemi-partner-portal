@@ -2374,11 +2374,13 @@ function jg_partner_order_analytics(array $orders): array
 {
     $monthlyByYear = [];
     $hourlyBuckets = array_fill(0, 24, 0);
+    $totalOrders = 0;
 
     foreach ($orders as $order) {
         if (jg_partner_order_is_archived($order)) {
             continue;
         }
+        $totalOrders += 1;
         $timestamp = strtotime((string) ($order['order_timestamp'] ?? $order['created_at'] ?? ''));
         if ($timestamp === false) {
             continue;
@@ -2413,7 +2415,7 @@ function jg_partner_order_analytics(array $orders): array
         'monthly_by_year' => $monthlyByYear,
         'hourly_distribution' => $hourlyBuckets,
         'busiest_hour' => sprintf('%02d:00', $busiestHour),
-        'total_orders' => count($orders),
+        'total_orders' => $totalOrders,
     ];
 }
 

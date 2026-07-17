@@ -801,11 +801,12 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   const renderAnalytics = () => {
-    const total = state.orders.length;
-    const active = state.orders.filter((order) => !isArchived(order) && !['CANCELLED', 'CANCELED'].includes(String(order.status || '').toUpperCase())).length;
-    const fulfilled = state.orders.filter((order) => ['FULFILLED', 'COMPLETED', 'SHIPPED'].includes(String(order.status || '').toUpperCase())).length;
-    const cancelled = state.orders.filter((order) => ['CANCELLED', 'CANCELED'].includes(String(order.status || '').toUpperCase())).length;
-    const revenue = state.orders.reduce((sum, order) => sum + orderRevenue(order), 0);
+    const analyticsOrders = state.orders.filter((order) => !isArchived(order));
+    const total = analyticsOrders.length;
+    const active = analyticsOrders.filter((order) => !['CANCELLED', 'CANCELED'].includes(String(order.status || '').toUpperCase())).length;
+    const fulfilled = analyticsOrders.filter((order) => ['FULFILLED', 'COMPLETED', 'SHIPPED'].includes(String(order.status || '').toUpperCase())).length;
+    const cancelled = analyticsOrders.filter((order) => ['CANCELLED', 'CANCELED'].includes(String(order.status || '').toUpperCase())).length;
+    const revenue = analyticsOrders.reduce((sum, order) => sum + orderRevenue(order), 0);
 
     if (analyticsNodes.active) analyticsNodes.active.textContent = String(active);
     if (analyticsNodes.fulfilled) analyticsNodes.fulfilled.textContent = String(fulfilled);
@@ -826,7 +827,7 @@ document.addEventListener('DOMContentLoaded', () => {
           fulfilled: 0
         });
       });
-      state.orders.forEach((order) => {
+      analyticsOrders.forEach((order) => {
         const name = canonicalPlatformName(order.marketplace_platform);
         if (!metricMap.has(name)) {
           metricMap.set(name, { name, kind: platformKindForName(name), orders: 0, units: 0, cost: 0, fulfilled: 0 });
@@ -864,8 +865,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (!productMix) return;
     const productUnits = new Map();
-    state.orders.forEach((order) => {
-      if (isArchived(order) || ['CANCELLED', 'CANCELED'].includes(String(order.status || '').toUpperCase())) return;
+    analyticsOrders.forEach((order) => {
+      if (['CANCELLED', 'CANCELED'].includes(String(order.status || '').toUpperCase())) return;
       (order.items || []).forEach((item) => {
         const label = item.product || item.sku_label || item.sku_code || 'Product';
         productUnits.set(label, (productUnits.get(label) || 0) + Number(item.quantity || 0));

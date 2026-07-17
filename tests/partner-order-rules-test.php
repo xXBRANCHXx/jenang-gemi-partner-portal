@@ -86,4 +86,18 @@ partner_order_expect(true, jg_partner_order_is_store_visible(['status' => 'IS_LI
 partner_order_expect(false, jg_partner_order_is_store_visible(['status' => 'CANCELLED']), 'Cancelled orders should disappear from Store Ops.');
 partner_order_expect(false, jg_partner_order_is_store_visible(['status' => 'IS_BEING_FULFILLED']), 'Orders already handed to Store Ops should not be re-listed.');
 
+$analytics = jg_partner_order_analytics([
+    [
+        'order_timestamp' => '2026-07-01T08:00:00Z',
+        'archived_at' => '',
+    ],
+    [
+        'order_timestamp' => '2026-07-02T09:00:00Z',
+        'archived_at' => '2026-07-03T00:00:00Z',
+    ],
+]);
+partner_order_expect(1, $analytics['total_orders'], 'Archived orders should not count toward analytics totals.');
+partner_order_expect(1, $analytics['monthly_by_year']['2026'][6], 'Archived orders should not count toward monthly analytics.');
+partner_order_expect(0, $analytics['hourly_distribution'][9], 'Archived orders should not count toward hourly analytics.');
+
 echo "partner-order-rules-test: ok\n";

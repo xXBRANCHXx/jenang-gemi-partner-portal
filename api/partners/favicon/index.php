@@ -32,8 +32,6 @@ try {
     header('Cache-Control: no-store');
     echo json_encode(['error' => $exception->getMessage()], JSON_UNESCAPED_SLASHES);
 } catch (Throwable) {
-    http_response_code(404);
-    header('Content-Type: application/json; charset=utf-8');
+    header('Location: https://jenanggemi.com/Media/Jenang%20Gemi%20Website%20Logo.png', true, 302);
     header('Cache-Control: public, max-age=300');
-    echo json_encode(['error' => 'Favicon is not configured.'], JSON_UNESCAPED_SLASHES);
 }

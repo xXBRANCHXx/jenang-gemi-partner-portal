@@ -283,7 +283,11 @@ function jg_partner_favicon_delete(string $partnerCode, string $theme): bool
     return true;
 }
 
-function jg_partner_favicon_stream(string $partnerCode, string $theme): never
+function jg_partner_favicon_stream(
+    string $partnerCode,
+    string $theme,
+    string $cacheControl = 'private, max-age=86400'
+): never
 {
     $record = jg_partner_favicon_find($partnerCode, $theme);
     $path = is_array($record) ? jg_partner_favicon_file_path($record) : null;
@@ -298,7 +302,7 @@ function jg_partner_favicon_stream(string $partnerCode, string $theme): never
     }
     header('Content-Type: ' . (string) ($record['mime_type'] ?? 'image/png'));
     header('Content-Length: ' . (string) filesize($path));
-    header('Cache-Control: private, max-age=86400');
+    header('Cache-Control: ' . $cacheControl);
     header('ETag: ' . $etag);
     header('X-Content-Type-Options: nosniff');
     readfile($path);

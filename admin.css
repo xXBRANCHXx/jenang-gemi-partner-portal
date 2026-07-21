@@ -2983,7 +2983,8 @@ button, input {
 }
 
 .partner-order-card.is-archived {
-  opacity: 0.68;
+  filter: grayscale(1);
+  opacity: 0.62;
 }
 
 .partner-order-card-main,
@@ -3666,8 +3667,12 @@ body.is-dashboard {
   --partner-accent-strong: #dedede;
   --partner-danger: #9b7a76;
   --partner-shopee: #ff8a72;
-  --partner-processing: #ffd166;
-  --partner-processing-soft: rgba(255, 209, 102, 0.14);
+  --partner-listed: #78b7ff;
+  --partner-listed-soft: rgba(120, 183, 255, 0.14);
+  --partner-accepted: #78dba9;
+  --partner-accepted-soft: rgba(120, 219, 169, 0.14);
+  --partner-cancelled: #ff827a;
+  --partner-cancelled-soft: rgba(255, 130, 122, 0.14);
   --partner-shadow: 0 20px 60px rgba(0, 0, 0, 0.24);
   color-scheme: dark;
 }
@@ -3686,8 +3691,12 @@ body.is-dashboard[data-partner-theme='light'] {
   --partner-accent-strong: #242424;
   --partner-danger: #765f5c;
   --partner-shopee: #b8321d;
-  --partner-processing: #7a4b00;
-  --partner-processing-soft: rgba(214, 137, 0, 0.14);
+  --partner-listed: #185fa8;
+  --partner-listed-soft: rgba(24, 95, 168, 0.11);
+  --partner-accepted: #176b45;
+  --partner-accepted-soft: rgba(23, 107, 69, 0.12);
+  --partner-cancelled: #a52a24;
+  --partner-cancelled-soft: rgba(165, 42, 36, 0.1);
   --partner-shadow: 0 20px 50px rgba(24, 24, 24, 0.1);
   color-scheme: light;
 }
@@ -3707,8 +3716,12 @@ body.is-dashboard[data-partner-theme='light'] {
     --partner-accent-strong: #242424;
     --partner-danger: #765f5c;
     --partner-shopee: #b8321d;
-    --partner-processing: #7a4b00;
-    --partner-processing-soft: rgba(214, 137, 0, 0.14);
+    --partner-listed: #185fa8;
+    --partner-listed-soft: rgba(24, 95, 168, 0.11);
+    --partner-accepted: #176b45;
+    --partner-accepted-soft: rgba(23, 107, 69, 0.12);
+    --partner-cancelled: #a52a24;
+    --partner-cancelled-soft: rgba(165, 42, 36, 0.1);
     --partner-shadow: 0 20px 50px rgba(24, 24, 24, 0.1);
     color-scheme: light;
   }
@@ -3856,16 +3869,40 @@ body.is-dashboard[data-partner-theme='light'] .partner-sidebar-nav a:hover {
   box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 18%, transparent);
 }
 
-.partner-recent-order .partner-order-status.is-processing,
-.partner-order-card-main .partner-order-status.is-processing {
-  border-color: color-mix(in srgb, var(--partner-processing) 44%, transparent);
-  background: var(--partner-processing-soft);
-  color: var(--partner-processing);
+.partner-recent-order .partner-order-status.is-listed,
+.partner-order-card-main .partner-order-status.is-listed {
+  border-color: color-mix(in srgb, var(--partner-listed) 44%, transparent);
+  background: var(--partner-listed-soft);
+  color: var(--partner-listed);
 }
 
-.partner-order-card.is-processing:not(.is-archived) {
-  border-color: color-mix(in srgb, var(--partner-processing) 38%, var(--partner-border));
-  box-shadow: inset 4px 0 0 var(--partner-processing), var(--partner-shadow);
+.partner-recent-order .partner-order-status.is-accepted,
+.partner-order-card-main .partner-order-status.is-accepted {
+  border-color: color-mix(in srgb, var(--partner-accepted) 44%, transparent);
+  background: var(--partner-accepted-soft);
+  color: var(--partner-accepted);
+}
+
+.partner-recent-order .partner-order-status.is-cancelled,
+.partner-order-card-main .partner-order-status.is-cancelled {
+  border-color: color-mix(in srgb, var(--partner-cancelled) 44%, transparent);
+  background: var(--partner-cancelled-soft);
+  color: var(--partner-cancelled);
+}
+
+.partner-order-card.is-listed:not(.is-archived) {
+  border-color: color-mix(in srgb, var(--partner-listed) 38%, var(--partner-border));
+  box-shadow: inset 4px 0 0 var(--partner-listed), var(--partner-shadow);
+}
+
+.partner-order-card.is-accepted:not(.is-archived) {
+  border-color: color-mix(in srgb, var(--partner-accepted) 38%, var(--partner-border));
+  box-shadow: inset 4px 0 0 var(--partner-accepted), var(--partner-shadow);
+}
+
+.partner-order-card.is-cancelled:not(.is-archived) {
+  border-color: color-mix(in srgb, var(--partner-cancelled) 38%, var(--partner-border));
+  box-shadow: inset 4px 0 0 var(--partner-cancelled), var(--partner-shadow);
 }
 
 .partner-sidebar-primary,

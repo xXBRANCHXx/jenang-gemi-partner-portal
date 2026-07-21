@@ -25,6 +25,11 @@ assert.match(styles, /\.partner-sidebar-profile strong[\s\S]*?color:\s*var\(--pa
 assert.match(styles, /\.partner-password-modal \.admin-affiliate-field input[\s\S]*?background:\s*var\(--partner-panel-soft\)[\s\S]*?color:\s*var\(--partner-text\)/, 'password fields should use partner theme colors');
 assert.match(dashboard, /partner-order-status is-\$\{statusKind\(order\)\}/, 'orders should render their status as a dedicated badge');
 assert.match(dashboard, /partner-order-card is-\$\{statusKind\(order\)\}/, 'order cards should expose their status for visual emphasis');
-assert.match(styles, /\.partner-order-card\.is-processing:not\(\.is-archived\)[\s\S]*?var\(--partner-processing\)/, 'processing order cards should receive a prominent accent');
+assert.match(dashboard, /localizedText\('Listed', 'Terdaftar'\)/, 'new orders should use the requested localized listed label');
+assert.match(dashboard, /localizedText\('Accepted', 'Diterima'\)/, 'accepted orders should use the requested localized label');
+assert.match(styles, /\.partner-order-card\.is-listed:not\(\.is-archived\)[\s\S]*?var\(--partner-listed\)/, 'listed order cards should receive a blue accent');
+assert.match(styles, /\.partner-order-card\.is-accepted:not\(\.is-archived\)[\s\S]*?var\(--partner-accepted\)/, 'accepted order cards should receive a prominent green accent');
+assert.match(styles, /\.partner-order-card\.is-cancelled:not\(\.is-archived\)[\s\S]*?var\(--partner-cancelled\)/, 'cancelled order cards should receive a red accent');
+assert.match(styles, /\.partner-order-card\.is-archived\s*\{[\s\S]*?filter:\s*grayscale\(1\)/, 'archived order cards should be grayed out');
 
 console.log('Partner localization and theme UI checks passed.');

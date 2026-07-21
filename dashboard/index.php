@@ -84,7 +84,7 @@ $sectionUrl = static function (string $section) use ($dashboardPath): string {
     <link rel="stylesheet" href="/admin.css?v=<?php echo urlencode($adminCssVersion ?: '1'); ?>">
 </head>
 <body class="admin-body is-dashboard">
-    <div class="admin-build-badge" aria-label="Partner portal build version">Build 1.02.12</div>
+    <div class="admin-build-badge" aria-label="Partner portal build version">Build 1.02.13</div>
     <div
         class="partner-dashboard-app partner-workspace"
         data-partner-dashboard

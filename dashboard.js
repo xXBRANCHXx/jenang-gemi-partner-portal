@@ -798,17 +798,17 @@ document.addEventListener('DOMContentLoaded', () => {
   const canCancel = (order = {}) => ['IS_LISTED', 'LISTED', ''].includes(String(order.status || 'IS_LISTED').trim().toUpperCase());
   const statusKind = (order = {}) => {
     const status = String(order.status || 'IS_LISTED').trim().toUpperCase();
-    if (status === 'IS_BEING_FULFILLED' || status === 'PROCESSING') return 'processing';
+    if (status === 'IS_BEING_FULFILLED' || status === 'PROCESSING') return 'accepted';
     if (status === 'FULFILLED' || status === 'COMPLETED') return 'fulfilled';
     if (status === 'CANCELLED' || status === 'CANCELED') return 'cancelled';
     return 'listed';
   };
   const statusLabel = (order = {}) => {
     const status = String(order.status || 'IS_LISTED').trim().toUpperCase();
-    if (status === 'IS_BEING_FULFILLED' || status === 'PROCESSING') return localizedText('Processing', 'Diproses');
+    if (status === 'IS_BEING_FULFILLED' || status === 'PROCESSING') return localizedText('Accepted', 'Diterima');
     if (status === 'FULFILLED' || status === 'COMPLETED') return localizedText('Fulfilled', 'Dipenuhi');
     if (status === 'CANCELLED' || status === 'CANCELED') return localizedText('Cancelled', 'Dibatalkan');
-    return 'IS_LISTED';
+    return localizedText('Listed', 'Terdaftar');
   };
   const statusBadge = (order = {}) => {
     const label = statusLabel(order);

@@ -1,6 +1,6 @@
 # Jenang Gemi Partner Portal Versioning
 
-Current partner portal version: `1.02.11`
+Current partner portal version: `1.02.12`
 
 Versioning rule:
 - Default behavior: increment the last two digits by `+1`.

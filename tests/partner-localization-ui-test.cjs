@@ -23,5 +23,8 @@ assert.doesNotMatch(markup, /data-refresh-orders/, 'the redundant chart refresh 
 assert.match(markup, /partner-settings-modal partner-password-modal[^>]+data-password-modal/, 'password modal should use partner theme styling');
 assert.match(styles, /\.partner-sidebar-profile strong[\s\S]*?color:\s*var\(--partner-text\)/, 'partner name should use theme text color');
 assert.match(styles, /\.partner-password-modal \.admin-affiliate-field input[\s\S]*?background:\s*var\(--partner-panel-soft\)[\s\S]*?color:\s*var\(--partner-text\)/, 'password fields should use partner theme colors');
+assert.match(dashboard, /partner-order-status is-\$\{statusKind\(order\)\}/, 'orders should render their status as a dedicated badge');
+assert.match(dashboard, /partner-order-card is-\$\{statusKind\(order\)\}/, 'order cards should expose their status for visual emphasis');
+assert.match(styles, /\.partner-order-card\.is-processing:not\(\.is-archived\)[\s\S]*?var\(--partner-processing\)/, 'processing order cards should receive a prominent accent');
 
 console.log('Partner localization and theme UI checks passed.');

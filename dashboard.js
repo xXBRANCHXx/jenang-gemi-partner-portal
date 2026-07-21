@@ -796,12 +796,24 @@ document.addEventListener('DOMContentLoaded', () => {
   };
   const isArchived = (order = {}) => String(order.archived_at || '').trim() !== '';
   const canCancel = (order = {}) => ['IS_LISTED', 'LISTED', ''].includes(String(order.status || 'IS_LISTED').trim().toUpperCase());
+  const statusKind = (order = {}) => {
+    const status = String(order.status || 'IS_LISTED').trim().toUpperCase();
+    if (status === 'IS_BEING_FULFILLED' || status === 'PROCESSING') return 'processing';
+    if (status === 'FULFILLED' || status === 'COMPLETED') return 'fulfilled';
+    if (status === 'CANCELLED' || status === 'CANCELED') return 'cancelled';
+    return 'listed';
+  };
   const statusLabel = (order = {}) => {
     const status = String(order.status || 'IS_LISTED').trim().toUpperCase();
     if (status === 'IS_BEING_FULFILLED' || status === 'PROCESSING') return localizedText('Processing', 'Diproses');
     if (status === 'FULFILLED' || status === 'COMPLETED') return localizedText('Fulfilled', 'Dipenuhi');
-    if (status === 'CANCELLED') return localizedText('Cancelled', 'Dibatalkan');
+    if (status === 'CANCELLED' || status === 'CANCELED') return localizedText('Cancelled', 'Dibatalkan');
     return 'IS_LISTED';
+  };
+  const statusBadge = (order = {}) => {
+    const label = statusLabel(order);
+    const accessibleLabel = `${localizedText('Order status', 'Status pesanan')}: ${label}`;
+    return `<span class="partner-order-status is-${statusKind(order)}" aria-label="${escapeHtml(accessibleLabel)}"><i aria-hidden="true"></i>${escapeHtml(label)}</span>`;
   };
 
   const orderTime = (order = {}) => {
@@ -1170,7 +1182,7 @@ document.addEventListener('DOMContentLoaded', () => {
           <span>${escapeHtml(order.marketplace_platform || localizedText('Needs review', 'Perlu ditinjau'))} · ${escapeHtml(orderUnits(order))} ${localizedText('qty', 'jumlah')}</span>
         </div>
         <div>
-          <b>${escapeHtml(statusLabel(order))}</b>
+          ${statusBadge(order)}
           <span>${escapeHtml(formatTimestamp(order.order_timestamp || order.created_at || ''))}</span>
         </div>
       </article>
@@ -1198,10 +1210,13 @@ document.addEventListener('DOMContentLoaded', () => {
       `).join('');
 
       return `
-        <article class="partner-order-card ${isArchived(order) ? 'is-archived' : ''}">
+        <article class="partner-order-card is-${statusKind(order)} ${isArchived(order) ? 'is-archived' : ''}">
           <div class="partner-order-card-main">
-            <strong>${escapeHtml(order.id || '')}</strong>
-            <span>${escapeHtml(order.marketplace_platform || 'Needs review')} · ${escapeHtml(statusLabel(order))}</span>
+            <div class="partner-order-heading">
+              <strong>${escapeHtml(order.id || '')}</strong>
+              ${statusBadge(order)}
+            </div>
+            <span>${escapeHtml(order.marketplace_platform || 'Needs review')}</span>
             ${isArchived(order) ? '<em>Archived · removed after 30 days</em>' : ''}
           </div>
           <div class="partner-order-card-items">${items || '<span>No selected SKUs</span>'}</div>

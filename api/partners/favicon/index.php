@@ -32,6 +32,6 @@ try {
     header('Cache-Control: no-store');
     echo json_encode(['error' => $exception->getMessage()], JSON_UNESCAPED_SLASHES);
 } catch (Throwable) {
-    header('Location: https://jenanggemi.com/Media/Jenang%20Gemi%20Website%20Logo.png', true, 302);
+    header('Location: https://admin.jenanggemi.com/assets/admin-icons/favicon-partners-' . $theme . '.svg', true, 302);
     header('Cache-Control: public, max-age=300');
 }

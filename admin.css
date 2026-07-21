@@ -3733,6 +3733,7 @@ body.is-dashboard[data-partner-theme='light'] {
 }
 
 .partner-sidebar h1,
+.partner-sidebar-profile strong,
 .partner-page-head h2,
 .partner-panel-head h3,
 .partner-metric-grid strong,
@@ -4545,6 +4546,47 @@ body.is-dashboard[data-partner-theme='light'] .partner-month-picker input {
   line-height: 1.55;
 }
 
+.partner-password-modal .admin-affiliate-editor {
+  gap: 14px;
+  margin-top: 20px;
+}
+
+.partner-password-modal .admin-modal-card {
+  width: min(620px, 100%);
+}
+
+.partner-password-modal .admin-affiliate-field {
+  gap: 8px;
+}
+
+.partner-password-modal :is(.admin-panel-kicker, .admin-control-label) {
+  color: var(--partner-muted);
+}
+
+.partner-password-modal .admin-table-note {
+  margin: 0;
+  color: var(--partner-muted);
+  font-size: 0.78rem;
+  line-height: 1.55;
+}
+
+.partner-password-modal .admin-affiliate-field input {
+  width: 100%;
+  min-height: 46px;
+  padding: 0 14px;
+  border: 1px solid var(--partner-border);
+  border-radius: 12px;
+  outline: 0;
+  background: var(--partner-panel-soft);
+  color: var(--partner-text);
+  font: 700 0.84rem/1 "Plus Jakarta Sans", sans-serif;
+}
+
+.partner-password-modal .admin-affiliate-field input:focus {
+  border-color: var(--partner-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--partner-accent) 16%, transparent);
+}
+
 .partner-favicon-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -4950,6 +4992,7 @@ body.is-dashboard[data-partner-theme='light'] :is(
 
 body.is-dashboard[data-partner-theme='light'] :is(
   .partner-sidebar h1,
+  .partner-sidebar-profile strong,
   .partner-page-head h2,
   .partner-panel-head h3,
   .partner-metric-grid strong,
@@ -5021,6 +5064,7 @@ body.is-dashboard[data-partner-theme='light'] :is(
 
   body.is-dashboard:not([data-partner-theme='dark']) :is(
     .partner-sidebar h1,
+    .partner-sidebar-profile strong,
     .partner-page-head h2,
     .partner-panel-head h3,
     .partner-metric-grid strong,

@@ -159,7 +159,6 @@ $sectionUrl = static function (string $section) use ($dashboardPath): string {
                                 <span>Sales window</span>
                                 <h3 data-sales-chart-title>Units sold by timeframe</h3>
                             </div>
-                            <button type="button" class="admin-ghost-btn" data-refresh-orders>Refresh</button>
                         </div>
                         <div class="partner-chart-range-controls">
                             <div class="partner-timeframe-toggle" data-timeframe-toggle>
@@ -551,7 +550,7 @@ $sectionUrl = static function (string $section) use ($dashboardPath): string {
         </div>
     </div>
 
-    <div class="admin-modal-shell" data-password-modal hidden>
+    <div class="admin-modal-shell partner-settings-modal partner-password-modal" data-password-modal hidden>
         <div class="admin-modal-backdrop" data-close-password-modal></div>
         <div class="admin-modal-card" role="dialog" aria-modal="true" aria-labelledby="password-modal-title">
             <div class="admin-modal-head">

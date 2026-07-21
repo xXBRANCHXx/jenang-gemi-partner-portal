@@ -147,6 +147,7 @@ document.addEventListener('DOMContentLoaded', () => {
     ['Appearance', 'Tampilan'],
     ['Control how your workspace and browser tab look.', 'Atur tampilan ruang kerja dan tab browser Anda.'],
     ['Theme', 'Tema'],
+    ['Theme preference', 'Preferensi tema'],
     ['Follow your device or keep this workspace light or dark.', 'Ikuti perangkat atau gunakan tema terang maupun gelap.'],
     ['System', 'Sistem'],
     ['Light', 'Terang'],
@@ -180,6 +181,10 @@ document.addEventListener('DOMContentLoaded', () => {
     ['Replace', 'Ganti'],
     ['Empty', 'Kosong'],
     ['No custom favicon', 'Belum ada favicon khusus'],
+    ['Custom favicon', 'Favicon khusus'],
+    ['Custom light icon', 'Ikon terang khusus'],
+    ['Custom dark icon', 'Ikon gelap khusus'],
+    ['Custom light and dark icons', 'Ikon terang dan gelap khusus'],
     ['Add platform', 'Tambah platform'],
     ['Reseller or platform name', 'Nama reseller atau platform'],
     ['Built-in marketplace', 'Marketplace bawaan'],
@@ -191,7 +196,6 @@ document.addEventListener('DOMContentLoaded', () => {
     ['Partner cost', 'Biaya mitra'],
     ['Sales window', 'Periode penjualan'],
     ['Units sold by timeframe', 'Unit terjual berdasarkan periode'],
-    ['Refresh', 'Perbarui'],
     ['Year', 'Tahun'],
     ['All', 'Semua'],
     ['Month', 'Bulan'],
@@ -236,7 +240,86 @@ document.addEventListener('DOMContentLoaded', () => {
     ['No label file selected.', 'Belum ada file label yang dipilih.'],
     ['Label selected', 'Label dipilih'],
     ['Save Password', 'Simpan Kata Sandi'],
-    ['Cancel changes', 'Batalkan perubahan']
+    ['Cancel changes', 'Batalkan perubahan'],
+    ['Partner Dashboard | Jenang Gemi', 'Dashboard Mitra | Jenang Gemi'],
+    ['Partner portal build version', 'Versi portal mitra'],
+    ['Partner navigation', 'Navigasi mitra'],
+    ['Choose chart month', 'Pilih bulan grafik'],
+    ['Platform colors', 'Warna platform'],
+    ['Order platform', 'Platform pesanan'],
+    ['PDF shipment label · maximum 10 MB', 'Label pengiriman PDF · maksimum 10 MB'],
+    ['Approved SKUs', 'SKU yang disetujui'],
+    ['Select products', 'Pilih produk'],
+    ['Search', 'Cari'],
+    ['SKU, product, flavor, tag', 'SKU, produk, rasa, tag'],
+    ['Product', 'Produk'],
+    ['Flavor', 'Rasa'],
+    ['Approved SKUs will load after your session is ready.', 'SKU yang disetujui akan dimuat setelah sesi siap.'],
+    ['Order preview', 'Pratinjau pesanan'],
+    ['Submit Order', 'Kirim Pesanan'],
+    ['Submitting...', 'Mengirim...'],
+    ['Upload one icon for light mode and another for dark mode. Empty slots use the Jenang Gemi icon.', 'Unggah satu ikon untuk mode terang dan satu untuk mode gelap. Slot kosong menggunakan ikon Jenang Gemi.'],
+    ['Light mode', 'Mode terang'],
+    ['Dark mode', 'Mode gelap'],
+    ['PNG or ICO, maximum 1 MB. PNG files must be square, from 16×16 to 1024×1024.', 'PNG atau ICO, maksimum 1 MB. File PNG harus persegi, dari 16×16 hingga 1024×1024.'],
+    ['Add reseller profiles for order entry and reporting. Built-in marketplaces are always available.', 'Tambahkan profil reseller untuk entri pesanan dan laporan. Marketplace bawaan selalu tersedia.'],
+    ['e.g. Bandung Reseller', 'contoh: Reseller Bandung'],
+    ['Loading platform options.', 'Memuat opsi platform.'],
+    ['Set a new password to finish unlocking this workspace.', 'Tetapkan kata sandi baru untuk menyelesaikan pembukaan ruang kerja ini.'],
+    ['Current password', 'Kata sandi saat ini'],
+    ['New password', 'Kata sandi baru'],
+    ['Confirm new password', 'Konfirmasi kata sandi baru'],
+    ['Custom reseller order', 'Pesanan reseller khusus'],
+    ['Marketplace order', 'Pesanan marketplace'],
+    ['Shopee marketplace order', 'Pesanan marketplace Shopee'],
+    ['TikTok/Toped marketplace order', 'Pesanan marketplace TikTok/Toped'],
+    ['Custom reseller', 'Reseller khusus'],
+    ['SKU units', 'Unit SKU'],
+    ['Shipping label', 'Label pengiriman'],
+    ['Open', 'Buka'],
+    ['No file URL', 'URL file tidak tersedia'],
+    ['Platform colors appear after the first order.', 'Warna platform muncul setelah pesanan pertama.'],
+    ['No orders from the last 7 days.', 'Tidak ada pesanan dalam 7 hari terakhir.'],
+    ['Archived · removed after 30 days', 'Diarsipkan · dihapus setelah 30 hari'],
+    ['Stock', 'Stok'],
+    ['Not selected', 'Belum dipilih'],
+    ['Label recipient', 'Penerima label'],
+    ['Customer', 'Pelanggan'],
+    ['SKU quantity', 'Jumlah SKU'],
+    ['Billable units', 'Unit tertagih'],
+    ['Cost to partner', 'Biaya untuk mitra'],
+    ['No approved SKUs selected.', 'Belum ada SKU yang disetujui dipilih.'],
+    ['No approved SKUs are enabled for this partner.', 'Tidak ada SKU yang disetujui dan diaktifkan untuk mitra ini.'],
+    ['No approved SKUs match those filters.', 'Tidak ada SKU yang disetujui sesuai filter tersebut.'],
+    ['No platform units in this period.', 'Tidak ada unit platform pada periode ini.'],
+    ['Add one', 'Tambahkan satu'],
+    ['Quantity for', 'Jumlah untuk'],
+    ['units', 'unit'],
+    ['total units', 'total unit'],
+    ['qty', 'jumlah'],
+    ['selected', 'dipilih'],
+    ['per SKU', 'per SKU'],
+    ['deadline', 'batas waktu'],
+    ['Deletes', 'Dihapus'],
+    ['Saving…', 'Menyimpan…'],
+    ['Regional settings saved.', 'Pengaturan regional tersimpan.'],
+    ['Upload a shipment label PDF.', 'Unggah label pengiriman dalam format PDF.'],
+    ['Shipment label PDF must be 10 MB or smaller.', 'PDF label pengiriman harus berukuran 10 MB atau kurang.'],
+    ['Enter a reseller or platform name.', 'Masukkan nama reseller atau platform.'],
+    ['Unable to add platform.', 'Platform tidak dapat ditambahkan.'],
+    ['Unable to remove platform.', 'Platform tidak dapat dihapus.'],
+    ['Select an order platform.', 'Pilih platform pesanan.'],
+    ['Upload a label and select at least one approved SKU.', 'Unggah label dan pilih setidaknya satu SKU yang disetujui.'],
+    ['Unable to submit order.', 'Pesanan tidak dapat dikirim.'],
+    ['Unable to update archive state.', 'Status arsip tidak dapat diperbarui.'],
+    ['Unable to cancel order.', 'Pesanan tidak dapat dibatalkan.'],
+    ['Favicon must be no larger than 1 MB.', 'Ukuran favicon tidak boleh lebih dari 1 MB.'],
+    ['Unable to upload favicon.', 'Favicon tidak dapat diunggah.'],
+    ['Unable to remove favicon.', 'Favicon tidak dapat dihapus.'],
+    ['New passwords do not match.', 'Kata sandi baru tidak cocok.'],
+    ['Unable to update password.', 'Kata sandi tidak dapat diperbarui.'],
+    ['Unable to load dashboard.', 'Dashboard tidak dapat dimuat.'],
+    ['Unable to save regional settings.', 'Pengaturan regional tidak dapat disimpan.']
   ]);
   const englishTranslations = new Map(Array.from(indonesianTranslations, ([english, indonesian]) => [indonesian, english]));
   const translateTextNode = (node) => {
@@ -879,7 +962,7 @@ document.addEventListener('DOMContentLoaded', () => {
       <article class="partner-product-row">
         <div>
           <strong>${escapeHtml(label)}</strong>
-          <span>${escapeHtml(units)} units</span>
+          <span>${escapeHtml(units)} ${localizedText('units', 'unit')}</span>
         </div>
         <i style="--value:${Math.max(5, Math.round((units / max) * 100))}%"></i>
       </article>
@@ -903,7 +986,7 @@ document.addEventListener('DOMContentLoaded', () => {
         </div>
         <div>
           <span>${escapeHtml(formatTimestamp(label.created_at || order.created_at || ''))}</span>
-          ${label.expires_at ? `<span>Deletes ${escapeHtml(formatTimestamp(label.expires_at))}</span>` : ''}
+          ${label.expires_at ? `<span>${localizedText('Deletes', 'Dihapus')} ${escapeHtml(formatTimestamp(label.expires_at))}</span>` : ''}
           ${label.url ? `<a href="${escapeHtml(label.url)}" target="_blank" rel="noopener">Open</a>` : '<span>No file URL</span>'}
         </div>
       </article>
@@ -972,17 +1055,17 @@ document.addEventListener('DOMContentLoaded', () => {
         <div class="partner-chart-breakdown-row">
           <span class="partner-chart-swatch" style="--platform-color:${platform.color}" aria-hidden="true"></span>
           <strong>${escapeHtml(platform.name)}</strong>
-          <b>${escapeHtml(units)} unit${units === 1 ? '' : 's'}</b>
+          <b>${escapeHtml(units)} ${localizedText(units === 1 ? 'unit' : 'units', 'unit')}</b>
         </div>
       `;
     }).join('');
     salesChartBreakdown.innerHTML = `
       <div class="partner-chart-breakdown-head">
         <strong>${escapeHtml(bucket.label)}</strong>
-        <span>${escapeHtml(bucket.value)} total unit${bucket.value === 1 ? '' : 's'}</span>
+        <span>${escapeHtml(bucket.value)} ${localizedText('total units', 'total unit')}</span>
       </div>
       <div class="partner-chart-breakdown-list">
-        ${rows || '<span class="partner-chart-breakdown-empty">No platform units in this period.</span>'}
+        ${rows || `<span class="partner-chart-breakdown-empty">${localizedText('No platform units in this period.', 'Tidak ada unit platform pada periode ini.')}</span>`}
       </div>
     `;
     const chartBounds = salesChart.getBoundingClientRect();
@@ -1042,11 +1125,11 @@ document.addEventListener('DOMContentLoaded', () => {
       const segments = series.map((platform) => {
         const units = Number(bucket.platforms.get(platform.name) || 0);
         if (units <= 0) return '';
-        return `<span class="partner-bar-segment" style="--platform-color:${platform.color};flex-grow:${units}" title="${escapeHtml(platform.name)}: ${escapeHtml(units)} units"></span>`;
+        return `<span class="partner-bar-segment" style="--platform-color:${platform.color};flex-grow:${units}" title="${escapeHtml(platform.name)}: ${escapeHtml(units)} ${localizedText('units', 'unit')}"></span>`;
       }).join('');
       const height = bucket.value > 0 ? Math.max(4, Math.round((bucket.value / maxValue) * 100)) : 1;
       return `
-        <button type="button" class="partner-bar" data-chart-bucket="${index}" aria-label="${escapeHtml(bucket.label)}: ${escapeHtml(bucket.value)} total units. Focus for platform breakdown.">
+        <button type="button" class="partner-bar" data-chart-bucket="${index}" aria-label="${escapeHtml(bucket.label)}: ${escapeHtml(bucket.value)} ${localizedText('total units. Focus for platform breakdown.', 'total unit. Fokus untuk rincian platform.')}">
           <span class="partner-bar-plot" aria-hidden="true">
             <span class="partner-bar-stack${bucket.value > 0 ? '' : ' is-empty'}" style="height:${height}%">${segments}</span>
           </span>
@@ -1058,7 +1141,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (salesChartLegend) {
       salesChartLegend.innerHTML = series.length ? series.map((platform) => `
         <span><i class="partner-chart-swatch" style="--platform-color:${platform.color}" aria-hidden="true"></i>${escapeHtml(platform.name)}</span>
-      `).join('') : '<span class="partner-chart-legend-empty">Platform colors appear after the first order.</span>';
+      `).join('') : `<span class="partner-chart-legend-empty">${localizedText('Platform colors appear after the first order.', 'Warna platform muncul setelah pesanan pertama.')}</span>`;
     }
 
     salesChart.querySelectorAll('[data-chart-bucket]').forEach((bar) => {
@@ -1084,14 +1167,14 @@ document.addEventListener('DOMContentLoaded', () => {
       <article class="partner-recent-order">
         <div>
           <strong>${escapeHtml(order.id || '')}</strong>
-          <span>${escapeHtml(order.marketplace_platform || 'Needs review')} · ${escapeHtml(orderUnits(order))} qty</span>
+          <span>${escapeHtml(order.marketplace_platform || localizedText('Needs review', 'Perlu ditinjau'))} · ${escapeHtml(orderUnits(order))} ${localizedText('qty', 'jumlah')}</span>
         </div>
         <div>
           <b>${escapeHtml(statusLabel(order))}</b>
           <span>${escapeHtml(formatTimestamp(order.order_timestamp || order.created_at || ''))}</span>
         </div>
       </article>
-    `).join('') : '<p class="admin-empty">No orders from the last 7 days.</p>';
+    `).join('') : `<p class="admin-empty">${localizedText('No orders from the last 7 days.', 'Tidak ada pesanan dalam 7 hari terakhir.')}</p>`;
   };
 
   const renderOrders = () => {
@@ -1124,7 +1207,7 @@ document.addEventListener('DOMContentLoaded', () => {
           <div class="partner-order-card-items">${items || '<span>No selected SKUs</span>'}</div>
           <div class="partner-order-card-meta">
             <span>${escapeHtml(formatTimestamp(order.order_timestamp || order.created_at || ''))}</span>
-            <span>${escapeHtml(order.deadline_hours || 24)}h deadline</span>
+            <span>${escapeHtml(order.deadline_hours || 24)}${localizedText('h', 'j')} ${localizedText('deadline', 'batas waktu')}</span>
             <span>${escapeHtml(formatCurrency(orderRevenue(order)))}</span>
             ${label ? `<a href="${escapeHtml(label.url || '#')}" target="_blank" rel="noopener">${escapeHtml(label.name || 'Label')}</a>` : '<span>No label</span>'}
           </div>
@@ -1268,13 +1351,13 @@ document.addEventListener('DOMContentLoaded', () => {
             <code>${escapeHtml(sku.sku || '')}${sku.tag ? ` · ${escapeHtml(sku.tag)}` : ''}</code>
           </div>
           <div class="partner-sku-meta">
-            <span>Stock <b>${escapeHtml(sku.current_stock ?? 0)}</b></span>
+            <span>${localizedText('Stock', 'Stok')} <b>${escapeHtml(sku.current_stock ?? 0)}</b></span>
             <span>${escapeHtml(unitFormula(sku))}</span>
             <strong>${escapeHtml(formatCurrency(sku.partner_price || 0))}</strong>
           </div>
           <div class="partner-sku-actions">
-            <button type="button" data-add-sku="${escapeHtml(sku.sku)}" data-add-qty="1" aria-label="Add one ${escapeHtml(skuDisplayName(sku))}">+</button>
-            ${inCart ? `<span>${escapeHtml(inCart.quantity)} selected</span>` : ''}
+            <button type="button" data-add-sku="${escapeHtml(sku.sku)}" data-add-qty="1" aria-label="${localizedText('Add one', 'Tambahkan satu')} ${escapeHtml(skuDisplayName(sku))}">+</button>
+            ${inCart ? `<span>${escapeHtml(inCart.quantity)} ${localizedText('selected', 'dipilih')}</span>` : ''}
           </div>
         </article>
       `;
@@ -1301,11 +1384,11 @@ document.addEventListener('DOMContentLoaded', () => {
         <article class="partner-cart-row">
           <div>
             <strong>${escapeHtml(compactSkuDisplayName(item))}</strong>
-            <span>${escapeHtml(item.sku || '')} · ${escapeHtml(formatCurrency(item.partner_price || 0))} per SKU</span>
+            <span>${escapeHtml(item.sku || '')} · ${escapeHtml(formatCurrency(item.partner_price || 0))} ${localizedText('per SKU', 'per SKU')}</span>
           </div>
           <div class="partner-cart-controls">
             <button type="button" data-cart-qty="${escapeHtml(item.sku)}" data-cart-delta="-1">-</button>
-            <input type="number" min="0" step="1" value="${escapeHtml(item.quantity || 0)}" data-cart-input="${escapeHtml(item.sku)}" aria-label="Quantity for ${escapeHtml(compactSkuDisplayName(item))}">
+            <input type="number" min="0" step="1" value="${escapeHtml(item.quantity || 0)}" data-cart-input="${escapeHtml(item.sku)}" aria-label="${localizedText('Quantity for', 'Jumlah untuk')} ${escapeHtml(compactSkuDisplayName(item))}">
             <button type="button" data-cart-qty="${escapeHtml(item.sku)}" data-cart-delta="1">+</button>
           </div>
         </article>
@@ -1437,6 +1520,7 @@ document.addEventListener('DOMContentLoaded', () => {
     root.dataset.partnerLanguage = state.language;
     root.dataset.partnerTimezone = state.timezone;
     document.documentElement.lang = state.language;
+    document.title = localizedText('Partner Dashboard | Jenang Gemi', 'Dashboard Mitra | Jenang Gemi');
     if (languageSetting instanceof HTMLSelectElement) languageSetting.value = state.language;
     if (timezoneSetting instanceof HTMLSelectElement) timezoneSetting.value = state.timezone;
     translateTree(document.body);
@@ -1912,10 +1996,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (remove instanceof HTMLButtonElement) remove.disabled = false;
       }
     });
-  });
-
-  document.querySelector('[data-refresh-orders]')?.addEventListener('click', () => {
-    loadOrders().catch((error) => setError(error instanceof Error ? error.message : 'Unable to refresh orders.'));
   });
 
   passwordForm?.addEventListener('submit', async (event) => {

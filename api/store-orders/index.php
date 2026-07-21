@@ -226,7 +226,9 @@ try {
     $orders = array_values(array_filter(array_map(
         static fn (array $order): array => jg_store_orders_normalize($order),
         jg_partner_order_list_all()
-    ), static fn (array $order): bool => (string) ($order['sourceOrderId'] ?? '') !== '' && jg_store_orders_has_labels($order)));
+    ), static fn (array $order): bool => (string) ($order['sourceOrderId'] ?? '') !== ''
+        && jg_partner_order_is_store_visible($order)
+        && jg_store_orders_has_labels($order)));
 } catch (Throwable $exception) {
     jg_store_orders_fail($exception->getMessage() ?: 'Unable to load partner orders.', 500);
 }

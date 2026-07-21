@@ -44,6 +44,7 @@ If phpMyAdmin needs the tables created manually, import `database/partner-data-s
 - Partner pricing is stored and charged at the SKU level. ASTRA ratios affect inventory units only and do not multiply partner revenue.
 - Partners can add up to 20 custom reseller/platform profiles in Settings. These options appear after Shopee and TikTok/Toped in new orders, receive separate platform metric cards in Analytics, and color-code the stacked Sales window chart.
 - Store Ops can read labeled partner orders from the token-protected `/api/store-orders/` feed, so direct database access is optional.
+- Listed and accepted orders remain in the Store Ops feed until an operator confirms that the shipping label printed; cancelled and fulfilled orders are excluded.
 - Partner access is bound to unique partner URLs like `/{partner_slug}/`; one partner code cannot be used on another partner's landing page.
 - Shipping-label PDFs are stored outside the public web root. Partner downloads require the owning session; Store Ops downloads use five-minute signed links from the existing order feed.
 - Labels have a seven-day maximum lifetime, shortened to three days after fulfillment and one day after cancellation. Expired files are removed automatically whenever partners or Store Ops access the order flow; no external cron job is required.

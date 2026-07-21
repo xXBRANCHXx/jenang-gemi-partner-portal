@@ -24,6 +24,7 @@ assert.match(markup, /partner-settings-modal partner-password-modal[^>]+data-pas
 assert.match(styles, /\.partner-sidebar-profile strong[\s\S]*?color:\s*var\(--partner-text\)/, 'partner name should use theme text color');
 assert.match(styles, /\.partner-password-modal \.admin-affiliate-field input[\s\S]*?background:\s*var\(--partner-panel-soft\)[\s\S]*?color:\s*var\(--partner-text\)/, 'password fields should use partner theme colors');
 assert.match(dashboard, /partner-order-status is-\$\{statusKind\(order\)\}/, 'orders should render their status as a dedicated badge');
+assert.match(dashboard, /const renderRecentOrders[\s\S]*?\$\{statusBadge\(order\)\}/, 'Overview recent orders should use the same color-coded status badge');
 assert.match(dashboard, /partner-order-card is-\$\{statusKind\(order\)\}/, 'order cards should expose their status for visual emphasis');
 assert.match(dashboard, /localizedText\('Listed', 'Terdaftar'\)/, 'new orders should use the requested localized listed label');
 assert.match(dashboard, /localizedText\('Accepted', 'Diterima'\)/, 'accepted orders should use the requested localized label');

@@ -83,8 +83,9 @@ partner_order_expect(false, jg_partner_order_status_can_transition('IS_BEING_FUL
 partner_order_expect(false, jg_partner_order_status_can_transition('FULFILLED', 'IS_LISTED'), 'A fulfilled order must not return to the Store Ops queue.');
 partner_order_expect(false, jg_partner_order_status_can_transition('CANCELLED', 'IS_BEING_FULFILLED'), 'A stale Store Ops client must not revive a cancelled order.');
 partner_order_expect(true, jg_partner_order_is_store_visible(['status' => 'IS_LISTED']), 'Listed orders should appear in Store Ops.');
+partner_order_expect(true, jg_partner_order_is_store_visible(['status' => 'IS_BEING_FULFILLED']), 'Accepted orders should remain in Store Ops until label printing is confirmed.');
 partner_order_expect(false, jg_partner_order_is_store_visible(['status' => 'CANCELLED']), 'Cancelled orders should disappear from Store Ops.');
-partner_order_expect(false, jg_partner_order_is_store_visible(['status' => 'IS_BEING_FULFILLED']), 'Orders already handed to Store Ops should not be re-listed.');
+partner_order_expect(false, jg_partner_order_is_store_visible(['status' => 'FULFILLED']), 'Fulfilled orders should disappear from Store Ops.');
 
 $analytics = jg_partner_order_analytics([
     [

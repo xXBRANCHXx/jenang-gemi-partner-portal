@@ -1179,7 +1179,11 @@ function jg_partner_order_status_can_transition(string $currentStatus, string $n
 
 function jg_partner_order_is_store_visible(array $order): bool
 {
-    return jg_partner_order_normalize_status((string) ($order['status'] ?? 'IS_LISTED')) === 'IS_LISTED';
+    return in_array(
+        jg_partner_order_normalize_status((string) ($order['status'] ?? 'IS_LISTED')),
+        ['IS_LISTED', 'IS_BEING_FULFILLED'],
+        true
+    );
 }
 
 function jg_partner_order_is_archived(array $order): bool

@@ -108,6 +108,10 @@ $portalCopy = $requestedPartner
     <main class="admin-login-shell">
         <section class="admin-login-card">
             <div class="admin-login-brand">
+                <span class="admin-login-mark" aria-hidden="true">
+                    <span></span>
+                    <span></span>
+                </span>
                 <span class="admin-chip"><?php echo htmlspecialchars($portalChip, ENT_QUOTES); ?></span>
                 <h1><?php echo htmlspecialchars($portalTitle, ENT_QUOTES); ?></h1>
                 <p><?php echo htmlspecialchars($portalCopy, ENT_QUOTES); ?></p>

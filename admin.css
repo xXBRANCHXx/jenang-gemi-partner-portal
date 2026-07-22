@@ -3942,7 +3942,7 @@ body.is-dashboard[data-partner-theme='light'] {
   position: sticky;
   top: 0;
   background:
-    radial-gradient(circle at 50% 16%, color-mix(in srgb, var(--partner-accent) 10%, transparent), transparent 40%),
+    radial-gradient(circle at 50% 16%, rgba(102, 112, 133, 0.1), transparent 40%),
     var(--partner-panel);
 }
 
@@ -3981,18 +3981,9 @@ body.is-dashboard[data-partner-theme='light'] {
 
 .partner-report-paper-hero {
   position: relative;
-  height: 22%;
+  height: 18%;
   padding: 8%;
   background: #f4f2ed;
-  border-bottom: 3px solid #486485;
-}
-
-.partner-report-paper-hero::before {
-  position: absolute;
-  inset: 0 auto 0 0;
-  width: 4px;
-  background: #486485;
-  content: '';
 }
 
 .partner-report-paper-identity {
@@ -4000,7 +3991,7 @@ body.is-dashboard[data-partner-theme='light'] {
   grid-template-columns: 36px minmax(0, 1fr);
   align-items: center;
   gap: 10px;
-  width: 74%;
+  width: 62%;
 }
 
 .partner-report-paper-mark {
@@ -4009,24 +4000,27 @@ body.is-dashboard[data-partner-theme='light'] {
   height: 36px;
   overflow: hidden;
   place-items: center;
-  border: 1px solid #d6d5cf;
   border-radius: 8px;
-  background: #fff;
 }
 
 .partner-report-paper-mark img {
-  width: 78%;
-  height: 78%;
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  padding: 4px;
+  border: 1px solid #d6d5cf;
+  border-radius: 8px;
+  background: #fff;
   object-fit: contain;
 }
 
 .partner-report-paper-mark b {
   display: grid;
-  width: calc(100% - 5px);
-  height: calc(100% - 5px);
+  width: 100%;
+  height: 100%;
   place-items: center;
-  border-radius: 6px;
-  background: #486485;
+  border-radius: 7px;
+  background: #667085;
   color: #fff;
   font-size: 0.55rem;
   letter-spacing: 0.03em;
@@ -4039,10 +4033,13 @@ body.is-dashboard[data-partner-theme='light'] {
 }
 
 .partner-report-paper-identity small {
-  color: #486485;
+  overflow: hidden;
+  color: #667085;
   font-size: 0.27rem;
   font-weight: 900;
   letter-spacing: 0.07em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .partner-report-paper-identity strong {
@@ -4054,9 +4051,12 @@ body.is-dashboard[data-partner-theme='light'] {
 }
 
 .partner-report-paper-identity em {
+  overflow: hidden;
   color: #686f78;
   font-size: 0.31rem;
   font-style: normal;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .partner-report-paper-hero > b {
@@ -4070,7 +4070,11 @@ body.is-dashboard[data-partner-theme='light'] {
   color: #555d68;
   font-size: 0.23rem;
   letter-spacing: 0.04em;
+  max-width: 30%;
+  overflow: hidden;
+  text-overflow: ellipsis;
   text-transform: uppercase;
+  white-space: nowrap;
 }
 
 .partner-report-paper-hero > i {
@@ -4083,6 +4087,9 @@ body.is-dashboard[data-partner-theme='light'] {
   color: #8a8c89;
   font-size: 0.25rem;
   font-style: normal;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .partner-report-paper-metrics {
@@ -4104,7 +4111,7 @@ body.is-dashboard[data-partner-theme='light'] {
   margin: 1% 7% 6%;
   border-radius: 5px;
   background:
-    linear-gradient(90deg, #7e94b3 0 22%, transparent 22%) 8% 25% / 54% 3px no-repeat,
+    linear-gradient(90deg, #667085 0 22%, transparent 22%) 8% 25% / 54% 3px no-repeat,
     repeating-linear-gradient(#dde2e8 0 2px, transparent 2px 7px) 8% 58% / 84% 18px no-repeat,
     #252f40;
 }
@@ -4118,7 +4125,7 @@ body.is-dashboard[data-partner-theme='light'] {
 .partner-report-paper-lines i {
   height: 5px;
   border-radius: 4px;
-  background: linear-gradient(90deg, #667f9f 0 var(--paper-value, 68%), #e6e6e3 var(--paper-value, 68%));
+  background: linear-gradient(90deg, #667085 0 var(--paper-value, 68%), #e6e6e3 var(--paper-value, 68%));
 }
 
 .partner-report-paper-lines i:nth-child(2) { --paper-value: 84%; }
@@ -4127,15 +4134,24 @@ body.is-dashboard[data-partner-theme='light'] {
 
 .partner-report-paper footer {
   position: absolute;
+  display: flex;
   right: 7%;
   bottom: 3%;
   left: 7%;
+  min-width: 0;
   padding-top: 5px;
   border-top: 1px solid #deded9;
   color: #747a80;
   font-size: 0.25rem;
   font-weight: 800;
   letter-spacing: 0.04em;
+}
+
+.partner-report-paper footer span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .partner-report-paper footer span + span::before {

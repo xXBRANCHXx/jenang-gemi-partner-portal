@@ -24,5 +24,8 @@ assert.match(api, /jg_partner_favicon_list\(\$partnerCode\)/, 'PDF rendering sho
 assert.match(api, /'icon_path' => \$iconPath/, 'the selected partner icon should be passed to the production renderer');
 assert.match(api, /Content-Type: application\/pdf/, 'the report endpoint should return a PDF');
 assert.match(styles, /\.partner-report-paper[\s\S]*aspect-ratio:\s*210\s*\/\s*297/, 'the on-page preview should use A4 proportions');
+assert.match(styles, /\.partner-report-paper-mark b[\s\S]*background:\s*#667085/, 'the preview fallback identity should match the neutral PDF accent');
+assert.doesNotMatch(styles, /\.partner-report-paper-hero\s*\{[^}]*border-bottom/, 'the preview should not restore the removed offset header frame');
+assert.match(styles, /\.partner-report-paper-identity strong[\s\S]*text-overflow:\s*ellipsis/, 'the preview should constrain long partner names');
 
 console.log('Partner report UI checks passed.');

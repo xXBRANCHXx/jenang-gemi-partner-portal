@@ -720,7 +720,7 @@ function jg_partner_report_render(array $partner, array $orders, array $options)
         'timezone_label' => $copy['timezone'] . ': ' . $timezone->getName(),
         'initials' => jg_partner_report_profile_initials($partnerName),
         'icon_asset' => $iconAsset,
-        'accent' => (string) ($iconAsset['accent'] ?? jg_partner_report_fallback_accent($partnerName)),
+        'accent' => jg_partner_report_fallback_accent($partnerName),
         'dataset_label' => $sample ? $copy['dataset_sample'] : $copy['dataset_live'],
     ];
 

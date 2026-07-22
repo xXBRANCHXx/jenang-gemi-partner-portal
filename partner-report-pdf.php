@@ -291,8 +291,7 @@ function jg_partner_report_profile_initials(string $name): string
 
 function jg_partner_report_fallback_accent(string $name): string
 {
-    $palette = ['#486485', '#77596e', '#8a6049', '#3f6d6a', '#71644a', '#54627a'];
-    return $palette[abs((int) crc32($name)) % count($palette)];
+    return '#667085';
 }
 
 /** @return array{data:string,width:int,height:int,accent:string}|null */
@@ -599,14 +598,14 @@ function jg_partner_report_date_label(DateTimeImmutable $date, string $language,
 
 function jg_partner_report_draw_profile_mark(JGPartnerPdfDocument $pdf, array $data, float $x, float $top, float $size): void
 {
-    $pdf->roundedRect($x, $top, $size, $size, $size * 0.22, '#ffffff', '#d8d8d3', 0.7);
     $asset = $data['icon_asset'] ?? null;
     if (is_array($asset) && is_string($asset['data'] ?? null)) {
+        $pdf->roundedRect($x, $top, $size, $size, $size * 0.22, '#ffffff', '#d8d8d3', 0.7);
         $inset = $size * 0.12;
         $pdf->jpeg($x + $inset, $top + $inset, $size - ($inset * 2), $size - ($inset * 2), $asset['data'], (int) $asset['width'], (int) $asset['height']);
         return;
     }
-    $pdf->roundedRect($x + 3, $top + 3, $size - 6, $size - 6, $size * 0.18, $data['accent']);
+    $pdf->roundedRect($x, $top, $size, $size, $size * 0.20, $data['accent']);
     $fontSize = $size * (mb_strlen($data['initials']) > 1 ? 0.30 : 0.38);
     $pdf->text($x, $top + ($size * 0.62), $data['initials'], $fontSize, true, '#ffffff', 'center', $size);
 }
@@ -615,8 +614,6 @@ function jg_partner_report_header(JGPartnerPdfDocument $pdf, array $data, array 
 {
     if ($firstPage) {
         $pdf->rect(0, 0, 595.28, 152, '#f4f2ed');
-        $pdf->rect(0, 0, 7, 152, $data['accent']);
-        $pdf->rect(0, 149, 595.28, 3, $data['accent']);
         jg_partner_report_draw_profile_mark($pdf, $data, 44, 31, 58);
         $pdf->text(118, 42, strtoupper($copy['report_title']), 7.4, true, $data['accent']);
         $nameSize = mb_strlen($data['partner_name']) > 34 ? 17 : (mb_strlen($data['partner_name']) > 24 ? 19.5 : 22);
@@ -633,8 +630,6 @@ function jg_partner_report_header(JGPartnerPdfDocument $pdf, array $data, array 
         return 176;
     }
     $pdf->rect(0, 0, 595.28, 70, '#f4f2ed');
-    $pdf->rect(0, 0, 5, 70, $data['accent']);
-    $pdf->rect(0, 68, 595.28, 2, $data['accent']);
     jg_partner_report_draw_profile_mark($pdf, $data, 44, 15, 38);
     $pdf->text(94, 29, $data['partner_name'], 10.2, true, '#202938');
     $pdf->text(94, 45, strtoupper($copy['report_title']), 6.5, true, $data['accent']);
@@ -778,7 +773,7 @@ function jg_partner_report_render(array $partner, array $orders, array $options)
             $snapshot = [
                 [$copy['top_product'], (string) $products[0]['name'], $data['accent']],
                 [$copy['product_lines'], number_format(count($summary['products'])), '#737d8b'],
-                [$copy['top_three_share'], number_format($summary['units'] > 0 ? ($topThreeUnits / $summary['units']) * 100 : 0, 0) . '%', '#9a8068'],
+                [$copy['top_three_share'], number_format($summary['units'] > 0 ? ($topThreeUnits / $summary['units']) * 100 : 0, 0) . '%', '#7d8794'],
             ];
             foreach ($snapshot as $index => [$label, $value, $accent]) {
                 $cardWidth = 164;

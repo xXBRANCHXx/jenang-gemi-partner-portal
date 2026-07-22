@@ -62,6 +62,7 @@ report_expect(true, str_ends_with($pdf, "%%EOF\n"), 'The PDF should have a compl
 report_expect(true, str_contains($pdf, 'Laporan Kinerja Mitra'), 'The PDF should follow Indonesian language settings.');
 report_expect(true, str_contains($pdf, 'DATA CONTOH - BUKAN UNTUK PEMBUKUAN'), 'Sample documents should identify the fictional dataset without changing the report layout.');
 report_expect('TP', jg_partner_report_profile_initials('Test Partner'), 'Partners without a favicon should receive an initial-based profile mark.');
+report_expect('#667085', jg_partner_report_fallback_accent('Test Partner'), 'Partners without a favicon should use the neutral gray report accent.');
 
 if (function_exists('imagecreatetruecolor')) {
     $iconPath = sys_get_temp_dir() . '/partner-report-icon-' . bin2hex(random_bytes(4)) . '.png';

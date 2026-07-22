@@ -3744,21 +3744,6 @@ body.is-dashboard[data-partner-theme='light'] {
   border-radius: 24px;
 }
 
-.partner-report-language-badge {
-  display: inline-flex;
-  align-items: center;
-  min-height: 28px;
-  padding: 0 10px;
-  border: 1px solid color-mix(in srgb, var(--partner-accent) 42%, transparent);
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--partner-accent) 11%, transparent);
-  color: var(--partner-accent) !important;
-  font-size: 0.65rem !important;
-  font-weight: 800;
-  letter-spacing: 0.02em;
-  white-space: nowrap;
-}
-
 .partner-report-intro {
   max-width: 680px;
   margin: -3px 0 22px;

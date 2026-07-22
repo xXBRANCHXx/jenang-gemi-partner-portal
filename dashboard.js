@@ -249,7 +249,6 @@ document.addEventListener('DOMContentLoaded', () => {
     ['No product data yet.', 'Belum ada data produk.'],
     ['Document builder', 'Penyusun dokumen'],
     ['Create a PDF report', 'Buat laporan PDF'],
-    ['Matches language settings', 'Sesuai pengaturan bahasa'],
     ['Build a polished, print-ready record for filing, reconciliation, or internal review.', 'Buat dokumen profesional dan siap cetak untuk arsip, rekonsiliasi, atau tinjauan internal.'],
     ['Reporting period', 'Periode laporan'],
     ['Start date', 'Tanggal mulai'],

@@ -284,7 +284,6 @@ $sectionUrl = static function (string $section) use ($dashboardPath): string {
                                 <span>Document builder</span>
                                 <h3>Create a PDF report</h3>
                             </div>
-                            <span class="partner-report-language-badge">Matches language settings</span>
                         </div>
                         <p class="partner-report-intro">Build a polished, print-ready record for filing, reconciliation, or internal review.</p>
 

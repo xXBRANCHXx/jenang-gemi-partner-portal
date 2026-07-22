@@ -116,6 +116,30 @@ final class JGPartnerPdfDocument
         return $width * $size;
     }
 
+    public function fitText(string $text, float $width, float $size, bool $bold = false): string
+    {
+        $text = trim($text);
+        if ($text === '' || $width <= 0) return '';
+        if ($this->textWidth($text, $size, $bold) <= $width) return $text;
+
+        $suffix = '...';
+        if ($this->textWidth($suffix, $size, $bold) > $width) return '';
+        $low = 0;
+        $high = mb_strlen($text);
+        $best = $suffix;
+        while ($low <= $high) {
+            $middle = intdiv($low + $high, 2);
+            $candidate = rtrim(mb_substr($text, 0, $middle)) . $suffix;
+            if ($this->textWidth($candidate, $size, $bold) <= $width) {
+                $best = $candidate;
+                $low = $middle + 1;
+            } else {
+                $high = $middle - 1;
+            }
+        }
+        return $best;
+    }
+
     private function encode(string $text): string
     {
         $encoded = @iconv('UTF-8', 'Windows-1252//TRANSLIT//IGNORE', $text);
@@ -130,6 +154,9 @@ final class JGPartnerPdfDocument
 
     public function text(float $x, float $top, string $text, float $size = 10, bool $bold = false, string $color = '#17202a', string $align = 'left', ?float $boxWidth = null): void
     {
+        if ($boxWidth !== null) {
+            $text = $this->fitText($text, $boxWidth, $size, $bold);
+        }
         if ($align !== 'left' && $boxWidth !== null) {
             $textWidth = $this->textWidth($text, $size, $bold);
             if ($align === 'right') $x += max(0, $boxWidth - $textWidth);
@@ -149,29 +176,45 @@ final class JGPartnerPdfDocument
 
     public function wrappedText(float $x, float $top, string $text, float $width, float $size = 9, bool $bold = false, string $color = '#43505d', float $lineHeight = 13, int $maxLines = 0): float
     {
-        $words = preg_split('/\s+/', trim($text)) ?: [];
+        $remaining = trim(preg_replace('/\s+/u', ' ', $text) ?? $text);
         $lines = [];
-        $line = '';
-        foreach ($words as $word) {
-            $candidate = $line === '' ? $word : $line . ' ' . $word;
-            if ($line !== '' && $this->textWidth($candidate, $size, $bold) > $width) {
-                $lines[] = $line;
-                $line = $word;
-            } else {
-                $line = $candidate;
+        while ($remaining !== '') {
+            if ($this->textWidth($remaining, $size, $bold) <= $width) {
+                $lines[] = $remaining;
+                break;
             }
+
+            $low = 1;
+            $high = mb_strlen($remaining);
+            $fittingLength = 1;
+            while ($low <= $high) {
+                $middle = intdiv($low + $high, 2);
+                if ($this->textWidth(mb_substr($remaining, 0, $middle), $size, $bold) <= $width) {
+                    $fittingLength = $middle;
+                    $low = $middle + 1;
+                } else {
+                    $high = $middle - 1;
+                }
+            }
+
+            $candidate = mb_substr($remaining, 0, $fittingLength);
+            $space = mb_strrpos($candidate, ' ');
+            $breakLength = $space !== false && $space > 0 ? $space : $fittingLength;
+            $line = rtrim(mb_substr($remaining, 0, $breakLength));
+            if ($line === '') {
+                $line = mb_substr($remaining, 0, 1);
+                $breakLength = 1;
+            }
+            $lines[] = $line;
+            $remaining = ltrim(mb_substr($remaining, $breakLength));
         }
-        if ($line !== '') $lines[] = $line;
         if ($maxLines > 0 && count($lines) > $maxLines) {
+            $overflow = implode(' ', array_slice($lines, $maxLines - 1));
             $lines = array_slice($lines, 0, $maxLines);
-            $last = rtrim($lines[$maxLines - 1], '.,;:') . '...';
-            while ($this->textWidth($last, $size, $bold) > $width && mb_strlen($last) > 4) {
-                $last = mb_substr($last, 0, -4) . '...';
-            }
-            $lines[$maxLines - 1] = $last;
+            $lines[$maxLines - 1] = $this->fitText($overflow, $width, $size, $bold);
         }
         foreach ($lines as $index => $value) {
-            $this->text($x, $top + ($index * $lineHeight), $value, $size, $bold, $color);
+            $this->text($x, $top + ($index * $lineHeight), $value, $size, $bold, $color, 'left', $width);
         }
         return max($lineHeight, count($lines) * $lineHeight);
     }
@@ -208,7 +251,7 @@ final class JGPartnerPdfDocument
         foreach (array_keys($this->pages) as $page) {
             $this->page = $page;
             $this->line(44, 804, self::WIDTH - 44, 804, '#d9e0df', 0.6);
-            $this->text(44, 822, $leftLabel, 7.5, true, '#687673');
+            $this->text(44, 822, $leftLabel, 7.5, true, '#687673', 'left', 365);
             $this->text(self::WIDTH - 164, 822, sprintf('%s %d / %d', $pageLabel, $page + 1, $total), 7.5, true, '#687673', 'right', 120);
         }
         $this->page = $activePage;
@@ -615,10 +658,10 @@ function jg_partner_report_header(JGPartnerPdfDocument $pdf, array $data, array 
     if ($firstPage) {
         $pdf->rect(0, 0, 595.28, 152, '#f4f2ed');
         jg_partner_report_draw_profile_mark($pdf, $data, 44, 31, 58);
-        $pdf->text(118, 42, strtoupper($copy['report_title']), 7.4, true, $data['accent']);
+        $pdf->text(118, 42, strtoupper($copy['report_title']), 7.4, true, $data['accent'], 'left', 280);
         $nameSize = mb_strlen($data['partner_name']) > 34 ? 17 : (mb_strlen($data['partner_name']) > 24 ? 19.5 : 22);
-        $pdf->text(118, 70, (string) $data['partner_name'], $nameSize, true, '#202938');
-        $pdf->text(118, 93, $copy['reporting_period'] . '  /  ' . $data['period_label'], 8.7, false, '#59616d');
+        $pdf->text(118, 70, (string) $data['partner_name'], $nameSize, true, '#202938', 'left', 280);
+        $pdf->text(118, 93, $copy['reporting_period'] . '  /  ' . $data['period_label'], 8.7, false, '#59616d', 'left', 280);
         $pdf->roundedRect(418, 31, 133, 26, 13, '#ffffff', '#d7d7d1', 0.7);
         $datasetSize = mb_strlen($data['dataset_label']) > 22 ? 5.6 : 6.9;
         $pdf->text(418, 48, $data['dataset_label'], $datasetSize, true, '#4d5664', 'center', 133);
@@ -626,13 +669,13 @@ function jg_partner_report_header(JGPartnerPdfDocument $pdf, array $data, array 
         $pdf->text(418, 93, $data['document_ref'], 8.5, true, '#252e3c');
         $pdf->text(418, 113, $data['timezone_label'], 6.7, false, '#6c737c');
         $pdf->line(44, 123, 551, 123, '#d9d8d2', 0.6);
-        $pdf->text(44, 139, $copy['portal_attribution'], 6.6, false, '#858883');
+        $pdf->text(44, 139, $copy['portal_attribution'], 6.6, false, '#858883', 'left', 350);
         return 176;
     }
     $pdf->rect(0, 0, 595.28, 70, '#f4f2ed');
     jg_partner_report_draw_profile_mark($pdf, $data, 44, 15, 38);
-    $pdf->text(94, 29, $data['partner_name'], 10.2, true, '#202938');
-    $pdf->text(94, 45, strtoupper($copy['report_title']), 6.5, true, $data['accent']);
+    $pdf->text(94, 29, $data['partner_name'], 10.2, true, '#202938', 'left', 260);
+    $pdf->text(94, 45, strtoupper($copy['report_title']), 6.5, true, $data['accent'], 'left', 260);
     $pdf->text(378, 29, $data['period_label'], 7.3, true, '#3f4855', 'right', 173);
     $pdf->text(378, 45, $data['document_ref'], 6.5, false, '#747a82', 'right', 173);
     return 92;
@@ -640,8 +683,8 @@ function jg_partner_report_header(JGPartnerPdfDocument $pdf, array $data, array 
 
 function jg_partner_report_section_title(JGPartnerPdfDocument $pdf, float $y, string $eyebrow, string $title): float
 {
-    $pdf->text(44, $y, strtoupper($eyebrow), 7.2, true, '#747b83');
-    $pdf->text(44, $y + 19, $title, 15.5, true, '#202938');
+    $pdf->text(44, $y, strtoupper($eyebrow), 7.2, true, '#747b83', 'left', 507);
+    $pdf->text(44, $y + 19, $title, 15.5, true, '#202938', 'left', 507);
     $pdf->line(44, $y + 31, 551, $y + 31, '#deded9', 0.7);
     return $y + 47;
 }
@@ -694,15 +737,16 @@ function jg_partner_report_render(array $partner, array $orders, array $options)
     foreach ($cards as $index => [$label, $value, $caption]) {
         $x = 44 + ($index * ($cardWidth + 7));
         $pdf->roundedRect($x, $y, $cardWidth, 77, 9, '#f6f5f2', '#deded9', 0.7);
-        $pdf->text($x + 12, $y + 18, strtoupper($label), 6.7, true, '#737980');
+        $innerWidth = $cardWidth - 24;
+        $pdf->text($x + 12, $y + 18, strtoupper($label), 6.7, true, '#737980', 'left', $innerWidth);
         $valueSize = mb_strlen($value) > 15 ? 11.5 : (mb_strlen($value) > 10 ? 13.5 : 19);
-        $pdf->text($x + 12, $y + 45, $value, $valueSize, true, '#202938');
-        $pdf->text($x + 12, $y + 64, $caption, 6.6, false, '#8a8d91');
+        $pdf->text($x + 12, $y + 45, $value, $valueSize, true, '#202938', 'left', $innerWidth);
+        $pdf->text($x + 12, $y + 64, $caption, 6.6, false, '#8a8d91', 'left', $innerWidth);
     }
     $y += 101;
 
     $pdf->roundedRect(44, $y, 507, 74, 10, '#252f40');
-    $pdf->text(60, $y + 21, strtoupper($copy['summary']), 7.2, true, $data['accent']);
+    $pdf->text(60, $y + 21, strtoupper($copy['summary']), 7.2, true, $data['accent'], 'left', 474);
     $pdf->wrappedText(60, $y + 41, $copy['summary_copy'], 474, 8.3, false, '#eef0f3', 12, 3);
     $y += 97;
 
@@ -714,7 +758,7 @@ function jg_partner_report_render(array $partner, array $orders, array $options)
         $rowY = $y + (intdiv($index, 2) * 38);
         $count = (int) $summary['status'][$kind];
         $ratio = $count / $totalStatuses;
-        $pdf->text($x, $rowY + 9, $copy[$kind], 8.2, true, '#3a424d');
+        $pdf->text($x, $rowY + 9, $copy[$kind], 8.2, true, '#3a424d', 'left', 190);
         $pdf->text($x + 222, $rowY + 9, (string) $count, 8.2, true, '#3a424d', 'right', 28);
         $pdf->roundedRect($x, $rowY + 18, 250, 7, 3.5, '#e9e9e6');
         if ($count > 0) $pdf->roundedRect($x, $rowY + 18, max(7, 250 * $ratio), 7, 3.5, $statusColors[$kind]);
@@ -759,7 +803,7 @@ function jg_partner_report_render(array $partner, array $orders, array $options)
             foreach ($products as $product) {
                 if ($y > 742) $y = jg_partner_report_new_page($pdf, $data, $copy, $sample);
                 $pdf->wrappedText(44, $y + 10, (string) $product['name'], 285, 8.1, true, '#2d3541', 10, 1);
-                $pdf->text(335, $y + 10, number_format((int) $product['units']) . ' ' . strtolower($copy['units']), 7.8, true, '#5d6670');
+                $pdf->text(335, $y + 10, number_format((int) $product['units']) . ' ' . strtolower($copy['units']), 7.8, true, '#5d6670', 'left', 88);
                 $pdf->text(430, $y + 10, jg_partner_report_currency((float) $product['cost'], $language), 7.8, true, '#2d3541', 'right', 121);
                 $pdf->roundedRect(44, $y + 19, 507, 5, 2.5, '#e9e9e6');
                 $pdf->roundedRect(44, $y + 19, max(5, 507 * ((int) $product['units'] / $maxUnits)), 5, 2.5, $data['accent']);
@@ -780,11 +824,11 @@ function jg_partner_report_render(array $partner, array $orders, array $options)
                 $x = 44 + ($index * 171.5);
                 $pdf->roundedRect($x, $y, $cardWidth, 78, 9, '#f6f5f2', '#deded9', 0.7);
                 $pdf->rect($x, $y, 4, 78, $accent);
-                $pdf->text($x + 14, $y + 19, strtoupper($label), 6.4, true, '#737980');
+                $pdf->text($x + 14, $y + 19, strtoupper($label), 6.4, true, '#737980', 'left', 136);
                 if ($index === 0) {
                     $pdf->wrappedText($x + 14, $y + 43, $value, 136, 9.2, true, '#202938', 11, 2);
                 } else {
-                    $pdf->text($x + 14, $y + 54, $value, 20, true, '#202938');
+                    $pdf->text($x + 14, $y + 54, $value, 20, true, '#202938', 'left', 136);
                 }
             }
             $y += 100;
@@ -824,12 +868,12 @@ function jg_partner_report_render(array $partner, array $orders, array $options)
                 $rowFill = $index % 2 === 0 ? '#f5f7f6' : '#ffffff';
                 $pdf->rect(44, $y, 507, 36, $rowFill);
                 $date = $order['_report_time'];
-                $pdf->text(50, $y + 21, jg_partner_report_date_label($date, $language), 6.5, false, '#43534e');
+                $pdf->text(50, $y + 21, jg_partner_report_date_label($date, $language), 6.5, false, '#43534e', 'left', 68);
                 $pdf->wrappedText(124, $y + 14, (string) ($order['id'] ?? ''), 96, 6.7, true, '#243832', 8, 1);
                 $pdf->wrappedText(124, $y + 26, trim((string) ($order['customer_name'] ?? '')) ?: '-', 96, 5.9, false, '#70807a', 7, 1);
                 $platformName = trim((string) ($order['marketplace_platform'] ?? '')) ?: $copy['unassigned'];
                 $pdf->wrappedText(228, $y + 20, $platformName, 87, 6.7, false, '#43534e', 8, 1);
-                $pdf->text(323, $y + 21, $copy[$kind], 6.7, true, $statusColors[$kind]);
+                $pdf->text(323, $y + 21, $copy[$kind], 6.7, true, $statusColors[$kind], 'left', 70);
                 $pdf->text(399, $y + 21, (string) jg_partner_report_order_units($order), 6.7, true, '#243832', 'right', 42);
                 $ledgerCost = $kind === 'cancelled' ? 0.0 : jg_partner_report_order_cost($order);
                 $pdf->text(444, $y + 21, jg_partner_report_currency($ledgerCost, $language), 6.7, true, '#243832', 'right', 101);
@@ -844,7 +888,7 @@ function jg_partner_report_render(array $partner, array $orders, array $options)
     $pdf->roundedRect(44, $y, 507, 74, 9, '#f6f5f2', '#deded9', 0.7);
     $notesCopy = $sample ? $copy['notes_copy_sample'] : $copy['notes_copy'];
     $pdf->wrappedText(58, $y + 22, $notesCopy, 475, 8.2, false, '#555d67', 12, 4);
-    $pdf->text(58, $y + 60, $copy['generated'] . ': ' . jg_partner_report_date_label($generated, $language, true) . '  /  ' . $copy['dataset'] . ': ' . $data['dataset_label'], 6.9, true, '#777c82');
+    $pdf->text(58, $y + 60, $copy['generated'] . ': ' . jg_partner_report_date_label($generated, $language, true) . '  /  ' . $copy['dataset'] . ': ' . $data['dataset_label'], 6.9, true, '#777c82', 'left', 479);
 
     $footerPartner = mb_substr($data['partner_name'], 0, 34);
     $pdf->addFooters(strtoupper($footerPartner . '  /  ' . $copy['confidential']), $copy['page']);

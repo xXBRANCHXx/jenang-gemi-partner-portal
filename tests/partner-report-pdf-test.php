@@ -64,6 +64,13 @@ report_expect(true, str_contains($pdf, 'DATA CONTOH - BUKAN UNTUK PEMBUKUAN'), '
 report_expect('TP', jg_partner_report_profile_initials('Test Partner'), 'Partners without a favicon should receive an initial-based profile mark.');
 report_expect('#667085', jg_partner_report_fallback_accent('Test Partner'), 'Partners without a favicon should use the neutral gray report accent.');
 
+$measurementPdf = new JGPartnerPdfDocument('Width test');
+$fittedText = $measurementPdf->fitText(str_repeat('W', 80), 72, 9, true);
+report_expect(true, str_ends_with($fittedText, '...'), 'Overlong single-line values should be visibly truncated.');
+report_expect(true, $measurementPdf->textWidth($fittedText, 9, true) <= 72, 'Fitted text should remain inside its assigned width.');
+$measurementPdf->wrappedText(20, 20, str_repeat('UNBROKEN', 30), 72, 9, true, '#000000', 11, 2);
+report_expect(true, str_contains($measurementPdf->output(), '...'), 'Overlong unbroken values should be safely wrapped and truncated.');
+
 if (function_exists('imagecreatetruecolor')) {
     $iconPath = sys_get_temp_dir() . '/partner-report-icon-' . bin2hex(random_bytes(4)) . '.png';
     $icon = imagecreatetruecolor(32, 32);

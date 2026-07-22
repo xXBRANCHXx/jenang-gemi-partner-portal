@@ -4300,7 +4300,7 @@ body.is-dashboard[data-partner-theme='light'] .admin-modal-card .admin-primary-b
   margin-bottom: 0;
 }
 
-.partner-month-picker {
+.partner-date-filter {
   display: inline-flex;
   align-items: center;
   min-height: 42px;
@@ -4313,7 +4313,23 @@ body.is-dashboard[data-partner-theme='light'] .admin-modal-card .admin-primary-b
   cursor: pointer;
 }
 
-.partner-month-picker span {
+.partner-date-filter-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  cursor: pointer;
+}
+
+.partner-date-filter-toggle input {
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  accent-color: var(--partner-accent-strong);
+  cursor: pointer;
+}
+
+.partner-date-filter-toggle span,
+.partner-custom-date-field > span {
   color: inherit;
   font-size: 0.72rem;
   font-weight: 800;
@@ -4321,7 +4337,8 @@ body.is-dashboard[data-partner-theme='light'] .admin-modal-card .admin-primary-b
   text-transform: uppercase;
 }
 
-.partner-month-picker input {
+.partner-date-filter > input,
+.partner-custom-date-field input {
   min-height: 32px;
   width: 9.4rem;
   padding: 0 9px;
@@ -4335,17 +4352,47 @@ body.is-dashboard[data-partner-theme='light'] .admin-modal-card .admin-primary-b
   cursor: pointer;
 }
 
-.partner-month-picker.is-active {
+.partner-date-filter.is-active {
   border-color: var(--partner-accent);
   color: var(--partner-text);
 }
 
-body.is-dashboard[data-partner-theme='light'] .partner-month-picker input {
+.partner-date-filter.is-disabled,
+.partner-timeframe-toggle.is-disabled {
+  opacity: 0.38;
+  filter: grayscale(1);
+}
+
+.partner-timeframe-toggle button:disabled,
+.partner-date-filter input:disabled {
+  cursor: not-allowed;
+}
+
+.partner-custom-range-picker {
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.partner-custom-date-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.partner-custom-date-field input {
+  width: 8.7rem;
+}
+
+.partner-custom-date-separator {
+  color: var(--partner-faint);
+}
+
+body.is-dashboard[data-partner-theme='light'] .partner-date-filter :is(input[type='month'], input[type='date']) {
   color-scheme: light;
 }
 
 @media (prefers-color-scheme: light) {
-  body.is-dashboard:not([data-partner-theme='dark']) .partner-month-picker input {
+  body.is-dashboard:not([data-partner-theme='dark']) .partner-date-filter :is(input[type='month'], input[type='date']) {
     color-scheme: light;
   }
 }

@@ -84,7 +84,7 @@ $sectionUrl = static function (string $section) use ($dashboardPath): string {
     <link rel="stylesheet" href="/admin.css?v=<?php echo urlencode($adminCssVersion ?: '1'); ?>">
 </head>
 <body class="admin-body is-dashboard">
-    <div class="admin-build-badge" aria-label="Partner portal build version">Build 1.02.14</div>
+    <div class="admin-build-badge" aria-label="Partner portal build version">Build 1.02.15</div>
     <div
         class="partner-dashboard-app partner-workspace"
         data-partner-dashboard
@@ -162,17 +162,34 @@ $sectionUrl = static function (string $section) use ($dashboardPath): string {
                         </div>
                         <div class="partner-chart-range-controls">
                             <div class="partner-timeframe-toggle" data-timeframe-toggle>
-                                <button type="button" data-timeframe="24h">24H</button>
+                                <button type="button" data-timeframe="today">Today</button>
                                 <button type="button" data-timeframe="7d">7D</button>
                                 <button type="button" data-timeframe="30d">30D</button>
-                                <button type="button" data-timeframe="90d">90D</button>
                                 <button type="button" data-timeframe="year">Year</button>
                                 <button type="button" data-timeframe="all">All</button>
                             </div>
-                            <label class="partner-month-picker" data-month-picker>
-                                <span>Month</span>
-                                <input type="month" data-chart-month aria-label="Choose chart month">
-                            </label>
+                            <div class="partner-date-filter" data-month-picker>
+                                <label class="partner-date-filter-toggle">
+                                    <input type="checkbox" data-chart-month-toggle>
+                                    <span>Month</span>
+                                </label>
+                                <input type="month" data-chart-month aria-label="Choose chart month" disabled>
+                            </div>
+                            <div class="partner-date-filter partner-custom-range-picker" data-custom-range-picker>
+                                <label class="partner-date-filter-toggle">
+                                    <input type="checkbox" data-chart-custom-toggle>
+                                    <span>Custom</span>
+                                </label>
+                                <label class="partner-custom-date-field">
+                                    <span>Start</span>
+                                    <input type="date" data-chart-start-date aria-label="Choose chart start date" disabled>
+                                </label>
+                                <span class="partner-custom-date-separator" aria-hidden="true">–</span>
+                                <label class="partner-custom-date-field">
+                                    <span>End</span>
+                                    <input type="date" data-chart-end-date aria-label="Choose chart end date" disabled>
+                                </label>
+                            </div>
                         </div>
                         <div class="partner-chart-visual">
                             <div class="partner-chart-breakdown" data-sales-chart-breakdown aria-live="polite" hidden></div>

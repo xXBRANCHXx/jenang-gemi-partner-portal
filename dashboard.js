@@ -30,7 +30,12 @@ document.addEventListener('DOMContentLoaded', () => {
   const partnerCodeNode = document.querySelector('[data-partner-code]');
   const timeframeToggle = document.querySelector('[data-timeframe-toggle]');
   const monthPicker = document.querySelector('[data-month-picker]');
+  const chartMonthToggle = document.querySelector('[data-chart-month-toggle]');
   const chartMonthInput = document.querySelector('[data-chart-month]');
+  const customRangePicker = document.querySelector('[data-custom-range-picker]');
+  const chartCustomToggle = document.querySelector('[data-chart-custom-toggle]');
+  const chartStartDateInput = document.querySelector('[data-chart-start-date]');
+  const chartEndDateInput = document.querySelector('[data-chart-end-date]');
   const salesChart = document.querySelector('[data-sales-chart]');
   const salesChartBreakdown = document.querySelector('[data-sales-chart-breakdown]');
   const salesChartLegend = document.querySelector('[data-sales-chart-legend]');
@@ -87,6 +92,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const now = new Date();
   const currentChartMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const dateInputValue = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  const defaultCustomStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 29);
 
   const state = {
     partner: null,
@@ -97,6 +104,8 @@ document.addEventListener('DOMContentLoaded', () => {
     orders: [],
     selectedTimeframe: '30d',
     selectedMonth: currentChartMonth,
+    selectedStartDate: dateInputValue(defaultCustomStart),
+    selectedEndDate: dateInputValue(now),
     activeSection: root.dataset.activeSection || 'overview',
     theme: window.localStorage.getItem('partner-theme') || 'system',
     labelFile: null,
@@ -196,9 +205,13 @@ document.addEventListener('DOMContentLoaded', () => {
     ['Partner cost', 'Biaya mitra'],
     ['Sales window', 'Periode penjualan'],
     ['Units sold by timeframe', 'Unit terjual berdasarkan periode'],
+    ['Today', 'Hari ini'],
     ['Year', 'Tahun'],
     ['All', 'Semua'],
     ['Month', 'Bulan'],
+    ['Custom', 'Kustom'],
+    ['Start', 'Mulai'],
+    ['End', 'Selesai'],
     ['Recent orders', 'Pesanan terbaru'],
     ['Last 7 days', '7 hari terakhir'],
     ['Order history', 'Riwayat pesanan'],
@@ -245,6 +258,8 @@ document.addEventListener('DOMContentLoaded', () => {
     ['Partner portal build version', 'Versi portal mitra'],
     ['Partner navigation', 'Navigasi mitra'],
     ['Choose chart month', 'Pilih bulan grafik'],
+    ['Choose chart start date', 'Pilih tanggal mulai grafik'],
+    ['Choose chart end date', 'Pilih tanggal selesai grafik'],
     ['Platform colors', 'Warna platform'],
     ['Order platform', 'Platform pesanan'],
     ['PDF shipment label · maximum 10 MB', 'Label pengiriman PDF · maksimum 10 MB'],
@@ -835,20 +850,53 @@ document.addEventListener('DOMContentLoaded', () => {
     };
   };
 
+  const parseDateInput = (value) => {
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+    if (!match) return null;
+    const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+    if (date.getFullYear() !== Number(match[1]) || date.getMonth() !== Number(match[2]) - 1 || date.getDate() !== Number(match[3])) return null;
+    return date;
+  };
+
+  const selectedCustomBounds = () => {
+    const start = parseDateInput(state.selectedStartDate);
+    const selectedEnd = parseDateInput(state.selectedEndDate);
+    if (!start || !selectedEnd || selectedEnd < start) return null;
+    return {
+      start,
+      end: new Date(selectedEnd.getFullYear(), selectedEnd.getMonth(), selectedEnd.getDate() + 1),
+      selectedEnd
+    };
+  };
+
   const timeframeStart = (range) => {
     const now = new Date();
-    if (range === '24h') return new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    if (range === 'today') return new Date(now.getFullYear(), now.getMonth(), now.getDate());
     if (range === '7d') return new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
     if (range === '30d') return new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-    if (range === '90d') return new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
     if (range === 'year') return new Date(now.getFullYear(), 0, 1);
     return null;
   };
 
   const filteredOrders = (range = state.selectedTimeframe) => {
     const chartOrders = state.orders.filter((order) => !isArchived(order) && String(order.status || '').toUpperCase() !== 'CANCELLED');
+    if (range === 'today') {
+      const start = timeframeStart(range);
+      const end = start ? new Date(start.getFullYear(), start.getMonth(), start.getDate() + 1) : null;
+      return start && end ? chartOrders.filter((order) => {
+        const timestamp = orderTime(order);
+        return timestamp && timestamp >= start && timestamp < end;
+      }) : [];
+    }
     if (range === 'month') {
       const bounds = selectedMonthBounds();
+      return bounds ? chartOrders.filter((order) => {
+        const timestamp = orderTime(order);
+        return timestamp && timestamp >= bounds.start && timestamp < bounds.end;
+      }) : [];
+    }
+    if (range === 'custom') {
+      const bounds = selectedCustomBounds();
       return bounds ? chartOrders.filter((order) => {
         const timestamp = orderTime(order);
         return timestamp && timestamp >= bounds.start && timestamp < bounds.end;
@@ -866,11 +914,16 @@ document.addEventListener('DOMContentLoaded', () => {
       const bounds = selectedMonthBounds();
       return bounds ? bounds.start.toLocaleDateString(localeCode(), { month: 'long', year: 'numeric', timeZone: state.timezone }) : localizedText('Selected month', 'Bulan terpilih');
     }
+    if (state.selectedTimeframe === 'custom') {
+      const bounds = selectedCustomBounds();
+      if (!bounds) return localizedText('Custom range', 'Rentang kustom');
+      const options = { day: 'numeric', month: 'short', year: 'numeric', timeZone: state.timezone };
+      return `${bounds.start.toLocaleDateString(localeCode(), options)} – ${bounds.selectedEnd.toLocaleDateString(localeCode(), options)}`;
+    }
     return ({
-      '24h': localizedText('Last 24 hours', '24 jam terakhir'),
+      today: localizedText('Today', 'Hari ini'),
       '7d': localizedText('Last 7 days', '7 hari terakhir'),
       '30d': localizedText('Last 30 days', '30 hari terakhir'),
-      '90d': localizedText('Last 90 days', '90 hari terakhir'),
       year: localizedText('This year', 'Tahun ini'),
       all: localizedText('All time', 'Sepanjang waktu')
     })[state.selectedTimeframe] || localizedText('Last 30 days', '30 hari terakhir');
@@ -1022,15 +1075,25 @@ document.addEventListener('DOMContentLoaded', () => {
       return Array.from({ length: days }, (_, index) => makeDay(new Date(bounds.year, bounds.monthIndex, index + 1)));
     }
 
-    if (range === '24h') {
+    if (range === 'custom') {
+      const bounds = selectedCustomBounds();
+      if (!bounds) return [];
+      const buckets = [];
+      for (let date = new Date(bounds.start); date < bounds.end; date.setDate(date.getDate() + 1)) {
+        buckets.push(makeDay(new Date(date)));
+      }
+      return buckets;
+    }
+
+    if (range === 'today') {
       return Array.from({ length: 24 }, (_, index) => {
-        const date = new Date(now.getTime() - (23 - index) * 60 * 60 * 1000);
+        const date = new Date(now.getFullYear(), now.getMonth(), now.getDate(), index);
         return { key: `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}-${date.getHours()}`, label: `${String(date.getHours()).padStart(2, '0')}:00`, value: 0, platforms: new Map() };
       });
     }
 
-    if (range === '7d' || range === '30d' || range === '90d') {
-      const days = range === '7d' ? 7 : range === '30d' ? 30 : 90;
+    if (range === '7d' || range === '30d') {
+      const days = range === '7d' ? 7 : 30;
       return Array.from({ length: days }, (_, index) => makeDay(new Date(now.getFullYear(), now.getMonth(), now.getDate() - (days - 1 - index))));
     }
 
@@ -1088,14 +1151,41 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const renderChart = () => {
     if (!salesChart) return;
+    const usesMonth = state.selectedTimeframe === 'month';
+    const usesCustomRange = state.selectedTimeframe === 'custom';
+    const usesDateFilter = usesMonth || usesCustomRange;
     if (timeframeToggle) {
+      timeframeToggle.classList.toggle('is-disabled', usesDateFilter);
       timeframeToggle.querySelectorAll('[data-timeframe]').forEach((button) => {
         button.classList.toggle('is-active', button.getAttribute('data-timeframe') === state.selectedTimeframe);
+        if (button instanceof HTMLButtonElement) button.disabled = usesDateFilter;
       });
     }
-    monthPicker?.classList.toggle('is-active', state.selectedTimeframe === 'month');
+    monthPicker?.classList.toggle('is-active', usesMonth);
+    monthPicker?.classList.toggle('is-disabled', usesCustomRange);
+    customRangePicker?.classList.toggle('is-active', usesCustomRange);
+    customRangePicker?.classList.toggle('is-disabled', usesMonth);
+    if (chartMonthToggle instanceof HTMLInputElement) {
+      chartMonthToggle.checked = usesMonth;
+      chartMonthToggle.disabled = usesCustomRange;
+    }
     if (chartMonthInput instanceof HTMLInputElement && chartMonthInput.value !== state.selectedMonth) {
       chartMonthInput.value = state.selectedMonth;
+    }
+    if (chartMonthInput instanceof HTMLInputElement) chartMonthInput.disabled = !usesMonth;
+    if (chartCustomToggle instanceof HTMLInputElement) {
+      chartCustomToggle.checked = usesCustomRange;
+      chartCustomToggle.disabled = usesMonth;
+    }
+    if (chartStartDateInput instanceof HTMLInputElement) {
+      chartStartDateInput.value = state.selectedStartDate;
+      chartStartDateInput.disabled = !usesCustomRange;
+      chartStartDateInput.max = state.selectedEndDate;
+    }
+    if (chartEndDateInput instanceof HTMLInputElement) {
+      chartEndDateInput.value = state.selectedEndDate;
+      chartEndDateInput.disabled = !usesCustomRange;
+      chartEndDateInput.min = state.selectedStartDate;
     }
     if (salesChartTitle) salesChartTitle.textContent = timeframeLabel();
 
@@ -1116,8 +1206,8 @@ document.addEventListener('DOMContentLoaded', () => {
     orders.forEach((order) => {
       const timestamp = orderTime(order);
       if (!timestamp) return;
-      const usesDailyBuckets = ['7d', '30d', '90d', 'month'].includes(state.selectedTimeframe);
-      const key = state.selectedTimeframe === '24h'
+      const usesDailyBuckets = ['7d', '30d', 'month', 'custom'].includes(state.selectedTimeframe);
+      const key = state.selectedTimeframe === 'today'
         ? `${timestamp.getFullYear()}-${timestamp.getMonth()}-${timestamp.getDate()}-${timestamp.getHours()}`
         : usesDailyBuckets
           ? `${timestamp.getFullYear()}-${timestamp.getMonth()}-${timestamp.getDate()}`
@@ -1921,13 +2011,48 @@ document.addEventListener('DOMContentLoaded', () => {
     renderChart();
   });
 
+  if (chartMonthToggle instanceof HTMLInputElement) {
+    chartMonthToggle.addEventListener('change', () => {
+      state.selectedTimeframe = chartMonthToggle.checked ? 'month' : '30d';
+      renderMetrics();
+      renderChart();
+    });
+  }
+
   if (chartMonthInput instanceof HTMLInputElement) {
     chartMonthInput.max = currentChartMonth;
     chartMonthInput.value = state.selectedMonth;
     chartMonthInput.addEventListener('change', () => {
       if (!/^\d{4}-\d{2}$/.test(chartMonthInput.value)) return;
       state.selectedMonth = chartMonthInput.value;
-      state.selectedTimeframe = 'month';
+      renderMetrics();
+      renderChart();
+    });
+  }
+
+  if (chartCustomToggle instanceof HTMLInputElement) {
+    chartCustomToggle.addEventListener('change', () => {
+      state.selectedTimeframe = chartCustomToggle.checked ? 'custom' : '30d';
+      renderMetrics();
+      renderChart();
+    });
+  }
+
+  if (chartStartDateInput instanceof HTMLInputElement) {
+    chartStartDateInput.addEventListener('change', () => {
+      if (!parseDateInput(chartStartDateInput.value)) return;
+      state.selectedStartDate = chartStartDateInput.value;
+      if (state.selectedStartDate > state.selectedEndDate) state.selectedEndDate = state.selectedStartDate;
+      renderMetrics();
+      renderChart();
+    });
+  }
+
+  if (chartEndDateInput instanceof HTMLInputElement) {
+    chartEndDateInput.addEventListener('change', () => {
+      if (!parseDateInput(chartEndDateInput.value)) return;
+      state.selectedEndDate = chartEndDateInput.value;
+      if (state.selectedEndDate < state.selectedStartDate) state.selectedStartDate = state.selectedEndDate;
       renderMetrics();
       renderChart();
     });

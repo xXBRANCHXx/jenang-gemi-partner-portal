@@ -6,6 +6,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const ordersEndpoint = root.dataset.ordersEndpoint || '../api/orders/';
   const labelsEndpoint = root.dataset.labelsEndpoint || '../api/order-labels/';
   const faviconEndpoint = root.dataset.faviconEndpoint || '../api/favicon/';
+  const reportsEndpoint = root.dataset.reportsEndpoint || '../api/reports/';
   const defaultFaviconUrl = root.dataset.defaultFaviconUrl || '';
   const logoutUrl = root.dataset.logoutUrl || '../logout/';
   const dashboardBase = root.dataset.dashboardBase || './';
@@ -74,6 +75,16 @@ document.addEventListener('DOMContentLoaded', () => {
   const platformSettingsSummary = document.querySelector('[data-platform-settings-summary]');
   const regionalSettingsForm = document.querySelector('[data-regional-settings-form]');
   const regionalSettingsStatus = document.querySelector('[data-regional-settings-status]');
+  const reportForm = document.querySelector('[data-report-form]');
+  const reportStartInput = document.querySelector('[data-report-start]');
+  const reportEndInput = document.querySelector('[data-report-end]');
+  const reportDownloadButton = document.querySelector('[data-report-download]');
+  const reportStatus = document.querySelector('[data-report-status]');
+  const reportPreviewPeriod = document.querySelector('[data-report-preview-period]');
+  const reportPreviewPartner = document.querySelector('[data-report-preview-partner]');
+  const reportPreviewFooter = document.querySelector('[data-report-preview-footer]');
+  const reportPreviewIcon = document.querySelector('[data-report-preview-icon]');
+  const reportPreviewInitial = document.querySelector('[data-report-preview-initial]');
   const languageSetting = document.querySelector('[data-language-setting]');
   const timezoneSetting = document.querySelector('[data-timezone-setting]');
   const faviconForms = Array.from(document.querySelectorAll('[data-favicon-form]'));
@@ -137,6 +148,7 @@ document.addEventListener('DOMContentLoaded', () => {
     orders: 'Orders',
     labels: 'Labels',
     analytics: 'Analytics',
+    reports: 'Reports',
     settings: 'Settings'
   };
   const indonesianTranslations = new Map([
@@ -146,6 +158,7 @@ document.addEventListener('DOMContentLoaded', () => {
     ['Orders', 'Pesanan'],
     ['Labels', 'Label Pengiriman'],
     ['Analytics', 'Analitik'],
+    ['Reports', 'Laporan'],
     ['Settings', 'Pengaturan'],
     ['New Order', 'Pesanan Baru'],
     ['Active partner', 'Mitra aktif'],
@@ -234,6 +247,45 @@ document.addEventListener('DOMContentLoaded', () => {
     ['Product mix', 'Komposisi produk'],
     ['Product units', 'Unit produk'],
     ['No product data yet.', 'Belum ada data produk.'],
+    ['Document builder', 'Penyusun dokumen'],
+    ['Create a PDF report', 'Buat laporan PDF'],
+    ['Matches language settings', 'Sesuai pengaturan bahasa'],
+    ['Build a polished, print-ready record for filing, reconciliation, or internal review.', 'Buat dokumen profesional dan siap cetak untuk arsip, rekonsiliasi, atau tinjauan internal.'],
+    ['Reporting period', 'Periode laporan'],
+    ['Start date', 'Tanggal mulai'],
+    ['End date', 'Tanggal selesai'],
+    ['Report date presets', 'Pilihan periode laporan'],
+    ['This month', 'Bulan ini'],
+    ['Last month', 'Bulan lalu'],
+    ['Year to date', 'Tahun berjalan'],
+    ['Include in report', 'Sertakan dalam laporan'],
+    ['Executive summary', 'Ringkasan eksekutif'],
+    ['Core totals, methodology, and order status', 'Total utama, metodologi, dan status pesanan'],
+    ['Always included', 'Selalu disertakan'],
+    ['Sales channels', 'Kanal penjualan'],
+    ['Orders, units, and partner cost by channel', 'Pesanan, unit, dan biaya mitra per kanal'],
+    ['Best-selling products with visual comparisons', 'Produk terlaris dengan perbandingan visual'],
+    ['Order ledger', 'Rincian pesanan'],
+    ['Print-friendly line-by-line order history', 'Riwayat pesanan terperinci yang siap dicetak'],
+    ['Download PDF', 'Unduh PDF'],
+    ['PDF language and number formatting follow Regional Settings.', 'Bahasa dan format angka PDF mengikuti Pengaturan Regional.'],
+    ['PDF preview', 'Pratinjau PDF'],
+    ['PDF report preview', 'Pratinjau laporan PDF'],
+    ['A4 · Print ready', 'A4 · Siap cetak'],
+    ['Selected reporting period', 'Periode laporan terpilih'],
+    ['Partner-branded document identity', 'Identitas dokumen bermerek mitra'],
+    ['Automatic multi-page tables', 'Tabel multi-halaman otomatis'],
+    ['Selectable text and vector graphics', 'Teks dapat dipilih dan grafis vektor'],
+    ['Localized dates, labels, and IDR values', 'Tanggal, label, dan nilai IDR yang dilokalkan'],
+    ['PARTNER PERFORMANCE REPORT', 'LAPORAN KINERJA MITRA'],
+    ['Internal record', 'Dokumen internal'],
+    ['Portal records', 'Data Portal'],
+    ['Prepared through Jenang Gemi Partner Portal', 'Disiapkan melalui Portal Mitra Jenang Gemi'],
+    ['Generating PDF…', 'Membuat PDF…'],
+    ['Your PDF download is ready.', 'Unduhan PDF Anda siap.'],
+    ['Choose a valid report date range.', 'Pilih rentang tanggal laporan yang valid.'],
+    ['Reports can cover up to 367 days.', 'Laporan dapat mencakup maksimal 367 hari.'],
+    ['Unable to download the PDF report.', 'Laporan PDF tidak dapat diunduh.'],
     ['New order', 'Pesanan baru'],
     ['Upload label, then choose approved SKUs', 'Unggah label, lalu pilih SKU yang disetujui'],
     ['Customer name', 'Nama pelanggan'],
@@ -744,6 +796,15 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       if (initial instanceof HTMLElement) initial.hidden = Boolean(favicon.configured);
     });
+    const reportFavicon = state.favicons.light?.configured
+      ? state.favicons.light
+      : (state.favicons.dark?.configured ? state.favicons.dark : null);
+    if (reportPreviewIcon instanceof HTMLImageElement) {
+      reportPreviewIcon.hidden = !reportFavicon?.url;
+      if (reportFavicon?.url) reportPreviewIcon.src = String(reportFavicon.url);
+      else reportPreviewIcon.removeAttribute('src');
+    }
+    if (reportPreviewInitial instanceof HTMLElement) reportPreviewInitial.hidden = Boolean(reportFavicon?.url);
     applyFaviconLinks();
   };
 
@@ -778,7 +839,9 @@ document.addEventListener('DOMContentLoaded', () => {
     sectionLinks.forEach((link) => {
       link.classList.toggle('is-active', link.getAttribute('data-partner-section-link') === next);
     });
-    if (pageTitle) pageTitle.textContent = sectionLabels[next];
+    if (pageTitle) pageTitle.textContent = state.language === 'id'
+      ? (indonesianTranslations.get(sectionLabels[next]) || sectionLabels[next])
+      : sectionLabels[next];
     if (push) {
       window.history.pushState({ section: next }, '', sectionUrl(next));
     }
@@ -1637,6 +1700,7 @@ document.addEventListener('DOMContentLoaded', () => {
     renderLabelQueue();
     renderSkuList();
     setActiveSection(state.activeSection, false);
+    renderReportPreview();
     translateTree(document.body);
   };
 
@@ -1660,6 +1724,13 @@ document.addEventListener('DOMContentLoaded', () => {
     state.passwordResetRequired = Boolean(payload.password_reset_required);
     flattenCatalog();
     if (partnerNameNode) partnerNameNode.textContent = state.partner?.name || 'Partner';
+    const reportPartnerName = state.partner?.name || 'Partner';
+    if (reportPreviewPartner) reportPreviewPartner.textContent = reportPartnerName;
+    if (reportPreviewFooter) reportPreviewFooter.textContent = reportPartnerName;
+    if (reportPreviewInitial) {
+      const words = String(reportPartnerName).trim().split(/\s+/).filter(Boolean);
+      reportPreviewInitial.textContent = `${words[0]?.[0] || 'P'}${words.length > 1 ? words[words.length - 1]?.[0] || '' : ''}`.toLocaleUpperCase(localeCode());
+    }
     if (partnerCodeNode) partnerCodeNode.textContent = state.partner?.code
       ? localizedText(`Workspace ${state.partner.code}`, `Ruang kerja ${state.partner.code}`)
       : localizedText('Direct ordering portal', 'Portal pemesanan langsung');
@@ -2057,6 +2128,114 @@ document.addEventListener('DOMContentLoaded', () => {
       renderChart();
     });
   }
+
+  const setReportStatus = (message, kind = '') => {
+    if (!(reportStatus instanceof HTMLElement)) return;
+    reportStatus.textContent = message;
+    reportStatus.classList.toggle('is-error', kind === 'error');
+    reportStatus.classList.toggle('is-success', kind === 'success');
+  };
+
+  const renderReportPreview = () => {
+    if (!(reportPreviewPeriod instanceof HTMLElement) || !(reportStartInput instanceof HTMLInputElement) || !(reportEndInput instanceof HTMLInputElement)) return;
+    const formatDate = (value) => {
+      const date = new Date(`${value}T12:00:00`);
+      if (Number.isNaN(date.getTime())) return value;
+      return date.toLocaleDateString(localeCode(), { day: 'numeric', month: 'short', year: 'numeric' });
+    };
+    reportPreviewPeriod.textContent = reportStartInput.value && reportEndInput.value
+      ? `${formatDate(reportStartInput.value)} – ${formatDate(reportEndInput.value)}`
+      : localizedText('Selected reporting period', 'Periode laporan terpilih');
+  };
+
+  const setReportRange = (start, end) => {
+    if (!(reportStartInput instanceof HTMLInputElement) || !(reportEndInput instanceof HTMLInputElement)) return;
+    reportStartInput.value = start;
+    reportEndInput.value = end;
+    reportStartInput.max = end;
+    reportEndInput.min = start;
+    renderReportPreview();
+  };
+
+  if (reportStartInput instanceof HTMLInputElement && reportEndInput instanceof HTMLInputElement) {
+    const reportToday = datetimeLocalValue().slice(0, 10);
+    const [reportYear, reportMonth] = reportToday.split('-').map(Number);
+    setReportRange(`${reportYear}-${String(reportMonth).padStart(2, '0')}-01`, reportToday);
+    reportStartInput.max = reportToday;
+    reportEndInput.max = reportToday;
+    reportStartInput.addEventListener('change', () => {
+      if (reportStartInput.value > reportEndInput.value) reportEndInput.value = reportStartInput.value;
+      reportEndInput.min = reportStartInput.value;
+      renderReportPreview();
+    });
+    reportEndInput.addEventListener('change', () => {
+      if (reportEndInput.value < reportStartInput.value) reportStartInput.value = reportEndInput.value;
+      reportStartInput.max = reportEndInput.value || reportToday;
+      renderReportPreview();
+    });
+
+    document.querySelectorAll('[data-report-preset]').forEach((button) => {
+      button.addEventListener('click', () => {
+        const preset = button.getAttribute('data-report-preset');
+        if (preset === 'month') {
+          setReportRange(`${reportYear}-${String(reportMonth).padStart(2, '0')}-01`, reportToday);
+        } else if (preset === 'previous-month') {
+          setReportRange(dateInputValue(new Date(reportYear, reportMonth - 2, 1)), dateInputValue(new Date(reportYear, reportMonth - 1, 0)));
+        } else if (preset === 'year') {
+          setReportRange(`${reportYear}-01-01`, reportToday);
+        }
+      });
+    });
+  }
+
+  reportForm?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    if (!(reportStartInput instanceof HTMLInputElement) || !(reportEndInput instanceof HTMLInputElement)) return;
+    const start = reportStartInput.value;
+    const end = reportEndInput.value;
+    const startTime = Date.parse(`${start}T00:00:00Z`);
+    const endTime = Date.parse(`${end}T00:00:00Z`);
+    if (!start || !end || !Number.isFinite(startTime) || !Number.isFinite(endTime) || endTime < startTime) {
+      setReportStatus(localizedText('Choose a valid report date range.', 'Pilih rentang tanggal laporan yang valid.'), 'error');
+      return;
+    }
+    if ((endTime - startTime) / (24 * 60 * 60 * 1000) > 366) {
+      setReportStatus(localizedText('Reports can cover up to 367 days.', 'Laporan dapat mencakup maksimal 367 hari.'), 'error');
+      return;
+    }
+
+    const sections = Array.from(reportForm.querySelectorAll('input[name="sections"]:checked')).map((input) => input.value);
+    const url = new URL(reportsEndpoint, window.location.origin);
+    url.searchParams.set('start', start);
+    url.searchParams.set('end', end);
+    url.searchParams.set('sections', sections.join(','));
+    if (reportDownloadButton instanceof HTMLButtonElement) reportDownloadButton.disabled = true;
+    setReportStatus(localizedText('Generating PDF…', 'Membuat PDF…'));
+    try {
+      const response = await fetch(url.toString(), { headers: { Accept: 'application/pdf' } });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(payload.error || localizedText('Unable to download the PDF report.', 'Laporan PDF tidak dapat diunduh.'));
+      }
+      const blob = await response.blob();
+      const disposition = response.headers.get('Content-Disposition') || '';
+      const filenameMatch = /filename="?([^";]+)"?/i.exec(disposition);
+      const filename = filenameMatch?.[1] || `partner-report-${start}-${end}.pdf`;
+      const objectUrl = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = objectUrl;
+      link.download = filename;
+      document.body.append(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+      setReportStatus(localizedText('Your PDF download is ready.', 'Unduhan PDF Anda siap.'), 'success');
+    } catch (error) {
+      setReportStatus(error instanceof Error ? error.message : localizedText('Unable to download the PDF report.', 'Laporan PDF tidak dapat diunduh.'), 'error');
+    } finally {
+      if (reportDownloadButton instanceof HTMLButtonElement) reportDownloadButton.disabled = false;
+    }
+  });
 
   sectionLinks.forEach((link) => {
     link.addEventListener('click', (event) => {

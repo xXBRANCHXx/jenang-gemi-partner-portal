@@ -26,6 +26,7 @@ $sessionEndpoint = $workspaceBase . '/api/session/';
 $ordersEndpoint = $workspaceBase . '/api/orders/';
 $labelsEndpoint = $workspaceBase . '/api/order-labels/';
 $faviconEndpoint = $workspaceBase . '/api/favicon/';
+$reportsEndpoint = $workspaceBase . '/api/reports/';
 $logoutUrl = $workspaceBase . '/logout/';
 $partnerName = (string) ($partner['name'] ?? 'Partner Dashboard');
 $defaultFaviconUrl = 'https://jenanggemi.com/Media/Jenang%20Gemi%20Website%20Logo.png';
@@ -54,7 +55,7 @@ $faviconSummary = match ($configuredFaviconThemes) {
     ['dark'] => 'Custom dark icon',
     default => 'Custom light and dark icons',
 };
-$dashboardSections = ['overview', 'orders', 'labels', 'analytics', 'settings'];
+$dashboardSections = ['overview', 'orders', 'labels', 'analytics', 'reports', 'settings'];
 $dashboardRouteParts = $requestPath === '' ? [] : explode('/', $requestPath);
 $dashboardIndex = array_search('dashboard', $dashboardRouteParts, true);
 $activeSection = 'overview';
@@ -84,7 +85,7 @@ $sectionUrl = static function (string $section) use ($dashboardPath): string {
     <link rel="stylesheet" href="/admin.css?v=<?php echo urlencode($adminCssVersion ?: '1'); ?>">
 </head>
 <body class="admin-body is-dashboard">
-    <div class="admin-build-badge" aria-label="Partner portal build version">Build 1.02.15</div>
+    <div class="admin-build-badge" aria-label="Partner portal build version">Build 1.03.00</div>
     <div
         class="partner-dashboard-app partner-workspace"
         data-partner-dashboard
@@ -92,6 +93,7 @@ $sectionUrl = static function (string $section) use ($dashboardPath): string {
         data-orders-endpoint="<?php echo htmlspecialchars($ordersEndpoint, ENT_QUOTES); ?>"
         data-labels-endpoint="<?php echo htmlspecialchars($labelsEndpoint, ENT_QUOTES); ?>"
         data-favicon-endpoint="<?php echo htmlspecialchars($faviconEndpoint, ENT_QUOTES); ?>"
+        data-reports-endpoint="<?php echo htmlspecialchars($reportsEndpoint, ENT_QUOTES); ?>"
         data-default-favicon-url="<?php echo htmlspecialchars($defaultFaviconUrl, ENT_QUOTES); ?>"
         data-favicon-light-url="<?php echo htmlspecialchars((string) ($faviconSettings['light']['url'] ?? ''), ENT_QUOTES); ?>"
         data-favicon-light-name="<?php echo htmlspecialchars((string) ($faviconSettings['light']['name'] ?? ''), ENT_QUOTES); ?>"
@@ -117,6 +119,7 @@ $sectionUrl = static function (string $section) use ($dashboardPath): string {
                 <a href="<?php echo htmlspecialchars($sectionUrl('orders'), ENT_QUOTES); ?>" class="<?php echo $activeSection === 'orders' ? 'is-active' : ''; ?>" data-partner-section-link="orders">Orders</a>
                 <a href="<?php echo htmlspecialchars($sectionUrl('labels'), ENT_QUOTES); ?>" class="<?php echo $activeSection === 'labels' ? 'is-active' : ''; ?>" data-partner-section-link="labels">Labels</a>
                 <a href="<?php echo htmlspecialchars($sectionUrl('analytics'), ENT_QUOTES); ?>" class="<?php echo $activeSection === 'analytics' ? 'is-active' : ''; ?>" data-partner-section-link="analytics">Analytics</a>
+                <a href="<?php echo htmlspecialchars($sectionUrl('reports'), ENT_QUOTES); ?>" class="<?php echo $activeSection === 'reports' ? 'is-active' : ''; ?>" data-partner-section-link="reports">Reports</a>
                 <a href="<?php echo htmlspecialchars($sectionUrl('settings'), ENT_QUOTES); ?>" class="<?php echo $activeSection === 'settings' ? 'is-active' : ''; ?>" data-partner-section-link="settings">Settings</a>
             </nav>
 
@@ -271,6 +274,105 @@ $sectionUrl = static function (string $section) use ($dashboardPath): string {
                         <p class="admin-empty">No product data yet.</p>
                     </div>
                 </section>
+            </section>
+
+            <section class="partner-section <?php echo $activeSection === 'reports' ? 'is-active' : ''; ?>" data-partner-section="reports">
+                <div class="partner-report-layout">
+                    <form class="partner-panel partner-report-builder" data-report-form>
+                        <div class="partner-panel-head">
+                            <div>
+                                <span>Document builder</span>
+                                <h3>Create a PDF report</h3>
+                            </div>
+                            <span class="partner-report-language-badge">Matches language settings</span>
+                        </div>
+                        <p class="partner-report-intro">Build a polished, print-ready record for filing, reconciliation, or internal review.</p>
+
+                        <fieldset class="partner-report-fieldset">
+                            <legend>Reporting period</legend>
+                            <div class="partner-report-date-grid">
+                                <label>
+                                    <span>Start date</span>
+                                    <input type="date" name="start" data-report-start required>
+                                </label>
+                                <label>
+                                    <span>End date</span>
+                                    <input type="date" name="end" data-report-end required>
+                                </label>
+                            </div>
+                            <div class="partner-report-presets" aria-label="Report date presets">
+                                <button type="button" data-report-preset="month">This month</button>
+                                <button type="button" data-report-preset="previous-month">Last month</button>
+                                <button type="button" data-report-preset="year">Year to date</button>
+                            </div>
+                        </fieldset>
+
+                        <fieldset class="partner-report-fieldset">
+                            <legend>Include in report</legend>
+                            <div class="partner-report-option-list">
+                                <div class="partner-report-option is-required">
+                                    <span class="partner-report-option-check" aria-hidden="true">✓</span>
+                                    <span><strong>Executive summary</strong><small>Core totals, methodology, and order status</small></span>
+                                    <em>Always included</em>
+                                </div>
+                                <label class="partner-report-option">
+                                    <input type="checkbox" name="sections" value="channels" checked>
+                                    <span><strong>Sales channels</strong><small>Orders, units, and partner cost by channel</small></span>
+                                </label>
+                                <label class="partner-report-option">
+                                    <input type="checkbox" name="sections" value="products" checked>
+                                    <span><strong>Product mix</strong><small>Best-selling products with visual comparisons</small></span>
+                                </label>
+                                <label class="partner-report-option">
+                                    <input type="checkbox" name="sections" value="orders" checked>
+                                    <span><strong>Order ledger</strong><small>Print-friendly line-by-line order history</small></span>
+                                </label>
+                            </div>
+                        </fieldset>
+
+                        <div class="partner-report-actions">
+                            <button type="submit" class="admin-primary-btn partner-report-download" data-report-download>
+                                <span aria-hidden="true">↓</span>
+                                <span>Download PDF</span>
+                            </button>
+                            <p data-report-status aria-live="polite">PDF language and number formatting follow Regional Settings.</p>
+                        </div>
+                    </form>
+
+                    <aside class="partner-panel partner-report-preview" aria-label="PDF report preview">
+                        <div class="partner-report-preview-head">
+                            <span>PDF preview</span>
+                            <strong>A4 · Print ready</strong>
+                        </div>
+                        <div class="partner-report-paper" aria-hidden="true">
+                            <div class="partner-report-paper-hero">
+                                <div class="partner-report-paper-identity">
+                                    <span class="partner-report-paper-mark">
+                                        <img alt="" data-report-preview-icon hidden>
+                                        <b data-report-preview-initial><?php echo htmlspecialchars(mb_strtoupper(mb_substr($partnerName, 0, 1)), ENT_QUOTES); ?></b>
+                                    </span>
+                                    <span>
+                                        <small>PARTNER PERFORMANCE REPORT</small>
+                                        <strong data-report-preview-partner><?php echo htmlspecialchars($partnerName, ENT_QUOTES); ?></strong>
+                                        <em data-report-preview-period>Selected reporting period</em>
+                                    </span>
+                                </div>
+                                <b>Portal records</b>
+                                <i>Prepared through Jenang Gemi Partner Portal</i>
+                            </div>
+                            <div class="partner-report-paper-metrics"><i></i><i></i><i></i><i></i></div>
+                            <div class="partner-report-paper-summary"></div>
+                            <div class="partner-report-paper-lines"><i></i><i></i><i></i><i></i></div>
+                            <footer><span data-report-preview-footer><?php echo htmlspecialchars($partnerName, ENT_QUOTES); ?></span><span>Internal record</span></footer>
+                        </div>
+                        <div class="partner-report-quality-list">
+                            <span><i>✓</i> Partner-branded document identity</span>
+                            <span><i>✓</i> Automatic multi-page tables</span>
+                            <span><i>✓</i> Selectable text and vector graphics</span>
+                            <span><i>✓</i> Localized dates, labels, and IDR values</span>
+                        </div>
+                    </aside>
+                </div>
             </section>
 
             <section class="partner-section <?php echo $activeSection === 'settings' ? 'is-active' : ''; ?>" data-partner-section="settings">

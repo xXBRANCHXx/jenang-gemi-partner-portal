@@ -60,6 +60,12 @@ if ($requestedPartner !== null && $route !== '') {
         exit;
     }
 
+    if ($route === 'api/reports' || str_starts_with($route, 'api/reports/')) {
+        jg_partner_require_auth_for_json($requestedPartner);
+        require __DIR__ . '/api/reports/index.php';
+        exit;
+    }
+
     http_response_code(404);
 }
 

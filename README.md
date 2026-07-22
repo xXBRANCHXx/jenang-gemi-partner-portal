@@ -7,6 +7,7 @@ Partner-facing dashboard for `partner.jenanggemi.com`.
 - Partner login sequence
 - Partner dashboard and session handling
 - Partner order create/cancel/archive flow
+- Localized, print-ready partner performance PDF reports
 - Catalog restrictions driven by admin partner profiles
 - Future communication layer with store operations
 
@@ -18,6 +19,7 @@ Partner-facing dashboard for `partner.jenanggemi.com`.
 - `/{partner_slug}/api/session/`
 - `/{partner_slug}/api/orders/`
 - `/{partner_slug}/api/order-labels/`
+- `/{partner_slug}/api/reports/`
 - `/api/session/`
 - `/api/orders/`
 - `/api/store-orders/`
@@ -50,6 +52,7 @@ If phpMyAdmin needs the tables created manually, import `database/partner-data-s
 - Labels have a seven-day maximum lifetime, shortened to three days after fulfillment and one day after cancellation. Expired files are removed automatically whenever partners or Store Ops access the order flow; no external cron job is required.
 - The dashboard's recent-order panel shows only unarchived orders from the last seven days. Archived orders remain restorable for 30 days, then are permanently removed during normal partner or Store Ops order reads.
 - The sales chart supports today, 7-day, 30-day, year, and all-time presets plus checked calendar-month and custom start/end-date modes. Today follows the calendar day, month and custom ranges include every calendar day, and the Overview metric cards follow the same selected window.
+- The Reports page creates professional A4 PDFs for custom periods with an executive summary and optional channel, product, and order-ledger sections. Reports prioritize the partner identity, use the configured light or dark favicon when available, and otherwise render a partner-initial profile mark. PDF language, dates, number formatting, and timezone follow each partner's Regional Settings; cancelled orders remain auditable but are excluded from sales units and partner cost.
 - Label uploads are PDF-only and limited to 10 MB.
 
 ## Production deployment order

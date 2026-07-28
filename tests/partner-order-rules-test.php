@@ -86,6 +86,10 @@ partner_order_expect(true, jg_partner_order_is_store_visible(['status' => 'IS_LI
 partner_order_expect(true, jg_partner_order_is_store_visible(['status' => 'IS_BEING_FULFILLED']), 'Accepted orders should remain in Store Ops until label printing is confirmed.');
 partner_order_expect(false, jg_partner_order_is_store_visible(['status' => 'CANCELLED']), 'Cancelled orders should disappear from Store Ops.');
 partner_order_expect(false, jg_partner_order_is_store_visible(['status' => 'FULFILLED']), 'Fulfilled orders should disappear from Store Ops.');
+partner_order_expect('PO26072816040D97', jg_partner_order_history_id('PARTNER-PO26072816040D97'), 'History lookups must accept Store Ops Partner display IDs.');
+$storeOrdersApiSource = file_get_contents(dirname(__DIR__) . '/api/store-orders/index.php');
+partner_order_expect(true, is_string($storeOrdersApiSource) && str_contains($storeOrdersApiSource, "\$_GET['order_id']"), 'The Store Ops API must accept an exact historical order ID.');
+partner_order_expect(true, is_string($storeOrdersApiSource) && str_contains($storeOrdersApiSource, 'jg_partner_order_find_any($historyOrderId)'), 'Exact Store Ops history lookups must include fulfilled Partner orders.');
 
 $analytics = jg_partner_order_analytics([
     [

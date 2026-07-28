@@ -222,6 +222,30 @@ if ($method !== 'GET') {
     jg_store_orders_fail('Method not allowed.', 405);
 }
 
+$historyOrderId = trim((string) ($_GET['order_id'] ?? ''));
+if ($historyOrderId !== '') {
+    try {
+        $historyOrder = jg_partner_order_find_any($historyOrderId);
+    } catch (Throwable $exception) {
+        jg_store_orders_fail($exception->getMessage() ?: 'Unable to load partner order.', 500);
+    }
+    if (!is_array($historyOrder)) {
+        jg_store_orders_fail('Order not found.', 404);
+    }
+
+    $normalizedHistoryOrder = jg_store_orders_normalize($historyOrder);
+    echo json_encode([
+        'ok' => true,
+        'order' => $normalizedHistoryOrder,
+        'meta' => [
+            'source' => 'partner-portal-history',
+            'storage' => jg_partner_order_storage_mode(),
+            'fetched_at' => gmdate(DATE_ATOM),
+        ],
+    ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+    exit;
+}
+
 try {
     $orders = array_values(array_filter(array_map(
         static fn (array $order): array => jg_store_orders_normalize($order),

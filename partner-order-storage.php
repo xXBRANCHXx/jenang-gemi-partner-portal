@@ -1128,6 +1128,28 @@ function jg_partner_order_list_all(): array
     return jg_partner_order_attach_labels($orders, []);
 }
 
+function jg_partner_order_history_id(string $orderId): string
+{
+    $normalized = strtoupper(trim($orderId));
+    return str_starts_with($normalized, 'PARTNER-') ? substr($normalized, 8) : $normalized;
+}
+
+function jg_partner_order_find_any(string $orderId): ?array
+{
+    $target = jg_partner_order_history_id($orderId);
+    if ($target === '') {
+        return null;
+    }
+
+    foreach (jg_partner_order_list_all() as $order) {
+        if (jg_partner_order_history_id((string) ($order['id'] ?? '')) === $target) {
+            return $order;
+        }
+    }
+
+    return null;
+}
+
 function jg_partner_order_find(string $partnerCode, string $orderId): ?array
 {
     $orderId = trim($orderId);

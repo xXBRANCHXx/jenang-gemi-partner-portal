@@ -5,6 +5,7 @@ require_once __DIR__ . '/partner-order-storage.php';
 
 const JG_PARTNER_BILLING_ANCHOR = '2026-07-01';
 const JG_PARTNER_BILLING_MAX_FILE_BYTES = 10 * 1024 * 1024;
+const JG_PARTNER_BILLING_NEW_BADGE_DAYS = 7;
 
 function jg_partner_billing_db(): PDO
 {
@@ -365,6 +366,23 @@ function jg_partner_billing_sync(string $partnerCode): void
     }
 }
 
+/** @return array{visible:bool,expires_at:?string} */
+function jg_partner_billing_new_badge_state(string $createdAt, ?DateTimeImmutable $now = null): array
+{
+    $utc = new DateTimeZone('UTC');
+    $created = DateTimeImmutable::createFromFormat('Y-m-d H:i:s', trim($createdAt), $utc);
+    if (!$created instanceof DateTimeImmutable) {
+        return ['visible' => true, 'expires_at' => null];
+    }
+
+    $expires = $created->modify('+' . JG_PARTNER_BILLING_NEW_BADGE_DAYS . ' days');
+    $now ??= new DateTimeImmutable('now', $utc);
+    return [
+        'visible' => $now < $expires,
+        'expires_at' => $expires->format('Y-m-d\TH:i:s\Z'),
+    ];
+}
+
 function jg_partner_billing_onboarding(PDO $pdo, string $partnerCode): array
 {
     $insert = $pdo->prepare(
@@ -372,12 +390,15 @@ function jg_partner_billing_onboarding(PDO $pdo, string $partnerCode): array
          VALUES (:partner_code, UTC_TIMESTAMP(), UTC_TIMESTAMP())'
     );
     $insert->execute([':partner_code' => $partnerCode]);
-    $stmt = $pdo->prepare('SELECT billing_seen_at, tutorial_completed_at FROM partner_billing_onboarding WHERE partner_code = :partner_code LIMIT 1');
+    $stmt = $pdo->prepare('SELECT billing_seen_at, tutorial_completed_at, created_at FROM partner_billing_onboarding WHERE partner_code = :partner_code LIMIT 1');
     $stmt->execute([':partner_code' => $partnerCode]);
     $row = $stmt->fetch() ?: [];
+    $newBadge = jg_partner_billing_new_badge_state((string) ($row['created_at'] ?? ''));
     return [
         'seen' => trim((string) ($row['billing_seen_at'] ?? '')) !== '',
         'tutorial_completed' => trim((string) ($row['tutorial_completed_at'] ?? '')) !== '',
+        'new_badge_visible' => $newBadge['visible'],
+        'new_badge_expires_at' => $newBadge['expires_at'],
     ];
 }
 

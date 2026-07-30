@@ -11,12 +11,16 @@ const router = fs.readFileSync(path.join(root, 'index.php'), 'utf8');
 const api = fs.readFileSync(path.join(root, 'api', 'billing', 'index.php'), 'utf8');
 
 assert.match(markup, /data-partner-section-link="billing"[\s\S]*data-billing-new/, 'Billing navigation should carry the persistent NEW badge.');
+assert.match(markup, /data-partner-account="<\?php echo htmlspecialchars\(hash\('sha256'/, 'Tutorial storage should be scoped to the signed-in partner account without exposing its code.');
 assert.match(markup, /data-partner-section="billing"/, 'The partner workspace should expose a Billing page.');
 assert.match(markup, /data-billing-tutorial/, 'A first-visit billing tutorial should be present.');
 assert.match(dashboard, /billing:\s*'Billing'/, 'Dashboard section routing should recognize Billing.');
 assert.match(dashboard, /\['Billing', 'Tagihan'\]/, 'Billing navigation should follow Indonesian language selection.');
 assert.match(billing, /submit_payment[\s\S]*submit_dispute/, 'Partners should be able to submit proof or dispute selected orders.');
 assert.match(billing, /'Open my bills', 'Buka tagihan saya'/, 'The first-run tutorial must be localized.');
+assert.match(billing, /localStorage\.getItem\(tutorialStorageKey\)[\s\S]*localStorage\.setItem\(tutorialStorageKey, 'seen'\)/, 'Tutorial completion should be remembered on each device per partner account.');
+assert.match(billing, /newBadge\.hidden = !Boolean\(payload\.onboarding\?\.new_badge_visible\)/, 'The NEW badge should follow its seven-day server window.');
+assert.doesNotMatch(billing, /newBadge\.hidden\s*=\s*true/, 'Opening Billing must not dismiss the NEW badge.');
 assert.match(markup, /data-billing-hero-title[\s\S]*\$billingStaticCopy/, 'The initial billing hero should be rendered in the selected language.');
 assert.match(billing, /renderShellLanguage[\s\S]*'How it works', 'Cara kerja'/, 'Billing shell copy should update when the language setting changes.');
 assert.match(api, /jg_partner_billing_localized_error[\s\S]*Tagihan sementara tidak tersedia/, 'Partner-visible API errors should follow the selected language.');

@@ -57,7 +57,7 @@ If phpMyAdmin needs the tables created manually, import `database/partner-data-s
 - The Reports page creates professional A4 PDFs for custom periods with an executive summary and optional channel, product, and order-ledger sections. Reports prioritize the partner identity, use the configured light or dark favicon when available, and otherwise render a partner-initial profile mark. PDF language, dates, number formatting, and timezone follow each partner's Regional Settings; cancelled orders remain auditable but are excluded from sales units and partner cost.
 - Label uploads are PDF-only and limited to 10 MB.
 - Billing periods are fixed seven-day blocks anchored on July 1, 2026. Closed bills are due three days after the period ends. Proofs accept PDF, PNG, JPEG, GIF, or WebP files up to 10 MB and are stored privately in MySQL so the Executive Dashboard can review them without a public file URL.
-- Billing onboarding and the navigation `NEW` state are persisted per partner. Language, number formatting, dates, and tutorial copy follow the partner's existing regional preferences.
+- The Billing navigation `NEW` marker remains visible for seven full days from the partner's first post-launch dashboard load; opening Billing does not dismiss it. The automatic tutorial runs once per browser/device for each partner account and remains manually reopenable. Language, number formatting, dates, and tutorial copy follow the partner's existing regional preferences.
 - An order-level dispute only changes the selected bill items. Finance can accept the dispute, or reject it with a reason and optional evidence image that remains visible in the partner's bill detail.
 
 ## Production deployment order

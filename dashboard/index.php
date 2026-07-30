@@ -88,7 +88,12 @@ $faviconSummary = match ($configuredFaviconThemes) {
     ['dark'] => 'Custom dark icon',
     default => 'Custom light and dark icons',
 };
-$billingOnboarding = ['seen' => false, 'tutorial_completed' => false];
+$billingOnboarding = [
+    'seen' => false,
+    'tutorial_completed' => false,
+    'new_badge_visible' => true,
+    'new_badge_expires_at' => null,
+];
 try {
     $billingOnboarding = jg_partner_billing_onboarding(jg_partner_billing_db(), jg_partner_current_code());
 } catch (Throwable) {
@@ -124,7 +129,7 @@ $sectionUrl = static function (string $section) use ($dashboardPath): string {
     <link rel="stylesheet" href="/admin.css?v=<?php echo urlencode($adminCssVersion ?: '1'); ?>">
 </head>
 <body class="admin-body is-dashboard">
-    <div class="admin-build-badge" aria-label="Partner portal build version">Build 1.03.01</div>
+    <div class="admin-build-badge" aria-label="Partner portal build version">Build 1.03.02</div>
     <div
         class="partner-dashboard-app partner-workspace"
         data-partner-dashboard
@@ -141,6 +146,7 @@ $sectionUrl = static function (string $section) use ($dashboardPath): string {
         data-favicon-dark-name="<?php echo htmlspecialchars((string) ($faviconSettings['dark']['name'] ?? ''), ENT_QUOTES); ?>"
         data-partner-language="<?php echo htmlspecialchars($partnerPreferences['language'], ENT_QUOTES); ?>"
         data-partner-timezone="<?php echo htmlspecialchars($partnerPreferences['timezone'], ENT_QUOTES); ?>"
+        data-partner-account="<?php echo htmlspecialchars(hash('sha256', strtoupper(trim(jg_partner_current_code()))), ENT_QUOTES); ?>"
         data-csrf-token="<?php echo htmlspecialchars(jg_partner_csrf_token(), ENT_QUOTES); ?>"
         data-logout-url="<?php echo htmlspecialchars($logoutUrl, ENT_QUOTES); ?>"
         data-dashboard-base="<?php echo htmlspecialchars($dashboardPath, ENT_QUOTES); ?>"
@@ -161,7 +167,7 @@ $sectionUrl = static function (string $section) use ($dashboardPath): string {
                 <a href="<?php echo htmlspecialchars($sectionUrl('analytics'), ENT_QUOTES); ?>" class="<?php echo $activeSection === 'analytics' ? 'is-active' : ''; ?>" data-partner-section-link="analytics">Analytics</a>
                 <a href="<?php echo htmlspecialchars($sectionUrl('billing'), ENT_QUOTES); ?>" class="partner-billing-nav-link <?php echo $activeSection === 'billing' ? 'is-active' : ''; ?>" data-partner-section-link="billing">
                     <span>Billing</span>
-                    <span class="partner-billing-new" data-billing-new <?php echo $billingOnboarding['seen'] ? 'hidden' : ''; ?>>NEW</span>
+                    <span class="partner-billing-new" data-billing-new <?php echo empty($billingOnboarding['new_badge_visible']) ? 'hidden' : ''; ?>>NEW</span>
                 </a>
                 <a href="<?php echo htmlspecialchars($sectionUrl('reports'), ENT_QUOTES); ?>" class="<?php echo $activeSection === 'reports' ? 'is-active' : ''; ?>" data-partner-section-link="reports">Reports</a>
                 <a href="<?php echo htmlspecialchars($sectionUrl('settings'), ENT_QUOTES); ?>" class="<?php echo $activeSection === 'settings' ? 'is-active' : ''; ?>" data-partner-section-link="settings">Settings</a>

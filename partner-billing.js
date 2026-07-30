@@ -23,6 +23,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const heroTitle = page.querySelector('[data-billing-hero-title]');
   const heroCopy = page.querySelector('[data-billing-hero-copy]');
   const guideLabel = page.querySelector('[data-billing-guide-label]');
+  const tutorialStorageKey = `jg-partner-billing-tutorial-v1:${root.dataset.partnerAccount || 'unknown'}`;
+  let tutorialSeenInMemory = false;
 
   const state = {
     payload: null,
@@ -69,6 +71,22 @@ document.addEventListener('DOMContentLoaded', () => {
     return `${first} – ${second}`;
   };
   const fileSize = (bytes) => `${Math.max(0.1, Number(bytes || 0) / (1024 * 1024)).toFixed(1)} MB`;
+  const hasSeenTutorialOnDevice = () => {
+    if (tutorialSeenInMemory) return true;
+    try {
+      return window.localStorage.getItem(tutorialStorageKey) === 'seen';
+    } catch (_) {
+      return false;
+    }
+  };
+  const rememberTutorialOnDevice = () => {
+    tutorialSeenInMemory = true;
+    try {
+      window.localStorage.setItem(tutorialStorageKey, 'seen');
+    } catch (_) {
+      // In-memory state still prevents the guide from reopening during this page view.
+    }
+  };
 
   const statusCopy = (status) => ({
     accruing: [t('In progress', 'Berjalan'), t('This seven-day period is still collecting orders.', 'Periode tujuh hari ini masih mengumpulkan pesanan.')],
@@ -305,7 +323,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!state.selectedBillId || !payload.bills?.some((bill) => bill.id === state.selectedBillId)) {
         state.selectedBillId = payload.bills?.[0]?.id || '';
       }
-      if (newBadge instanceof HTMLElement) newBadge.hidden = Boolean(payload.onboarding?.seen);
+      if (newBadge instanceof HTMLElement) newBadge.hidden = !Boolean(payload.onboarding?.new_badge_visible);
       render();
     } catch (error) {
       if (!silent) setError(error instanceof Error ? error.message : t('Unable to load billing.', 'Tagihan tidak dapat dimuat.'));
@@ -374,20 +392,14 @@ document.addEventListener('DOMContentLoaded', () => {
     document.body.classList.remove('partner-billing-modal-open');
   };
 
-  const handleBillingVisit = async () => {
+  const handleBillingVisit = () => {
     if (root.dataset.activeSection !== 'billing') return;
-    const firstVisit = !state.payload?.onboarding?.seen;
-    if (newBadge instanceof HTMLElement) newBadge.hidden = true;
-    if (firstVisit && !state.sectionHandled) openTutorial();
-    state.sectionHandled = true;
-    if (!state.payload?.onboarding?.seen) {
-      try {
-        const response = await requestJson({ method: 'POST', body: { action: 'mark_seen' } });
-        if (state.payload) state.payload.onboarding = response.onboarding;
-      } catch (_) {
-        // The badge is still removed for this session; the server can retry later.
-      }
+    const firstVisitOnDevice = !hasSeenTutorialOnDevice();
+    if (firstVisitOnDevice && !state.sectionHandled) {
+      rememberTutorialOnDevice();
+      openTutorial();
     }
+    state.sectionHandled = true;
   };
 
   listNode?.addEventListener('click', (event) => {
@@ -484,7 +496,7 @@ document.addEventListener('DOMContentLoaded', () => {
     state.tutorialStep = Math.max(0, state.tutorialStep - 1);
     renderTutorial();
   });
-  tutorialNext?.addEventListener('click', async () => {
+  tutorialNext?.addEventListener('click', () => {
     const lastIndex = tutorialSteps().length - 1;
     if (state.tutorialStep < lastIndex) {
       state.tutorialStep += 1;
@@ -492,12 +504,6 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
     closeTutorial();
-    try {
-      const response = await requestJson({ method: 'POST', body: { action: 'complete_tutorial' } });
-      if (state.payload) state.payload.onboarding = response.onboarding;
-    } catch (_) {
-      // Completion can be retried the next time the guide is opened.
-    }
   });
 
   document.addEventListener('partner:sectionchange', (event) => {

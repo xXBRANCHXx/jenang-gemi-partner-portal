@@ -32,6 +32,20 @@ partner_billing_expect(
     'Bill IDs must be stable for normalized partner codes.'
 );
 
+$badgeCreated = '2026-07-30 02:00:00';
+$beforeBadgeExpiry = jg_partner_billing_new_badge_state(
+    $badgeCreated,
+    new DateTimeImmutable('2026-08-06 01:59:59', $utc)
+);
+partner_billing_expect(true, $beforeBadgeExpiry['visible'], 'The NEW badge must remain visible for the full seven-day window.');
+partner_billing_expect('2026-08-06T02:00:00Z', $beforeBadgeExpiry['expires_at'], 'The NEW badge expiry must be exactly seven days after onboarding starts.');
+$atBadgeExpiry = jg_partner_billing_new_badge_state(
+    $badgeCreated,
+    new DateTimeImmutable('2026-08-06 02:00:00', $utc)
+);
+partner_billing_expect(false, $atBadgeExpiry['visible'], 'The NEW badge must hide once its seven-day window expires.');
+partner_billing_expect(true, jg_partner_billing_new_badge_state('')['visible'], 'An invalid start time must fail open so partners still discover Billing.');
+
 $invalidFile = tempnam(sys_get_temp_dir(), 'billing-invalid-');
 file_put_contents($invalidFile, 'not really an image');
 $invalidRejected = false;

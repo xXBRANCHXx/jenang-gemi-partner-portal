@@ -4,6 +4,7 @@ declare(strict_types=1);
 require_once dirname(__DIR__) . '/partner-auth.php';
 require_once dirname(__DIR__) . '/partner-favicon-storage.php';
 require_once dirname(__DIR__) . '/partner-preference-storage.php';
+require_once dirname(__DIR__) . '/partner-billing-storage.php';
 
 if (!jg_partner_is_authenticated()) {
     header('Location: /');
@@ -27,6 +28,7 @@ $ordersEndpoint = $workspaceBase . '/api/orders/';
 $labelsEndpoint = $workspaceBase . '/api/order-labels/';
 $faviconEndpoint = $workspaceBase . '/api/favicon/';
 $reportsEndpoint = $workspaceBase . '/api/reports/';
+$billingEndpoint = $workspaceBase . '/api/billing/';
 $logoutUrl = $workspaceBase . '/logout/';
 $partnerName = (string) ($partner['name'] ?? 'Partner Dashboard');
 $defaultFaviconUrl = 'https://jenanggemi.com/Media/Jenang%20Gemi%20Website%20Logo.png';
@@ -45,6 +47,37 @@ try {
 } catch (Throwable) {
     $partnerPreferences = jg_partner_preference_defaults();
 }
+$billingStaticCopy = $partnerPreferences['language'] === 'id'
+    ? [
+        'kicker' => 'Tagihan mingguan',
+        'title' => 'Tujuh hari, rekonsiliasi jelas',
+        'copy' => 'Periksa setiap pesanan di balik saldo Anda, selesaikan perbedaan, dan kirim bukti pembayaran dalam satu tempat.',
+        'guide' => 'Cara kerja',
+        'outstanding' => 'Belum dibayar',
+        'no_balance' => 'Tidak ada saldo terutang',
+        'awaiting_review' => 'Menunggu tinjauan',
+        'reviews' => 'Pembayaran dan sengketa',
+        'confirmed_paid' => 'Pembayaran terkonfirmasi',
+        'confirmed_bills' => 'Semua tagihan mingguan yang dikonfirmasi',
+        'loading' => 'Memuat tagihan mingguan…',
+        'detail_title' => 'Rincian tagihan Anda akan muncul di sini',
+        'detail_copy' => 'Pilih periode tujuh hari untuk melihat setiap pesanan yang termasuk.',
+    ]
+    : [
+        'kicker' => 'Weekly billing',
+        'title' => 'Seven days, clearly reconciled',
+        'copy' => 'Review each order behind your balance, resolve discrepancies, and submit payment proof in one place.',
+        'guide' => 'How it works',
+        'outstanding' => 'Outstanding',
+        'no_balance' => 'No balance due',
+        'awaiting_review' => 'Awaiting review',
+        'reviews' => 'Payments and disputes',
+        'confirmed_paid' => 'Confirmed paid',
+        'confirmed_bills' => 'All confirmed weekly bills',
+        'loading' => 'Loading weekly bills…',
+        'detail_title' => 'Your bill details will appear here',
+        'detail_copy' => 'Select a seven-day period to see every included order.',
+    ];
 $configuredFaviconThemes = array_values(array_filter(
     ['light', 'dark'],
     static fn (string $theme): bool => !empty($faviconSettings[$theme]['configured'])
@@ -55,7 +88,13 @@ $faviconSummary = match ($configuredFaviconThemes) {
     ['dark'] => 'Custom dark icon',
     default => 'Custom light and dark icons',
 };
-$dashboardSections = ['overview', 'orders', 'labels', 'analytics', 'reports', 'settings'];
+$billingOnboarding = ['seen' => false, 'tutorial_completed' => false];
+try {
+    $billingOnboarding = jg_partner_billing_onboarding(jg_partner_billing_db(), jg_partner_current_code());
+} catch (Throwable) {
+    // The billing page will surface a recoverable service error if storage is unavailable.
+}
+$dashboardSections = ['overview', 'orders', 'labels', 'analytics', 'billing', 'reports', 'settings'];
 $dashboardRouteParts = $requestPath === '' ? [] : explode('/', $requestPath);
 $dashboardIndex = array_search('dashboard', $dashboardRouteParts, true);
 $activeSection = 'overview';
@@ -94,6 +133,7 @@ $sectionUrl = static function (string $section) use ($dashboardPath): string {
         data-labels-endpoint="<?php echo htmlspecialchars($labelsEndpoint, ENT_QUOTES); ?>"
         data-favicon-endpoint="<?php echo htmlspecialchars($faviconEndpoint, ENT_QUOTES); ?>"
         data-reports-endpoint="<?php echo htmlspecialchars($reportsEndpoint, ENT_QUOTES); ?>"
+        data-billing-endpoint="<?php echo htmlspecialchars($billingEndpoint, ENT_QUOTES); ?>"
         data-default-favicon-url="<?php echo htmlspecialchars($defaultFaviconUrl, ENT_QUOTES); ?>"
         data-favicon-light-url="<?php echo htmlspecialchars((string) ($faviconSettings['light']['url'] ?? ''), ENT_QUOTES); ?>"
         data-favicon-light-name="<?php echo htmlspecialchars((string) ($faviconSettings['light']['name'] ?? ''), ENT_QUOTES); ?>"
@@ -119,6 +159,10 @@ $sectionUrl = static function (string $section) use ($dashboardPath): string {
                 <a href="<?php echo htmlspecialchars($sectionUrl('orders'), ENT_QUOTES); ?>" class="<?php echo $activeSection === 'orders' ? 'is-active' : ''; ?>" data-partner-section-link="orders">Orders</a>
                 <a href="<?php echo htmlspecialchars($sectionUrl('labels'), ENT_QUOTES); ?>" class="<?php echo $activeSection === 'labels' ? 'is-active' : ''; ?>" data-partner-section-link="labels">Labels</a>
                 <a href="<?php echo htmlspecialchars($sectionUrl('analytics'), ENT_QUOTES); ?>" class="<?php echo $activeSection === 'analytics' ? 'is-active' : ''; ?>" data-partner-section-link="analytics">Analytics</a>
+                <a href="<?php echo htmlspecialchars($sectionUrl('billing'), ENT_QUOTES); ?>" class="partner-billing-nav-link <?php echo $activeSection === 'billing' ? 'is-active' : ''; ?>" data-partner-section-link="billing">
+                    <span>Billing</span>
+                    <span class="partner-billing-new" data-billing-new <?php echo $billingOnboarding['seen'] ? 'hidden' : ''; ?>>NEW</span>
+                </a>
                 <a href="<?php echo htmlspecialchars($sectionUrl('reports'), ENT_QUOTES); ?>" class="<?php echo $activeSection === 'reports' ? 'is-active' : ''; ?>" data-partner-section-link="reports">Reports</a>
                 <a href="<?php echo htmlspecialchars($sectionUrl('settings'), ENT_QUOTES); ?>" class="<?php echo $activeSection === 'settings' ? 'is-active' : ''; ?>" data-partner-section-link="settings">Settings</a>
             </nav>
@@ -274,6 +318,45 @@ $sectionUrl = static function (string $section) use ($dashboardPath): string {
                         <p class="admin-empty">No product data yet.</p>
                     </div>
                 </section>
+            </section>
+
+            <section class="partner-section <?php echo $activeSection === 'billing' ? 'is-active' : ''; ?>" data-partner-section="billing">
+                <div class="partner-billing-page" data-billing-page aria-live="polite">
+                    <section class="partner-billing-hero">
+                        <div>
+                            <span class="partner-panel-kicker" data-billing-hero-kicker><?php echo htmlspecialchars($billingStaticCopy['kicker'], ENT_QUOTES); ?></span>
+                            <h3 data-billing-hero-title><?php echo htmlspecialchars($billingStaticCopy['title'], ENT_QUOTES); ?></h3>
+                            <p data-billing-hero-copy><?php echo htmlspecialchars($billingStaticCopy['copy'], ENT_QUOTES); ?></p>
+                        </div>
+                        <button type="button" class="admin-ghost-btn partner-billing-guide-button" data-billing-open-tutorial>
+                            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M9.7 9a2.4 2.4 0 1 1 3.8 1.95c-.9.6-1.5 1.05-1.5 2.05"></path><path d="M12 17h.01"></path></svg>
+                            <span data-billing-guide-label><?php echo htmlspecialchars($billingStaticCopy['guide'], ENT_QUOTES); ?></span>
+                        </button>
+                    </section>
+
+                    <section class="partner-billing-metrics" data-billing-metrics>
+                        <article><span><?php echo htmlspecialchars($billingStaticCopy['outstanding'], ENT_QUOTES); ?></span><strong>Rp0</strong><small><?php echo htmlspecialchars($billingStaticCopy['no_balance'], ENT_QUOTES); ?></small></article>
+                        <article><span><?php echo htmlspecialchars($billingStaticCopy['awaiting_review'], ENT_QUOTES); ?></span><strong>0</strong><small><?php echo htmlspecialchars($billingStaticCopy['reviews'], ENT_QUOTES); ?></small></article>
+                        <article><span><?php echo htmlspecialchars($billingStaticCopy['confirmed_paid'], ENT_QUOTES); ?></span><strong>Rp0</strong><small><?php echo htmlspecialchars($billingStaticCopy['confirmed_bills'], ENT_QUOTES); ?></small></article>
+                    </section>
+
+                    <div class="partner-billing-workspace">
+                        <aside class="partner-billing-bill-list" data-billing-list>
+                            <div class="partner-billing-loading">
+                                <span></span><span></span><span></span>
+                                <p><?php echo htmlspecialchars($billingStaticCopy['loading'], ENT_QUOTES); ?></p>
+                            </div>
+                        </aside>
+                        <section class="partner-billing-detail" data-billing-detail>
+                            <div class="partner-billing-empty">
+                                <span aria-hidden="true">✓</span>
+                                <h4><?php echo htmlspecialchars($billingStaticCopy['detail_title'], ENT_QUOTES); ?></h4>
+                                <p><?php echo htmlspecialchars($billingStaticCopy['detail_copy'], ENT_QUOTES); ?></p>
+                            </div>
+                        </section>
+                    </div>
+                    <p class="admin-form-error partner-billing-page-error" data-billing-error hidden></p>
+                </div>
             </section>
 
             <section class="partner-section <?php echo $activeSection === 'reports' ? 'is-active' : ''; ?>" data-partner-section="reports">
@@ -701,6 +784,25 @@ $sectionUrl = static function (string $section) use ($dashboardPath): string {
         </div>
     </div>
 
+    <div class="admin-modal-shell partner-billing-tutorial" data-billing-tutorial hidden>
+        <button type="button" class="admin-modal-backdrop" data-billing-close-tutorial aria-label="Close billing guide"></button>
+        <section class="admin-modal-card partner-billing-tutorial-card" role="dialog" aria-modal="true" aria-labelledby="billing-tutorial-title" tabindex="-1">
+            <button type="button" class="partner-billing-icon-close" data-billing-close-tutorial aria-label="Close billing guide">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"></path></svg>
+            </button>
+            <div class="partner-billing-tutorial-progress" data-billing-tutorial-progress aria-label="Tutorial progress"></div>
+            <span class="partner-panel-kicker" data-billing-tutorial-kicker>Weekly billing</span>
+            <div class="partner-billing-tutorial-visual" data-billing-tutorial-visual aria-hidden="true"></div>
+            <h3 id="billing-tutorial-title" data-billing-tutorial-title>Know exactly what you are paying</h3>
+            <p data-billing-tutorial-copy>Every bill covers one seven-day period and includes a transparent order-by-order breakdown.</p>
+            <div class="partner-billing-tutorial-actions">
+                <button type="button" class="admin-ghost-btn" data-billing-tutorial-back hidden>Back</button>
+                <button type="button" class="admin-primary-btn" data-billing-tutorial-next>Next</button>
+            </div>
+        </section>
+    </div>
+
     <script type="module" src="/dashboard.js?v=<?php echo urlencode($dashboardJsVersion ?: '1'); ?>"></script>
+    <script type="module" src="/partner-billing.js?v=<?php echo urlencode((string) @filemtime(dirname(__DIR__) . '/partner-billing.js')); ?>"></script>
 </body>
 </html>

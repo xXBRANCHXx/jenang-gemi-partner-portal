@@ -17,13 +17,17 @@ CREATE TABLE IF NOT EXISTS `partner_orders` (
   `inference_json` LONGTEXT NULL DEFAULT NULL,
   `items_json` LONGTEXT NULL DEFAULT NULL,
   `archived_at` DATETIME NULL DEFAULT NULL,
+  `billing_status` VARCHAR(32) NOT NULL DEFAULT 'unbilled',
+  `billing_reference` VARCHAR(120) NOT NULL DEFAULT '',
+  `billing_paid_at` DATETIME NULL DEFAULT NULL,
   `created_at` DATETIME NOT NULL,
   `updated_at` DATETIME NOT NULL,
   PRIMARY KEY (`id`),
   KEY `idx_partner_orders_partner_created` (`partner_code`, `created_at`),
   KEY `idx_partner_orders_partner_status` (`partner_code`, `status`),
   KEY `idx_partner_orders_partner_sku` (`partner_code`, `sku_code`),
-  KEY `idx_partner_orders_archived` (`archived_at`)
+  KEY `idx_partner_orders_archived` (`archived_at`),
+  KEY `idx_partner_orders_billing` (`partner_code`, `billing_status`, `billing_paid_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `partner_order_labels` (

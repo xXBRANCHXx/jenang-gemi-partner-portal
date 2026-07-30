@@ -7,6 +7,7 @@ Partner-facing dashboard for `partner.jenanggemi.com`.
 - Partner login sequence
 - Partner dashboard and session handling
 - Partner order create/cancel/archive flow
+- Seven-day partner bills, payment-proof review, and order-level disputes
 - Localized, print-ready partner performance PDF reports
 - Catalog restrictions driven by admin partner profiles
 - Future communication layer with store operations
@@ -20,6 +21,7 @@ Partner-facing dashboard for `partner.jenanggemi.com`.
 - `/{partner_slug}/api/orders/`
 - `/{partner_slug}/api/order-labels/`
 - `/{partner_slug}/api/reports/`
+- `/{partner_slug}/api/billing/`
 - `/api/session/`
 - `/api/orders/`
 - `/api/store-orders/`
@@ -35,7 +37,7 @@ The partner order tables are created automatically when the portal can connect t
 
 `config.local.php` is ignored by git. Future deploys should not overwrite it because the deploy task checks that the file is missing before copying the placeholder.
 
-If phpMyAdmin needs the tables created manually, import `database/partner-data-schema.sql` into `u558678012_Partner_Data`.
+If phpMyAdmin needs the tables created manually, import `database/partner-data-schema.sql` and then `database/partner-billing-schema.sql` into `u558678012_Partner_Data`.
 
 ## Notes
 
@@ -54,10 +56,13 @@ If phpMyAdmin needs the tables created manually, import `database/partner-data-s
 - The sales chart supports today, 7-day, 30-day, year, and all-time presets plus checked calendar-month and custom start/end-date modes. Today follows the calendar day, month and custom ranges include every calendar day, and the Overview metric cards follow the same selected window.
 - The Reports page creates professional A4 PDFs for custom periods with an executive summary and optional channel, product, and order-ledger sections. Reports prioritize the partner identity, use the configured light or dark favicon when available, and otherwise render a partner-initial profile mark. PDF language, dates, number formatting, and timezone follow each partner's Regional Settings; cancelled orders remain auditable but are excluded from sales units and partner cost.
 - Label uploads are PDF-only and limited to 10 MB.
+- Billing periods are fixed seven-day blocks anchored on July 1, 2026. Closed bills are due three days after the period ends. Proofs accept PDF, PNG, JPEG, GIF, or WebP files up to 10 MB and are stored privately in MySQL so the Executive Dashboard can review them without a public file URL.
+- Billing onboarding and the navigation `NEW` state are persisted per partner. Language, number formatting, dates, and tutorial copy follow the partner's existing regional preferences.
+- An order-level dispute only changes the selected bill items. Finance can accept the dispute, or reject it with a reason and optional evidence image that remains visible in the partner's bill detail.
 
 ## Production deployment order
 
-1. Deploy this Partner Portal first. The first authenticated orders request adds the retention columns automatically.
+1. Deploy this Partner Portal first. The first authenticated Billing request creates the weekly billing tables and adds the order billing columns automatically.
 2. Confirm `/api/db-status/` returns `{ "ok": true }` and an authenticated partner can load the dashboard.
 3. Deploy the Executive Dashboard partner API hardening that narrows the public registry. Existing Partner Portal sessions are intentionally invalidated once and must sign in again.
 4. Submit and fulfill one test order through Store Ops before inviting partners.

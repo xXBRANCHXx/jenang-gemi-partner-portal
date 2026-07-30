@@ -148,6 +148,7 @@ document.addEventListener('DOMContentLoaded', () => {
     orders: 'Orders',
     labels: 'Labels',
     analytics: 'Analytics',
+    billing: 'Billing',
     reports: 'Reports',
     settings: 'Settings'
   };
@@ -158,6 +159,7 @@ document.addEventListener('DOMContentLoaded', () => {
     ['Orders', 'Pesanan'],
     ['Labels', 'Label Pengiriman'],
     ['Analytics', 'Analitik'],
+    ['Billing', 'Tagihan'],
     ['Reports', 'Laporan'],
     ['Settings', 'Pengaturan'],
     ['New Order', 'Pesanan Baru'],
@@ -844,6 +846,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (push) {
       window.history.pushState({ section: next }, '', sectionUrl(next));
     }
+    document.dispatchEvent(new CustomEvent('partner:sectionchange', { detail: { section: next } }));
   };
 
   const orderUnits = (order = {}) => (order.items || []).reduce((sum, item) => sum + Number(item.quantity || 0), 0);
@@ -1688,6 +1691,9 @@ document.addEventListener('DOMContentLoaded', () => {
     root.dataset.partnerTimezone = state.timezone;
     document.documentElement.lang = state.language;
     document.title = localizedText('Partner Dashboard | Jenang Gemi', 'Dashboard Mitra | Jenang Gemi');
+    document.dispatchEvent(new CustomEvent('partner:preferences', {
+      detail: { language: state.language, timezone: state.timezone }
+    }));
     if (languageSetting instanceof HTMLSelectElement) languageSetting.value = state.language;
     if (timezoneSetting instanceof HTMLSelectElement) timezoneSetting.value = state.timezone;
     translateTree(document.body);

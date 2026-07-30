@@ -66,6 +66,12 @@ if ($requestedPartner !== null && $route !== '') {
         exit;
     }
 
+    if ($route === 'api/billing' || str_starts_with($route, 'api/billing/')) {
+        jg_partner_require_auth_for_json($requestedPartner);
+        require __DIR__ . '/api/billing/index.php';
+        exit;
+    }
+
     http_response_code(404);
 }
 

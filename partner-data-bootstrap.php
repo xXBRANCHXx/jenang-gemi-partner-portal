@@ -110,7 +110,20 @@ function jg_partner_data_status(): array
     $tables = [];
 
     if ($pdo instanceof PDO) {
-        foreach (['partner_orders', 'partner_order_labels', 'partner_platform_options', 'partner_favicons', 'partner_preferences'] as $tableName) {
+        foreach ([
+            'partner_orders',
+            'partner_order_labels',
+            'partner_platform_options',
+            'partner_favicons',
+            'partner_preferences',
+            'partner_weekly_bills',
+            'partner_weekly_bill_items',
+            'partner_weekly_bill_disputes',
+            'partner_weekly_bill_dispute_items',
+            'partner_weekly_bill_files',
+            'partner_weekly_bill_payments',
+            'partner_billing_onboarding',
+        ] as $tableName) {
             $stmt = $pdo->prepare(
                 'SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES
                  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = :table_name'
@@ -170,7 +183,11 @@ function jg_partner_data_ensure_schema(PDO $pdo): void
             deadline_at DATETIME NULL DEFAULT NULL,
             revenue_total DECIMAL(14,2) NOT NULL DEFAULT 0.00,
             inference_json LONGTEXT NULL DEFAULT NULL,
+            items_json LONGTEXT NULL DEFAULT NULL,
             archived_at DATETIME NULL DEFAULT NULL,
+            billing_status VARCHAR(32) NOT NULL DEFAULT "unbilled",
+            billing_reference VARCHAR(120) NOT NULL DEFAULT "",
+            billing_paid_at DATETIME NULL DEFAULT NULL,
             created_at DATETIME NOT NULL,
             updated_at DATETIME NOT NULL,
             KEY idx_partner_orders_partner_created (partner_code, created_at),
@@ -211,6 +228,7 @@ function jg_partner_data_ensure_schema(PDO $pdo): void
             stored_name VARCHAR(255) NOT NULL,
             mime_type VARCHAR(64) NOT NULL,
             size_bytes BIGINT UNSIGNED NOT NULL DEFAULT 0,
+            file_data LONGBLOB NULL DEFAULT NULL,
             created_at DATETIME NOT NULL,
             updated_at DATETIME NOT NULL,
             PRIMARY KEY (partner_code, theme),
@@ -238,10 +256,15 @@ function jg_partner_data_ensure_schema(PDO $pdo): void
     jg_partner_data_ensure_column($pdo, 'partner_orders', 'deadline_at', 'DATETIME NULL DEFAULT NULL');
     jg_partner_data_ensure_column($pdo, 'partner_orders', 'revenue_total', 'DECIMAL(14,2) NOT NULL DEFAULT 0.00');
     jg_partner_data_ensure_column($pdo, 'partner_orders', 'inference_json', 'LONGTEXT NULL DEFAULT NULL');
+    jg_partner_data_ensure_column($pdo, 'partner_orders', 'billing_status', 'VARCHAR(32) NOT NULL DEFAULT "unbilled"');
+    jg_partner_data_ensure_column($pdo, 'partner_orders', 'billing_reference', 'VARCHAR(120) NOT NULL DEFAULT ""');
+    jg_partner_data_ensure_column($pdo, 'partner_orders', 'billing_paid_at', 'DATETIME NULL DEFAULT NULL');
     jg_partner_data_ensure_column($pdo, 'partner_order_labels', 'expires_at', 'DATETIME NULL DEFAULT NULL');
     jg_partner_data_ensure_column($pdo, 'partner_order_labels', 'deleted_at', 'DATETIME NULL DEFAULT NULL');
     jg_partner_data_ensure_column($pdo, 'partner_order_labels', 'deletion_reason', 'VARCHAR(64) NOT NULL DEFAULT ""');
+    jg_partner_data_ensure_column($pdo, 'partner_favicons', 'file_data', 'LONGBLOB NULL DEFAULT NULL');
     jg_partner_data_ensure_index($pdo, 'partner_orders', 'idx_partner_orders_archived', '(archived_at)');
+    jg_partner_data_ensure_index($pdo, 'partner_orders', 'idx_partner_orders_billing', '(partner_code, billing_status, billing_paid_at)');
     jg_partner_data_ensure_index($pdo, 'partner_order_labels', 'idx_partner_order_labels_expiry', '(deleted_at, expires_at)');
 }
 

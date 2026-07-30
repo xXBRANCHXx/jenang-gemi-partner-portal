@@ -111,7 +111,8 @@ function jg_partner_favicon_list(string $partnerCode): array
     $pdo = jg_partner_data_db();
     if ($pdo instanceof PDO) {
         $stmt = $pdo->prepare(
-            'SELECT partner_code, theme, original_name, stored_name, mime_type, size_bytes, created_at, updated_at
+            'SELECT partner_code, theme, original_name, stored_name, mime_type, size_bytes,
+                    OCTET_LENGTH(file_data) AS data_bytes, created_at, updated_at
              FROM partner_favicons WHERE partner_code = :partner_code'
         );
         $stmt->execute([':partner_code' => $partnerCode]);
@@ -131,8 +132,22 @@ function jg_partner_favicon_list(string $partnerCode): array
     }
 
     foreach ($records as $theme => $record) {
-        if (!in_array($theme, ['light', 'dark'], true) || jg_partner_favicon_file_path($record) === null) {
+        $path = jg_partner_favicon_file_path($record);
+        if (!in_array($theme, ['light', 'dark'], true) || $path === null) {
             unset($records[$theme]);
+            continue;
+        }
+        if ($pdo instanceof PDO && (int) ($record['data_bytes'] ?? 0) <= 0) {
+            $bytes = @file_get_contents($path);
+            if (is_string($bytes) && $bytes !== '') {
+                $backfill = $pdo->prepare(
+                    'UPDATE partner_favicons SET file_data = :file_data WHERE partner_code = :partner_code AND theme = :theme'
+                );
+                $backfill->bindValue(':file_data', $bytes, PDO::PARAM_LOB);
+                $backfill->bindValue(':partner_code', $partnerCode);
+                $backfill->bindValue(':theme', $theme);
+                $backfill->execute();
+            }
         }
     }
     return $records;
@@ -188,6 +203,7 @@ function jg_partner_favicon_save(string $partnerCode, string $theme, array $file
         throw new RuntimeException('Unable to save favicon.');
     }
     @chmod($targetPath, 0600);
+    $fileData = (string) file_get_contents($targetPath);
 
     $now = gmdate(DATE_ATOM);
     $record = [
@@ -206,23 +222,23 @@ function jg_partner_favicon_save(string $partnerCode, string $theme, array $file
         if ($pdo instanceof PDO) {
             $stmt = $pdo->prepare(
                 'INSERT INTO partner_favicons
-                    (partner_code, theme, original_name, stored_name, mime_type, size_bytes, created_at, updated_at)
+                    (partner_code, theme, original_name, stored_name, mime_type, size_bytes, file_data, created_at, updated_at)
                  VALUES
-                    (:partner_code, :theme, :original_name, :stored_name, :mime_type, :size_bytes, :created_at, :updated_at)
+                    (:partner_code, :theme, :original_name, :stored_name, :mime_type, :size_bytes, :file_data, :created_at, :updated_at)
                  ON DUPLICATE KEY UPDATE
                     original_name = VALUES(original_name), stored_name = VALUES(stored_name),
-                    mime_type = VALUES(mime_type), size_bytes = VALUES(size_bytes), updated_at = VALUES(updated_at)'
+                    mime_type = VALUES(mime_type), size_bytes = VALUES(size_bytes), file_data = VALUES(file_data), updated_at = VALUES(updated_at)'
             );
-            $stmt->execute([
-                ':partner_code' => $partnerCode,
-                ':theme' => $theme,
-                ':original_name' => $record['original_name'],
-                ':stored_name' => $storedName,
-                ':mime_type' => $record['mime_type'],
-                ':size_bytes' => $record['size_bytes'],
-                ':created_at' => gmdate('Y-m-d H:i:s', strtotime($record['created_at']) ?: time()),
-                ':updated_at' => gmdate('Y-m-d H:i:s'),
-            ]);
+            $stmt->bindValue(':partner_code', $partnerCode);
+            $stmt->bindValue(':theme', $theme);
+            $stmt->bindValue(':original_name', $record['original_name']);
+            $stmt->bindValue(':stored_name', $storedName);
+            $stmt->bindValue(':mime_type', $record['mime_type']);
+            $stmt->bindValue(':size_bytes', $record['size_bytes'], PDO::PARAM_INT);
+            $stmt->bindValue(':file_data', $fileData, PDO::PARAM_LOB);
+            $stmt->bindValue(':created_at', gmdate('Y-m-d H:i:s', strtotime($record['created_at']) ?: time()));
+            $stmt->bindValue(':updated_at', gmdate('Y-m-d H:i:s'));
+            $stmt->execute();
         } elseif (jg_partner_data_mysql_is_configured()) {
             throw new RuntimeException('Favicon storage is temporarily unavailable.');
         } else {

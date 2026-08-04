@@ -47,6 +47,8 @@ function jg_partner_billing_localized_error(string $message, string $language): 
         'Too many orders were selected.' => 'Terlalu banyak pesanan yang dipilih.',
         'This bill cannot be disputed in its current state.' => 'Tagihan ini tidak dapat disengketakan dalam status saat ini.',
         'One or more selected orders are no longer available for dispute.' => 'Satu atau beberapa pesanan yang dipilih tidak lagi dapat disengketakan.',
+        'Enter a proposed price for every product in each selected order.' => 'Masukkan harga usulan untuk setiap produk dalam setiap pesanan yang dipilih.',
+        'Each proposed product price must be between Rp 0 and Rp 1,000,000,000,000.' => 'Setiap harga produk yang diusulkan harus antara Rp 0 dan Rp 1.000.000.000.000.',
         'File not found.' => 'File tidak ditemukan.',
         'Method not allowed.' => 'Metode tidak diizinkan.',
         'Unknown billing action.' => 'Tindakan tagihan tidak dikenali.',
@@ -114,7 +116,8 @@ try {
             $partnerCode,
             trim((string) ($request['bill_id'] ?? '')),
             is_array($orderIds) ? $orderIds : [],
-            (string) ($request['reason'] ?? '')
+            (string) ($request['reason'] ?? ''),
+            $request['price_proposals'] ?? []
         );
         jg_partner_billing_json(jg_partner_billing_payload($partnerCode, $endpoint), 201);
     }

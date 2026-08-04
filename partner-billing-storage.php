@@ -70,6 +70,7 @@ function jg_partner_billing_ensure_schema(PDO $pdo): void
             dispute_key VARCHAR(120) NOT NULL,
             bill_id VARCHAR(120) NOT NULL,
             partner_code VARCHAR(64) NOT NULL,
+            dispute_type VARCHAR(32) NOT NULL DEFAULT "paid",
             reason TEXT NOT NULL,
             status VARCHAR(32) NOT NULL DEFAULT "pending",
             resolution_reason TEXT NULL DEFAULT NULL,
@@ -84,6 +85,11 @@ function jg_partner_billing_ensure_schema(PDO $pdo): void
         'CREATE TABLE IF NOT EXISTS partner_weekly_bill_dispute_items (
             dispute_id BIGINT UNSIGNED NOT NULL,
             bill_item_id BIGINT UNSIGNED NOT NULL,
+            original_amount BIGINT NULL DEFAULT NULL,
+            proposed_amount BIGINT NULL DEFAULT NULL,
+            proposal_json LONGTEXT NULL DEFAULT NULL,
+            resolved_amount BIGINT NULL DEFAULT NULL,
+            resolution_json LONGTEXT NULL DEFAULT NULL,
             created_at DATETIME NOT NULL,
             PRIMARY KEY (dispute_id, bill_item_id),
             KEY idx_partner_dispute_items_item (bill_item_id)
@@ -133,6 +139,12 @@ function jg_partner_billing_ensure_schema(PDO $pdo): void
     jg_partner_data_ensure_column($pdo, 'partner_orders', 'billing_status', 'VARCHAR(32) NOT NULL DEFAULT "unbilled"');
     jg_partner_data_ensure_column($pdo, 'partner_orders', 'billing_reference', 'VARCHAR(120) NOT NULL DEFAULT ""');
     jg_partner_data_ensure_column($pdo, 'partner_orders', 'billing_paid_at', 'DATETIME NULL DEFAULT NULL');
+    jg_partner_data_ensure_column($pdo, 'partner_weekly_bill_disputes', 'dispute_type', 'VARCHAR(32) NOT NULL DEFAULT "paid"');
+    jg_partner_data_ensure_column($pdo, 'partner_weekly_bill_dispute_items', 'original_amount', 'BIGINT NULL DEFAULT NULL');
+    jg_partner_data_ensure_column($pdo, 'partner_weekly_bill_dispute_items', 'proposed_amount', 'BIGINT NULL DEFAULT NULL');
+    jg_partner_data_ensure_column($pdo, 'partner_weekly_bill_dispute_items', 'proposal_json', 'LONGTEXT NULL DEFAULT NULL');
+    jg_partner_data_ensure_column($pdo, 'partner_weekly_bill_dispute_items', 'resolved_amount', 'BIGINT NULL DEFAULT NULL');
+    jg_partner_data_ensure_column($pdo, 'partner_weekly_bill_dispute_items', 'resolution_json', 'LONGTEXT NULL DEFAULT NULL');
     jg_partner_data_ensure_index($pdo, 'partner_orders', 'idx_partner_orders_billing', '(partner_code, billing_status, billing_paid_at)');
 
     $prepared[$key] = true;
@@ -315,6 +327,73 @@ function jg_partner_billing_order_summary(array $order): array
         'units' => $units,
         'description' => mb_substr(implode(', ', $labels), 0, 500),
         'items' => $items,
+    ];
+}
+
+/**
+ * Normalize a partner's proposed unit prices against the immutable bill snapshot.
+ *
+ * @return array{order_id:string,original_amount:int,proposed_amount:int,lines:list<array<string,mixed>>}
+ */
+function jg_partner_billing_price_proposal(array $billItem, mixed $proposal): array
+{
+    $proposal = is_array($proposal) ? $proposal : [];
+    $requestedLines = [];
+    foreach ((array) ($proposal['lines'] ?? []) as $line) {
+        if (!is_array($line)) continue;
+        $index = filter_var($line['line_index'] ?? null, FILTER_VALIDATE_INT);
+        if ($index === false || $index < 0 || $index > 999) continue;
+        $requestedLines[$index] = $line;
+    }
+    $hasRequestedLines = $requestedLines !== [];
+
+    $snapshot = json_decode((string) ($billItem['snapshot_json'] ?? ''), true);
+    $snapshot = is_array($snapshot) ? $snapshot : [];
+    $sourceLines = array_values(array_filter((array) ($snapshot['items'] ?? []), 'is_array'));
+    if ($sourceLines === []) {
+        $quantity = max(1, (int) ($billItem['units'] ?? 1));
+        $sourceLines = [[
+            'sku_code' => '',
+            'sku_label' => trim((string) ($billItem['description'] ?? '')) ?: (string) ($billItem['order_id'] ?? 'Order'),
+            'product' => trim((string) ($billItem['description'] ?? '')) ?: 'Order total',
+            'quantity' => $quantity,
+            'unit_revenue' => (int) round(((float) ($billItem['amount'] ?? 0)) / $quantity),
+        ]];
+    }
+
+    $lines = [];
+    $proposedAmount = 0;
+    foreach ($sourceLines as $index => $source) {
+        $requested = $requestedLines[$index] ?? null;
+        if (!is_array($requested) && !$hasRequestedLines) {
+            $requested = ['unit_price' => $source['unit_revenue'] ?? $source['partner_price'] ?? $source['partner_unit_price'] ?? 0];
+        }
+        if (!is_array($requested) || !is_numeric($requested['unit_price'] ?? null)) {
+            throw new InvalidArgumentException('Enter a proposed price for every product in each selected order.');
+        }
+        $unitPrice = (int) round((float) $requested['unit_price']);
+        if ($unitPrice < 0 || $unitPrice > 1000000000000) {
+            throw new InvalidArgumentException('Each proposed product price must be between Rp 0 and Rp 1,000,000,000,000.');
+        }
+        $quantity = max(1, (int) ($source['quantity'] ?? 1));
+        $lineAmount = $unitPrice * $quantity;
+        $proposedAmount += $lineAmount;
+        $lines[] = [
+            'line_index' => $index,
+            'sku_code' => (string) ($source['sku_code'] ?? ''),
+            'label' => trim((string) ($source['sku_label'] ?? $source['product'] ?? $source['sku_code'] ?? '')) ?: 'Product ' . ($index + 1),
+            'quantity' => $quantity,
+            'original_unit_price' => (int) round((float) ($source['unit_revenue'] ?? $source['partner_price'] ?? $source['partner_unit_price'] ?? 0)),
+            'proposed_unit_price' => $unitPrice,
+            'proposed_line_amount' => $lineAmount,
+        ];
+    }
+
+    return [
+        'order_id' => (string) ($billItem['order_id'] ?? ''),
+        'original_amount' => (int) round((float) ($billItem['amount'] ?? 0)),
+        'proposed_amount' => $proposedAmount,
+        'lines' => $lines,
     ];
 }
 
@@ -582,7 +661,7 @@ function jg_partner_billing_payload(string $partnerCode, string $fileEndpoint): 
         }, $itemStmt->fetchAll());
 
         $disputeStmt = $pdo->prepare(
-            'SELECT d.id, d.dispute_key, d.reason, d.status, d.resolution_reason, d.evidence_file_id,
+            'SELECT d.id, d.dispute_key, d.dispute_type, d.reason, d.status, d.resolution_reason, d.evidence_file_id,
                     d.created_at, d.resolved_at
              FROM partner_weekly_bill_disputes d
              WHERE d.bill_id = :bill_id
@@ -592,21 +671,37 @@ function jg_partner_billing_payload(string $partnerCode, string $fileEndpoint): 
         $disputes = [];
         foreach ($disputeStmt->fetchAll() as $dispute) {
             $selectedStmt = $pdo->prepare(
-                'SELECT i.order_id FROM partner_weekly_bill_dispute_items di
+                'SELECT i.order_id, di.original_amount, di.proposed_amount, di.proposal_json,
+                        di.resolved_amount, di.resolution_json
+                 FROM partner_weekly_bill_dispute_items di
                  JOIN partner_weekly_bill_items i ON i.id = di.bill_item_id
                  WHERE di.dispute_id = :dispute_id ORDER BY i.order_date ASC'
             );
             $selectedStmt->execute([':dispute_id' => (int) $dispute['id']]);
+            $selectedItems = array_map(static function (array $item): array {
+                $proposal = json_decode((string) ($item['proposal_json'] ?? ''), true);
+                $resolution = json_decode((string) ($item['resolution_json'] ?? ''), true);
+                return [
+                    'order_id' => (string) $item['order_id'],
+                    'original_amount' => (int) ($item['original_amount'] ?? 0),
+                    'proposed_amount' => (int) ($item['proposed_amount'] ?? 0),
+                    'resolved_amount' => isset($item['resolved_amount']) ? (int) $item['resolved_amount'] : null,
+                    'proposal' => is_array($proposal) ? $proposal : null,
+                    'resolution' => is_array($resolution) ? $resolution : null,
+                ];
+            }, $selectedStmt->fetchAll());
             $evidenceId = (int) ($dispute['evidence_file_id'] ?? 0);
             $disputes[] = [
                 'id' => (int) $dispute['id'],
                 'key' => (string) $dispute['dispute_key'],
+                'type' => (string) ($dispute['dispute_type'] ?? 'paid'),
                 'reason' => (string) $dispute['reason'],
                 'status' => (string) $dispute['status'],
                 'resolution_reason' => (string) ($dispute['resolution_reason'] ?? ''),
                 'created_at' => (string) $dispute['created_at'],
                 'resolved_at' => (string) ($dispute['resolved_at'] ?? ''),
-                'order_ids' => array_values(array_map('strval', $selectedStmt->fetchAll(PDO::FETCH_COLUMN))),
+                'order_ids' => array_values(array_column($selectedItems, 'order_id')),
+                'price_proposals' => $selectedItems,
                 'evidence_url' => $evidenceId > 0 ? $fileEndpoint . '?' . http_build_query(['action' => 'file', 'id' => $evidenceId]) : '',
             ];
         }
@@ -802,7 +897,7 @@ function jg_partner_billing_submit_payment(string $partnerCode, string $billId, 
     }
 }
 
-function jg_partner_billing_submit_dispute(string $partnerCode, string $billId, array $orderIds, string $reason): array
+function jg_partner_billing_submit_dispute(string $partnerCode, string $billId, array $orderIds, string $reason, mixed $priceProposals = []): array
 {
     jg_partner_billing_sync($partnerCode);
     $reason = trim($reason);
@@ -831,7 +926,7 @@ function jg_partner_billing_submit_dispute(string $partnerCode, string $billId, 
         }
         $placeholders = implode(',', array_fill(0, count($orderIds), '?'));
         $itemStmt = $pdo->prepare(
-            'SELECT id, order_id FROM partner_weekly_bill_items
+            'SELECT id, order_id, description, units, amount, snapshot_json FROM partner_weekly_bill_items
              WHERE bill_id = ? AND partner_code = ? AND status = "included" AND order_id IN (' . $placeholders . ') FOR UPDATE'
         );
         $itemStmt->execute([$billId, $partnerCode, ...$orderIds]);
@@ -839,35 +934,60 @@ function jg_partner_billing_submit_dispute(string $partnerCode, string $billId, 
         if (count($items) !== count($orderIds)) {
             throw new InvalidArgumentException('One or more selected orders are no longer available for dispute.');
         }
+        $proposalByOrder = [];
+        foreach ((array) $priceProposals as $proposal) {
+            if (!is_array($proposal)) continue;
+            $proposalOrderId = trim((string) ($proposal['order_id'] ?? ''));
+            if ($proposalOrderId !== '') $proposalByOrder[$proposalOrderId] = $proposal;
+        }
+        $normalizedProposals = [];
+        $hasPriceChange = false;
+        foreach ($items as $item) {
+            $orderId = (string) $item['order_id'];
+            $normalized = jg_partner_billing_price_proposal($item, $proposalByOrder[$orderId] ?? null);
+            $normalizedProposals[(int) $item['id']] = $normalized;
+            if ($proposalByOrder !== [] && $normalized['proposed_amount'] !== $normalized['original_amount']) $hasPriceChange = true;
+        }
+
+        $disputeType = $hasPriceChange ? 'price' : 'paid';
         $disputeKey = 'DSP-' . gmdate('YmdHis') . '-' . strtoupper(bin2hex(random_bytes(4)));
         $insert = $pdo->prepare(
             'INSERT INTO partner_weekly_bill_disputes
-                (dispute_key, bill_id, partner_code, reason, status, created_at, updated_at)
+                (dispute_key, bill_id, partner_code, dispute_type, reason, status, created_at, updated_at)
              VALUES
-                (:dispute_key, :bill_id, :partner_code, :reason, "pending", UTC_TIMESTAMP(), UTC_TIMESTAMP())'
+                (:dispute_key, :bill_id, :partner_code, :dispute_type, :reason, "pending", UTC_TIMESTAMP(), UTC_TIMESTAMP())'
         );
         $insert->execute([
             ':dispute_key' => $disputeKey,
             ':bill_id' => $billId,
             ':partner_code' => $partnerCode,
+            ':dispute_type' => $disputeType,
             ':reason' => mb_substr($reason, 0, 4000),
         ]);
         $disputeId = (int) $pdo->lastInsertId();
         $link = $pdo->prepare(
-            'INSERT INTO partner_weekly_bill_dispute_items (dispute_id, bill_item_id, created_at)
-             VALUES (:dispute_id, :bill_item_id, UTC_TIMESTAMP())'
+            'INSERT INTO partner_weekly_bill_dispute_items
+                (dispute_id, bill_item_id, original_amount, proposed_amount, proposal_json, created_at)
+             VALUES (:dispute_id, :bill_item_id, :original_amount, :proposed_amount, :proposal_json, UTC_TIMESTAMP())'
         );
         $mark = $pdo->prepare(
             'UPDATE partner_weekly_bill_items SET status = "disputed", dispute_id = :dispute_id, updated_at = UTC_TIMESTAMP() WHERE id = :id'
         );
         foreach ($items as $item) {
-            $link->execute([':dispute_id' => $disputeId, ':bill_item_id' => (int) $item['id']]);
+            $proposal = $normalizedProposals[(int) $item['id']];
+            $link->execute([
+                ':dispute_id' => $disputeId,
+                ':bill_item_id' => (int) $item['id'],
+                ':original_amount' => $proposal['original_amount'],
+                ':proposed_amount' => $proposal['proposed_amount'],
+                ':proposal_json' => json_encode($proposal, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+            ]);
             $mark->execute([':dispute_id' => $disputeId, ':id' => (int) $item['id']]);
         }
         $billUpdate = $pdo->prepare('UPDATE partner_weekly_bills SET status = "disputed", updated_at = UTC_TIMESTAMP() WHERE bill_id = :bill_id');
         $billUpdate->execute([':bill_id' => $billId]);
         $pdo->commit();
-        return ['ok' => true, 'bill_id' => $billId, 'dispute_id' => $disputeId, 'status' => 'pending'];
+        return ['ok' => true, 'bill_id' => $billId, 'dispute_id' => $disputeId, 'type' => $disputeType, 'status' => 'pending'];
     } catch (Throwable $error) {
         if ($pdo->inTransaction()) {
             $pdo->rollBack();

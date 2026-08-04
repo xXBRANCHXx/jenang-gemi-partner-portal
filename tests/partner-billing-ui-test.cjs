@@ -25,6 +25,8 @@ assert.match(markup, /data-billing-hero-title[\s\S]*\$billingStaticCopy/, 'The i
 assert.match(billing, /renderShellLanguage[\s\S]*'How it works', 'Cara kerja'/, 'Billing shell copy should update when the language setting changes.');
 assert.match(api, /jg_partner_billing_localized_error[\s\S]*Tagihan sementara tidak tersedia/, 'Partner-visible API errors should follow the selected language.');
 assert.match(billing, /data-billing-dispute-order/, 'Disputes should target exact order IDs.');
+assert.match(billing, /data-billing-proposal-price[\s\S]*price_proposals/, 'Selected orders should submit per-product proposed prices.');
+assert.match(styles, /\.partner-billing-price-proposal[\s\S]*\.partner-billing-price-input/, 'Price proposals should have a readable inline editor.');
 assert.match(styles, /\.partner-billing-new[\s\S]*background:\s*#ef2b45/, 'The NEW marker should use the requested red treatment.');
 assert.match(styles, /\.partner-billing-workspace[\s\S]*grid-template-columns/, 'Bills and their breakdown should use a readable master-detail layout.');
 assert.match(styles, /data-active-section='billing'[\s\S]*grid-template-columns:\s*1fr/, 'Billing should collapse the portal shell at tablet and mobile widths.');

@@ -49,6 +49,18 @@ document.addEventListener('DOMContentLoaded', () => {
   const formatMoney = (value) => new Intl.NumberFormat(locale(), {
     style: 'currency', currency: 'IDR', maximumFractionDigits: 0
   }).format(Number(value || 0));
+  const itemPriceLines = (item) => {
+    const source = Array.isArray(item?.snapshot?.items) ? item.snapshot.items : [];
+    if (source.length) return source.map((line, lineIndex) => ({
+      lineIndex,
+      label: String(line.sku_label || line.product || line.sku_code || `${t('Product', 'Produk')} ${lineIndex + 1}`),
+      skuCode: String(line.sku_code || ''),
+      quantity: Math.max(1, Number(line.quantity || 1)),
+      unitPrice: Math.max(0, Math.round(Number(line.unit_revenue ?? line.partner_price ?? line.partner_unit_price ?? 0)))
+    }));
+    const quantity = Math.max(1, Number(item?.units || 1));
+    return [{ lineIndex: 0, label: String(item?.description || t('Order total', 'Total pesanan')), skuCode: '', quantity, unitPrice: Math.max(0, Math.round(Number(item?.amount || 0) / quantity)) }];
+  };
   const parseDate = (value) => {
     const normalized = String(value || '').trim();
     if (!normalized) return null;
@@ -204,10 +216,15 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!disputes.length) return '';
     return disputes.map((dispute) => {
       const orders = dispute.order_ids.join(', ');
+      const proposals = Array.isArray(dispute.price_proposals) ? dispute.price_proposals : [];
+      const original = proposals.reduce((sum, item) => sum + Number(item.original_amount || 0), 0);
+      const proposed = proposals.reduce((sum, item) => sum + Number(item.proposed_amount || 0), 0);
+      const resolved = proposals.reduce((sum, item) => sum + Number(item.resolved_amount ?? item.proposed_amount ?? 0), 0);
+      const isPriceDispute = dispute.type === 'price';
       if (dispute.status === 'pending') {
         return `<article class="partner-billing-review-note is-pending">
           <span>${escapeHtml(t('Under review', 'Sedang ditinjau'))}</span>
-          <strong>${dispute.order_ids.length} ${escapeHtml(t('orders claimed as already paid', 'pesanan diklaim sudah dibayar'))}</strong>
+          <strong>${isPriceDispute ? `${escapeHtml(formatMoney(original))} → ${escapeHtml(formatMoney(proposed))}` : `${dispute.order_ids.length} ${escapeHtml(t('orders claimed as already paid', 'pesanan diklaim sudah dibayar'))}`}</strong>
           <p>${escapeHtml(dispute.reason)}</p>
           <small>${escapeHtml(orders)}</small>
         </article>`;
@@ -215,7 +232,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (dispute.status === 'accepted') {
         return `<article class="partner-billing-review-note is-accepted">
           <span>${escapeHtml(t('Dispute accepted', 'Sengketa diterima'))}</span>
-          <strong>${escapeHtml(t('The selected orders were removed from this bill.', 'Pesanan terpilih telah dikeluarkan dari tagihan ini.'))}</strong>
+          <strong>${isPriceDispute ? `${escapeHtml(t('Price corrected to', 'Harga diperbaiki menjadi'))} ${escapeHtml(formatMoney(resolved))}` : escapeHtml(t('The selected orders were removed from this bill.', 'Pesanan terpilih telah dikeluarkan dari tagihan ini.'))}</strong>
           <small>${escapeHtml(orders)}</small>
         </article>`;
       }
@@ -248,8 +265,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     if (state.disputeMode) {
       return `<form class="partner-billing-dispute-form" data-billing-dispute-form>
-        <div><strong>${escapeHtml(t('Claim orders already paid', 'Klaim pesanan yang sudah dibayar'))}</strong><span>${escapeHtml(t('Select the orders above, then explain what happened.', 'Pilih pesanan di atas, lalu jelaskan kejadiannya.'))}</span></div>
-        <textarea name="reason" maxlength="4000" placeholder="${escapeHtml(t('Example: These orders were paid in the previous transfer…', 'Contoh: Pesanan ini sudah dibayar pada transfer sebelumnya…'))}" required></textarea>
+        <div><strong>${escapeHtml(t('Dispute selected orders', 'Sengketakan pesanan terpilih'))}</strong><span>${escapeHtml(t('Keep the current prices for an already-paid claim, or enter corrected product prices above.', 'Pertahankan harga saat ini untuk klaim sudah dibayar, atau masukkan harga produk yang benar di atas.'))}</span></div>
+        <textarea name="reason" maxlength="4000" placeholder="${escapeHtml(t('Explain why these orders were paid already or why their prices should change…', 'Jelaskan mengapa pesanan ini sudah dibayar atau mengapa harganya harus diubah…'))}" required></textarea>
         <p data-billing-dispute-count>${state.selectedOrderIds.size} ${escapeHtml(t('orders selected', 'pesanan dipilih'))}</p>
         <div><button type="button" class="admin-ghost-btn" data-billing-cancel-dispute>${escapeHtml(t('Cancel', 'Batal'))}</button><button type="submit" class="admin-primary-btn" ${state.selectedOrderIds.size ? '' : 'disabled'}>${escapeHtml(t('Submit dispute', 'Kirim sengketa'))}</button></div>
       </form>`;
@@ -296,11 +313,15 @@ document.addEventListener('DOMContentLoaded', () => {
         <div class="partner-billing-breakdown-head"><div><span>${escapeHtml(t('Order breakdown', 'Rincian pesanan'))}</span><strong>${activeItems.length} ${escapeHtml(t('included orders', 'pesanan termasuk'))}</strong></div><em>${activeItems.reduce((sum, item) => sum + Number(item.units || 0), 0)} ${escapeHtml(t('units', 'unit'))}</em></div>
         <div class="partner-billing-order-table">
           ${activeItems.map((item) => `
-            <label class="partner-billing-order-row is-${escapeHtml(item.status)}">
+            <div class="partner-billing-order-row is-${escapeHtml(item.status)}${state.selectedOrderIds.has(item.order_id) ? ' is-selected-for-dispute' : ''}" data-billing-order-row="${escapeHtml(item.order_id)}">
               ${state.disputeMode && item.status === 'included' ? `<input type="checkbox" data-billing-dispute-order="${escapeHtml(item.order_id)}" ${state.selectedOrderIds.has(item.order_id) ? 'checked' : ''}>` : '<span class="partner-billing-order-dot" aria-hidden="true"></span>'}
               <span class="partner-billing-order-main"><strong>${escapeHtml(item.order_id)}</strong><small>${escapeHtml(item.description || t('Order items', 'Item pesanan'))}</small><em>${escapeHtml(formatDate(item.order_date, { year: undefined }))} · ${escapeHtml(item.platform || t('Other', 'Lainnya'))}${item.customer_name ? ` · ${escapeHtml(item.customer_name)}` : ''}</em></span>
               <span class="partner-billing-order-amount"><strong>${escapeHtml(formatMoney(item.amount))}</strong><small>${Number(item.units || 0)} ${escapeHtml(t('units', 'unit'))}</small></span>
-            </label>`).join('')}
+              ${state.disputeMode && item.status === 'included' ? `<section class="partner-billing-price-proposal" data-billing-proposal-order="${escapeHtml(item.order_id)}" ${state.selectedOrderIds.has(item.order_id) ? '' : 'hidden'}>
+                <header><span>${escapeHtml(t('Your corrected product prices', 'Harga produk yang Anda koreksi'))}</span><small>${escapeHtml(t('Leave unchanged for an already-paid claim', 'Biarkan sama untuk klaim sudah dibayar'))}</small></header>
+                ${itemPriceLines(item).map((line) => `<label><span><strong>${escapeHtml(line.label)}</strong><small>${line.quantity} × ${escapeHtml(formatMoney(line.unitPrice))}${line.skuCode ? ` · ${escapeHtml(line.skuCode)}` : ''}</small></span><span class="partner-billing-price-input"><i>Rp</i><input type="number" min="0" max="1000000000000" step="1" value="${line.unitPrice}" data-billing-proposal-price data-order-id="${escapeHtml(item.order_id)}" data-line-index="${line.lineIndex}" ${state.selectedOrderIds.has(item.order_id) ? '' : 'disabled'} required></span></label>`).join('')}
+              </section>` : ''}
+            </div>`).join('')}
           ${removedItems.length ? `<details class="partner-billing-removed-orders"><summary>${removedItems.length} ${escapeHtml(t('orders removed from total', 'pesanan dikeluarkan dari total'))}</summary>${removedItems.map((item) => `<div><span><strong>${escapeHtml(item.order_id)}</strong><small>${escapeHtml(item.removed_reason || t('Removed after review', 'Dikeluarkan setelah ditinjau'))}</small></span><del>${escapeHtml(formatMoney(item.amount))}</del></div>`).join('')}</details>` : ''}
         </div>
       </section>
@@ -444,6 +465,13 @@ document.addEventListener('DOMContentLoaded', () => {
       if (count) count.textContent = `${state.selectedOrderIds.size} ${t('orders selected', 'pesanan dipilih')}`;
       const submit = detailNode.querySelector('[data-billing-dispute-form] button[type="submit"]');
       if (submit instanceof HTMLButtonElement) submit.disabled = state.selectedOrderIds.size === 0;
+      const row = target.closest('[data-billing-order-row]');
+      row?.classList.toggle('is-selected-for-dispute', target.checked);
+      const proposal = row?.querySelector('[data-billing-proposal-order]');
+      if (proposal instanceof HTMLElement) proposal.hidden = !target.checked;
+      proposal?.querySelectorAll('[data-billing-proposal-price]').forEach((input) => {
+        if (input instanceof HTMLInputElement) input.disabled = !target.checked;
+      });
     }
     if (target instanceof HTMLInputElement && target.matches('[data-billing-proof-input]')) {
       const file = target.files?.[0];
@@ -474,10 +502,20 @@ document.addEventListener('DOMContentLoaded', () => {
         state.payload = await requestForm(body);
       } else if (form.matches('[data-billing-dispute-form]')) {
         const data = new FormData(form);
+        const priceProposals = Array.from(detailNode.querySelectorAll('[data-billing-proposal-price]'))
+          .filter((input) => input instanceof HTMLInputElement && state.selectedOrderIds.has(input.dataset.orderId || ''))
+          .reduce((orders, input) => {
+            const orderId = input.dataset.orderId || '';
+            let order = orders.find((entry) => entry.order_id === orderId);
+            if (!order) { order = { order_id: orderId, lines: [] }; orders.push(order); }
+            order.lines.push({ line_index: Number(input.dataset.lineIndex || 0), unit_price: Number(input.value) });
+            return orders;
+          }, []);
         state.payload = await requestJson({ method: 'POST', body: {
           action: 'submit_dispute',
           bill_id: bill.id,
           order_ids: Array.from(state.selectedOrderIds),
+          price_proposals: priceProposals,
           reason: String(data.get('reason') || '')
         } });
       }

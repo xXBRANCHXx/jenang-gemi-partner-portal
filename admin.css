@@ -315,7 +315,8 @@
 }
 .partner-billing-order-row:last-of-type { border-bottom: 0; }
 .partner-billing-order-row:hover { background: var(--partner-panel-soft); }
-.partner-billing-order-row input { width: 17px; height: 17px; accent-color: var(--partner-text); }
+.partner-billing-order-row > input { width: 17px; height: 17px; accent-color: var(--partner-text); }
+.partner-billing-order-row.is-selected-for-dispute { background: color-mix(in srgb, var(--partner-text) 5%, var(--partner-panel)); }
 .partner-billing-order-dot { width: 7px; height: 7px; border-radius: 50%; background: color-mix(in srgb, var(--partner-text) 38%, transparent); }
 .partner-billing-order-row.is-disputed .partner-billing-order-dot { background: #f59e0b; box-shadow: 0 0 0 5px rgba(245, 158, 11, .09); }
 .partner-billing-order-main { display: grid; gap: 3px; min-width: 0; }
@@ -325,6 +326,28 @@
 .partner-billing-order-amount { display: grid; gap: 3px; justify-items: end; }
 .partner-billing-order-amount strong { color: var(--partner-text); font-size: 11px; }
 .partner-billing-order-amount small { color: var(--partner-muted); font-size: 9px; }
+.partner-billing-price-proposal {
+  display: grid;
+  grid-column: 2 / -1;
+  gap: 8px;
+  margin-top: 5px;
+  padding: 12px;
+  border: 1px solid var(--partner-border);
+  border-radius: 13px;
+  background: var(--partner-panel-soft);
+}
+.partner-billing-price-proposal[hidden] { display: none; }
+.partner-billing-price-proposal header,
+.partner-billing-price-proposal > label { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.partner-billing-price-proposal header { padding-bottom: 7px; border-bottom: 1px solid var(--partner-border); }
+.partner-billing-price-proposal header span { color: var(--partner-text); font-size: 9px; font-weight: 800; }
+.partner-billing-price-proposal header small,
+.partner-billing-price-proposal > label > span:first-child small { color: var(--partner-muted); font-size: 8px; }
+.partner-billing-price-proposal > label > span:first-child { display: grid; gap: 3px; min-width: 0; }
+.partner-billing-price-proposal > label > span:first-child strong { overflow: hidden; color: var(--partner-text); font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+.partner-billing-price-input { display: flex; align-items: center; flex: 0 0 150px; overflow: hidden; border: 1px solid var(--partner-border); border-radius: 10px; background: var(--partner-panel); }
+.partner-billing-price-input i { padding-left: 10px; color: var(--partner-muted); font-size: 9px; font-style: normal; }
+.partner-billing-price-input input { width: 100%; min-width: 0; height: 34px; padding: 0 9px 0 5px; border: 0; outline: 0; background: transparent; color: var(--partner-text); font: 700 10px/1 var(--partner-font-sans); text-align: right; }
 
 .partner-billing-removed-orders { border-top: 1px solid var(--partner-border); background: var(--partner-panel-soft); }
 .partner-billing-removed-orders summary { padding: 13px 17px; color: var(--partner-muted); font-size: 10px; cursor: pointer; }

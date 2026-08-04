@@ -73,6 +73,7 @@ CREATE TABLE IF NOT EXISTS `partner_weekly_bill_disputes` (
   `dispute_key` VARCHAR(120) NOT NULL,
   `bill_id` VARCHAR(120) NOT NULL,
   `partner_code` VARCHAR(64) NOT NULL,
+  `dispute_type` VARCHAR(32) NOT NULL DEFAULT 'paid',
   `reason` TEXT NOT NULL,
   `status` VARCHAR(32) NOT NULL DEFAULT 'pending',
   `resolution_reason` TEXT NULL DEFAULT NULL,
@@ -89,10 +90,25 @@ CREATE TABLE IF NOT EXISTS `partner_weekly_bill_disputes` (
 CREATE TABLE IF NOT EXISTS `partner_weekly_bill_dispute_items` (
   `dispute_id` BIGINT UNSIGNED NOT NULL,
   `bill_item_id` BIGINT UNSIGNED NOT NULL,
+  `original_amount` BIGINT NULL DEFAULT NULL,
+  `proposed_amount` BIGINT NULL DEFAULT NULL,
+  `proposal_json` LONGTEXT NULL DEFAULT NULL,
+  `resolved_amount` BIGINT NULL DEFAULT NULL,
+  `resolution_json` LONGTEXT NULL DEFAULT NULL,
   `created_at` DATETIME NOT NULL,
   PRIMARY KEY (`dispute_id`, `bill_item_id`),
   KEY `idx_partner_dispute_items_item` (`bill_item_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+ALTER TABLE `partner_weekly_bill_disputes`
+  ADD COLUMN IF NOT EXISTS `dispute_type` VARCHAR(32) NOT NULL DEFAULT 'paid';
+
+ALTER TABLE `partner_weekly_bill_dispute_items`
+  ADD COLUMN IF NOT EXISTS `original_amount` BIGINT NULL DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS `proposed_amount` BIGINT NULL DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS `proposal_json` LONGTEXT NULL DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS `resolved_amount` BIGINT NULL DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS `resolution_json` LONGTEXT NULL DEFAULT NULL;
 
 CREATE TABLE IF NOT EXISTS `partner_weekly_bill_files` (
   `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,

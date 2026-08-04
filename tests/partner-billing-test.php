@@ -73,4 +73,40 @@ $pdf = jg_partner_billing_validate_file([
 @unlink($pdfFile);
 partner_billing_expect('application/pdf', $pdf['mime_type'], 'Valid PDF proof should be accepted.');
 
+$priceProposal = jg_partner_billing_price_proposal([
+    'order_id' => 'PO-PRICE-1',
+    'amount' => 35000,
+    'units' => 3,
+    'snapshot_json' => json_encode(['items' => [
+        ['sku_code' => 'SKU-A', 'sku_label' => 'Product A', 'quantity' => 2, 'unit_revenue' => 10000],
+        ['sku_code' => 'SKU-B', 'sku_label' => 'Product B', 'quantity' => 1, 'unit_revenue' => 15000],
+    ]]),
+], ['lines' => [
+    ['line_index' => 0, 'unit_price' => 12000],
+    ['line_index' => 1, 'unit_price' => 8000],
+]]);
+partner_billing_expect(35000, $priceProposal['original_amount'], 'The dispute must preserve the original order value.');
+partner_billing_expect(32000, $priceProposal['proposed_amount'], 'The proposed order value must sum editable product prices by quantity.');
+partner_billing_expect(12000, $priceProposal['lines'][0]['proposed_unit_price'], 'Each proposed product price must remain auditable.');
+
+$missingPriceRejected = false;
+try {
+    jg_partner_billing_price_proposal([
+        'order_id' => 'PO-PRICE-2', 'amount' => 20000, 'units' => 2,
+        'snapshot_json' => json_encode(['items' => [
+            ['sku_code' => 'SKU-A', 'quantity' => 1, 'unit_revenue' => 10000],
+            ['sku_code' => 'SKU-B', 'quantity' => 1, 'unit_revenue' => 10000],
+        ]]),
+    ], ['lines' => [['line_index' => 0, 'unit_price' => 10000]]]);
+} catch (InvalidArgumentException) {
+    $missingPriceRejected = true;
+}
+partner_billing_expect(true, $missingPriceRejected, 'Every selected product must include a proposed price.');
+
+$legacyProposal = jg_partner_billing_price_proposal([
+    'order_id' => 'PO-LEGACY', 'amount' => 10000, 'units' => 1,
+    'snapshot_json' => json_encode(['items' => [['sku_code' => 'SKU-A', 'quantity' => 1, 'unit_revenue' => 10000]]]),
+], []);
+partner_billing_expect(10000, $legacyProposal['proposed_amount'], 'Older paid-dispute requests without price fields must retain their current behavior.');
+
 echo "partner-billing-test: ok\n";

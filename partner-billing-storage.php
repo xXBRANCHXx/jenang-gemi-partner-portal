@@ -3,7 +3,6 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/partner-order-storage.php';
 
-const JG_PARTNER_BILLING_ANCHOR = '2026-07-01';
 const JG_PARTNER_BILLING_MAX_FILE_BYTES = 10 * 1024 * 1024;
 const JG_PARTNER_BILLING_NEW_BADGE_DAYS = 7;
 
@@ -144,10 +143,8 @@ function jg_partner_billing_period(DateTimeImmutable $date, ?DateTimeZone $timez
 {
     $timezone ??= new DateTimeZone('Asia/Jakarta');
     $localDate = $date->setTimezone($timezone)->setTime(0, 0);
-    $anchor = new DateTimeImmutable(JG_PARTNER_BILLING_ANCHOR, $timezone);
-    $seconds = $localDate->getTimestamp() - $anchor->getTimestamp();
-    $block = (int) floor($seconds / 604800);
-    $start = $anchor->modify(($block >= 0 ? '+' : '') . ($block * 7) . ' days');
+    $daysSinceMonday = (int) $localDate->format('N') - 1;
+    $start = $daysSinceMonday > 0 ? $localDate->modify('-' . $daysSinceMonday . ' days') : $localDate;
     $end = $start->modify('+6 days');
     return [
         'start' => $start->format('Y-m-d'),
@@ -155,6 +152,133 @@ function jg_partner_billing_period(DateTimeImmutable $date, ?DateTimeZone $timez
         'due' => $end->modify('+3 days')->format('Y-m-d'),
         'id_date' => $start->format('Ymd'),
     ];
+}
+
+/**
+ * Move legacy Wednesday–Tuesday bill items into calendar-week bills.
+ *
+ * Bills with a payment, dispute, or uploaded file are intentionally preserved so
+ * a period correction can never rewrite an active or completed audit trail.
+ *
+ * @return list<string> Bill IDs whose totals need recalculating.
+ */
+function jg_partner_billing_align_calendar_weeks(PDO $pdo, string $partnerCode): array
+{
+    $stmt = $pdo->prepare(
+        'SELECT i.id, i.bill_id, i.order_date, b.status AS bill_status, b.total_amount,
+                EXISTS(SELECT 1 FROM partner_weekly_bill_payments p WHERE p.bill_id = b.bill_id) AS has_payment,
+                EXISTS(SELECT 1 FROM partner_weekly_bill_disputes d WHERE d.bill_id = b.bill_id) AS has_dispute,
+                EXISTS(SELECT 1 FROM partner_weekly_bill_files f WHERE f.bill_id = b.bill_id) AS has_file
+         FROM partner_weekly_bill_items i
+         JOIN partner_weekly_bills b ON b.bill_id = i.bill_id
+         WHERE i.partner_code = :partner_code
+         ORDER BY i.id ASC'
+    );
+    $stmt->execute([':partner_code' => $partnerCode]);
+    $items = $stmt->fetchAll();
+    if ($items === []) {
+        return [];
+    }
+
+    $timezone = new DateTimeZone('Asia/Jakarta');
+    $utc = new DateTimeZone('UTC');
+    $affected = [];
+    $legacyBillIds = [];
+    $targetState = [];
+
+    $insertBill = $pdo->prepare(
+        'INSERT IGNORE INTO partner_weekly_bills
+            (bill_id, partner_code, period_start, period_end, due_date, status, subtotal_amount,
+             adjustment_amount, total_amount, created_at, updated_at)
+         VALUES
+            (:bill_id, :partner_code, :period_start, :period_end, :due_date, :status, 0, 0, 0, UTC_TIMESTAMP(), UTC_TIMESTAMP())'
+    );
+    $targetLookup = $pdo->prepare(
+        'SELECT b.status, b.total_amount,
+                EXISTS(SELECT 1 FROM partner_weekly_bill_payments p WHERE p.bill_id = b.bill_id) AS has_payment,
+                EXISTS(SELECT 1 FROM partner_weekly_bill_disputes d WHERE d.bill_id = b.bill_id) AS has_dispute,
+                EXISTS(SELECT 1 FROM partner_weekly_bill_files f WHERE f.bill_id = b.bill_id) AS has_file
+         FROM partner_weekly_bills b WHERE b.bill_id = :bill_id LIMIT 1'
+    );
+    $moveItem = $pdo->prepare(
+        'UPDATE partner_weekly_bill_items SET bill_id = :bill_id, updated_at = UTC_TIMESTAMP() WHERE id = :id'
+    );
+
+    $pdo->beginTransaction();
+    try {
+        foreach ($items as $item) {
+            $sourceStatus = (string) ($item['bill_status'] ?? '');
+            $sourceIsMutable = in_array($sourceStatus, ['accruing', 'unpaid'], true)
+                || ($sourceStatus === 'paid' && (int) ($item['total_amount'] ?? 0) === 0);
+            if (!$sourceIsMutable
+                || (int) ($item['has_payment'] ?? 0) !== 0
+                || (int) ($item['has_dispute'] ?? 0) !== 0
+                || (int) ($item['has_file'] ?? 0) !== 0) {
+                continue;
+            }
+
+            try {
+                $orderDate = new DateTimeImmutable((string) $item['order_date'], $utc);
+            } catch (Throwable) {
+                continue;
+            }
+            $period = jg_partner_billing_period($orderDate, $timezone);
+            $targetBillId = jg_partner_billing_bill_id($partnerCode, $period['start']);
+            $sourceBillId = (string) $item['bill_id'];
+            if ($targetBillId === $sourceBillId) {
+                continue;
+            }
+
+            $insertBill->execute([
+                ':bill_id' => $targetBillId,
+                ':partner_code' => $partnerCode,
+                ':period_start' => $period['start'],
+                ':period_end' => $period['end'],
+                ':due_date' => $period['due'],
+                ':status' => $period['end'] < jg_partner_billing_local_today() ? 'unpaid' : 'accruing',
+            ]);
+
+            if (!array_key_exists($targetBillId, $targetState)) {
+                $targetLookup->execute([':bill_id' => $targetBillId]);
+                $targetState[$targetBillId] = $targetLookup->fetch() ?: null;
+            }
+            $target = $targetState[$targetBillId];
+            $targetStatus = is_array($target) ? (string) ($target['status'] ?? '') : '';
+            $targetIsMutable = in_array($targetStatus, ['accruing', 'unpaid'], true)
+                || ($targetStatus === 'paid' && (int) ($target['total_amount'] ?? 0) === 0);
+            if (!$targetIsMutable
+                || (int) ($target['has_payment'] ?? 0) !== 0
+                || (int) ($target['has_dispute'] ?? 0) !== 0
+                || (int) ($target['has_file'] ?? 0) !== 0) {
+                continue;
+            }
+
+            $moveItem->execute([':bill_id' => $targetBillId, ':id' => (int) $item['id']]);
+            $affected[$sourceBillId] = true;
+            $affected[$targetBillId] = true;
+            $legacyBillIds[$sourceBillId] = true;
+        }
+
+        $deleteEmpty = $pdo->prepare(
+            'DELETE FROM partner_weekly_bills
+             WHERE bill_id = :bill_id
+               AND NOT EXISTS(SELECT 1 FROM partner_weekly_bill_items i WHERE i.bill_id = partner_weekly_bills.bill_id)
+               AND NOT EXISTS(SELECT 1 FROM partner_weekly_bill_payments p WHERE p.bill_id = partner_weekly_bills.bill_id)
+               AND NOT EXISTS(SELECT 1 FROM partner_weekly_bill_disputes d WHERE d.bill_id = partner_weekly_bills.bill_id)
+               AND NOT EXISTS(SELECT 1 FROM partner_weekly_bill_files f WHERE f.bill_id = partner_weekly_bills.bill_id)'
+        );
+        foreach (array_keys($legacyBillIds) as $legacyBillId) {
+            $deleteEmpty->execute([':bill_id' => $legacyBillId]);
+        }
+        $pdo->commit();
+    } catch (Throwable $error) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        throw $error;
+    }
+
+    return array_keys($affected);
 }
 
 function jg_partner_billing_bill_id(string $partnerCode, string $periodStart): string
@@ -354,6 +478,10 @@ function jg_partner_billing_sync(string $partnerCode): void
             $pdo->rollBack();
         }
         throw $error;
+    }
+
+    foreach (jg_partner_billing_align_calendar_weeks($pdo, $partnerCode) as $billId) {
+        $billIds[$billId] = true;
     }
 
     $existingStmt = $pdo->prepare('SELECT bill_id FROM partner_weekly_bills WHERE partner_code = :partner_code');

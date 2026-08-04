@@ -14,18 +14,18 @@ function partner_billing_expect(mixed $expected, mixed $actual, string $message)
 
 $utc = new DateTimeZone('UTC');
 $first = jg_partner_billing_period(new DateTimeImmutable('2026-07-01 00:00:00', $utc));
-partner_billing_expect('2026-07-01', $first['start'], 'The launch block must start July 1.');
-partner_billing_expect('2026-07-07', $first['end'], 'The launch block must cover exactly seven days.');
-partner_billing_expect('2026-07-10', $first['due'], 'Closed bills should be due three days after their block.');
+partner_billing_expect('2026-06-29', $first['start'], 'A Wednesday order must belong to the preceding Monday.');
+partner_billing_expect('2026-07-05', $first['end'], 'Calendar billing weeks must end on Sunday.');
+partner_billing_expect('2026-07-08', $first['due'], 'Closed bills should be due three days after Sunday.');
 
-$boundary = jg_partner_billing_period(new DateTimeImmutable('2026-07-07 16:59:59', $utc));
-partner_billing_expect('2026-07-01', $boundary['start'], 'The last WIB second of July 7 must remain in the first block.');
-$next = jg_partner_billing_period(new DateTimeImmutable('2026-07-07 17:00:00', $utc));
-partner_billing_expect('2026-07-08', $next['start'], 'Midnight WIB on July 8 must start the next block.');
-partner_billing_expect('2026-07-14', $next['end'], 'Every block must remain seven calendar days.');
+$boundary = jg_partner_billing_period(new DateTimeImmutable('2026-07-05 16:59:59', $utc));
+partner_billing_expect('2026-06-29', $boundary['start'], 'The last WIB second of Sunday must remain in the closing week.');
+$next = jg_partner_billing_period(new DateTimeImmutable('2026-07-05 17:00:00', $utc));
+partner_billing_expect('2026-07-06', $next['start'], 'Midnight WIB on Monday must start a new billing week.');
+partner_billing_expect('2026-07-12', $next['end'], 'Every billing week must run through Sunday.');
 
 $before = jg_partner_billing_period(new DateTimeImmutable('2026-06-30 12:00:00', $utc));
-partner_billing_expect('2026-06-24', $before['start'], 'Periods before the anchor must roll backward in seven-day blocks.');
+partner_billing_expect('2026-06-29', $before['start'], 'Tuesday must belong to its Monday–Sunday calendar week.');
 partner_billing_expect(
     jg_partner_billing_bill_id('BAGGOS', '2026-07-01'),
     jg_partner_billing_bill_id(' baggos ', '2026-07-01'),

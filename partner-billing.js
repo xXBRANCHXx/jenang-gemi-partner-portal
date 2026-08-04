@@ -31,6 +31,7 @@ document.addEventListener('DOMContentLoaded', () => {
     selectedBillId: '',
     disputeMode: false,
     selectedOrderIds: new Set(),
+    priceDrafts: new Map(),
     tutorialStep: 0,
     loading: false,
     sectionHandled: false
@@ -83,6 +84,8 @@ document.addEventListener('DOMContentLoaded', () => {
     return `${first} – ${second}`;
   };
   const fileSize = (bytes) => `${Math.max(0.1, Number(bytes || 0) / (1024 * 1024)).toFixed(1)} MB`;
+  const priceDraftKey = (orderId, lineIndex) => `${orderId}:${lineIndex}`;
+  const priceDraft = (orderId, lineIndex, fallback) => state.priceDrafts.get(priceDraftKey(orderId, lineIndex)) ?? fallback;
   const hasSeenTutorialOnDevice = () => {
     if (tutorialSeenInMemory) return true;
     try {
@@ -324,7 +327,7 @@ document.addEventListener('DOMContentLoaded', () => {
               <span class="partner-billing-order-amount"><strong>${escapeHtml(formatMoney(item.amount))}</strong><small>${Number(item.units || 0)} ${escapeHtml(t('units', 'unit'))}</small></span>
               ${state.disputeMode && item.status === 'included' ? `<section class="partner-billing-price-proposal" data-billing-proposal-order="${escapeHtml(item.order_id)}" ${state.selectedOrderIds.has(item.order_id) ? '' : 'hidden'}>
                 <header><span>${escapeHtml(t('Your corrected product prices', 'Harga produk yang Anda koreksi'))}</span><small>${escapeHtml(t('Leave unchanged for an already-paid claim', 'Biarkan sama untuk klaim sudah dibayar'))}</small></header>
-                ${itemPriceLines(item).map((line) => `<label><span><strong>${escapeHtml(line.label)}</strong><small>${line.quantity} × ${escapeHtml(formatMoney(line.unitPrice))}${line.skuCode ? ` · ${escapeHtml(line.skuCode)}` : ''}</small></span><span class="partner-billing-price-input"><i>Rp</i><input type="number" min="0" max="1000000000000" step="1" value="${line.unitPrice}" data-billing-proposal-price data-order-id="${escapeHtml(item.order_id)}" data-line-index="${line.lineIndex}" ${state.selectedOrderIds.has(item.order_id) ? '' : 'disabled'} required></span></label>`).join('')}
+                ${itemPriceLines(item).map((line) => `<label><span><strong>${escapeHtml(line.label)}</strong><small>${line.quantity} × ${escapeHtml(formatMoney(line.unitPrice))}${line.skuCode ? ` · ${escapeHtml(line.skuCode)}` : ''}</small></span><span class="partner-billing-price-input"><i>Rp</i><input type="number" min="0" max="1000000000000" step="1" value="${priceDraft(item.order_id, line.lineIndex, line.unitPrice)}" data-billing-proposal-price data-order-id="${escapeHtml(item.order_id)}" data-line-index="${line.lineIndex}" ${state.selectedOrderIds.has(item.order_id) ? '' : 'disabled'} required></span></label>`).join('')}
               </section>` : ''}
             </div>`).join('')}
           ${removedItems.length ? `<details class="partner-billing-removed-orders"><summary>${removedItems.length} ${escapeHtml(t('orders removed from total', 'pesanan dikeluarkan dari total'))}</summary>${removedItems.map((item) => `<div><span><strong>${escapeHtml(item.order_id)}</strong><small>${escapeHtml(item.removed_reason || t('Removed after review', 'Dikeluarkan setelah ditinjau'))}</small></span><del>${escapeHtml(formatMoney(item.amount))}</del></div>`).join('')}</details>` : ''}
@@ -438,6 +441,7 @@ document.addEventListener('DOMContentLoaded', () => {
     state.selectedBillId = target.dataset.billingSelect || '';
     state.disputeMode = false;
     state.selectedOrderIds.clear();
+    state.priceDrafts.clear();
     render();
   });
 
@@ -451,13 +455,24 @@ document.addEventListener('DOMContentLoaded', () => {
     if (target.hasAttribute('data-billing-start-dispute')) {
       state.disputeMode = true;
       state.selectedOrderIds.clear();
+      state.priceDrafts.clear();
       renderDetail();
       detailNode.scrollIntoView({ behavior: 'smooth', block: 'start' });
       return;
     }
     state.disputeMode = false;
     state.selectedOrderIds.clear();
+    state.priceDrafts.clear();
     renderDetail();
+  });
+
+  detailNode?.addEventListener('input', (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLInputElement) || !target.matches('[data-billing-proposal-price]')) return;
+    state.priceDrafts.set(
+      priceDraftKey(target.dataset.orderId || '', Number(target.dataset.lineIndex || 0)),
+      target.value
+    );
   });
 
   detailNode?.addEventListener('change', (event) => {
@@ -526,6 +541,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       state.disputeMode = false;
       state.selectedOrderIds.clear();
+      state.priceDrafts.clear();
       render();
     } catch (error) {
       setError(error instanceof Error ? error.message : t('Unable to submit.', 'Tidak dapat mengirim.'));
@@ -567,6 +583,6 @@ document.addEventListener('DOMContentLoaded', () => {
   renderShellLanguage();
   load().then(handleBillingVisit);
   window.setInterval(() => {
-    if (root.dataset.activeSection === 'billing') load({ silent: true });
+    if (root.dataset.activeSection === 'billing' && !state.disputeMode) load({ silent: true });
   }, 30000);
 });

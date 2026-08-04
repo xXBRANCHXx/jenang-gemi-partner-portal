@@ -104,6 +104,11 @@ $sameTotalProposal = jg_partner_billing_price_proposal([
 ]]);
 partner_billing_expect(20000, $sameTotalProposal['proposed_amount'], 'Offsetting product edits may preserve the order total.');
 partner_billing_expect(true, jg_partner_billing_price_proposal_changed($sameTotalProposal), 'Line edits must remain price disputes even when the order total is unchanged.');
+partner_billing_expect(true, jg_partner_billing_price_proposal_changed([
+    'original_amount' => 59000,
+    'proposed_amount' => 32000,
+    'lines' => [['original_unit_price' => 32000, 'proposed_unit_price' => 32000]],
+]), 'A proposal must remain a price dispute when the immutable bill total differs from its product snapshot.');
 
 $missingPriceRejected = false;
 try {

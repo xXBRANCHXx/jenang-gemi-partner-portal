@@ -295,6 +295,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const status = statusCopy(bill.status);
     const activeItems = bill.items.filter((item) => item.status !== 'removed');
     const removedItems = bill.items.filter((item) => item.status === 'removed');
+    const hasAcceptedPriceCorrection = (Array.isArray(bill.disputes) ? bill.disputes : [])
+      .some((dispute) => dispute?.status === 'accepted' && dispute?.type === 'price');
+    const adjustmentLabel = removedItems.length > 0
+      ? (hasAcceptedPriceCorrection ? t('Bill adjustments', 'Penyesuaian tagihan') : t('Removed orders', 'Pesanan dikeluarkan'))
+      : (hasAcceptedPriceCorrection ? t('Price correction', 'Koreksi harga') : t('Bill adjustment', 'Penyesuaian tagihan'));
     detailNode.innerHTML = `
       <header class="partner-billing-detail-head">
         <div><span>${escapeHtml(t('Weekly bill', 'Tagihan mingguan'))}</span><h4>${escapeHtml(periodLabel(bill))}</h4><p>${escapeHtml(status[1])}</p></div>
@@ -304,7 +309,7 @@ document.addEventListener('DOMContentLoaded', () => {
         <div><span>${escapeHtml(t('Amount due', 'Jumlah yang harus dibayar'))}</span><strong>${escapeHtml(formatMoney(bill.total_amount))}</strong></div>
         <dl>
           <div><dt>${escapeHtml(t('Order subtotal', 'Subtotal pesanan'))}</dt><dd>${escapeHtml(formatMoney(bill.subtotal_amount))}</dd></div>
-          ${Number(bill.adjustment_amount || 0) > 0 ? `<div><dt>${escapeHtml(t('Removed orders', 'Pesanan dikeluarkan'))}</dt><dd>−${escapeHtml(formatMoney(bill.adjustment_amount))}</dd></div>` : ''}
+          ${Number(bill.adjustment_amount || 0) > 0 ? `<div><dt>${escapeHtml(adjustmentLabel)}</dt><dd>−${escapeHtml(formatMoney(bill.adjustment_amount))}</dd></div>` : ''}
           <div><dt>${escapeHtml(t('Due date', 'Batas pembayaran'))}</dt><dd>${escapeHtml(formatDate(`${bill.due_date}T12:00:00Z`))}</dd></div>
         </dl>
       </section>

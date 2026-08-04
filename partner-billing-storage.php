@@ -409,17 +409,23 @@ function jg_partner_billing_price_proposal_changed(array $proposal): bool
             return true;
         }
     }
-    return false;
+    return (int) ($proposal['proposed_amount'] ?? 0) !== (int) ($proposal['original_amount'] ?? 0);
 }
 
 function jg_partner_billing_recalculate_bill(PDO $pdo, string $billId): void
 {
     $stmt = $pdo->prepare(
         'SELECT
-            COALESCE(SUM(amount), 0) AS subtotal,
-            COALESCE(SUM(CASE WHEN status <> "removed" THEN amount ELSE 0 END), 0) AS total
-         FROM partner_weekly_bill_items
-         WHERE bill_id = :bill_id'
+            COALESCE(SUM(COALESCE((
+                SELECT di.original_amount
+                FROM partner_weekly_bill_dispute_items di
+                JOIN partner_weekly_bill_disputes d ON d.id = di.dispute_id
+                WHERE di.bill_item_id = i.id AND d.status = "accepted" AND d.dispute_type = "price"
+                ORDER BY COALESCE(d.resolved_at, d.updated_at) DESC, d.id DESC LIMIT 1
+            ), i.amount)), 0) AS subtotal,
+            COALESCE(SUM(CASE WHEN i.status <> "removed" THEN i.amount ELSE 0 END), 0) AS total
+         FROM partner_weekly_bill_items i
+         WHERE i.bill_id = :bill_id'
     );
     $stmt->execute([':bill_id' => $billId]);
     $totals = $stmt->fetch() ?: ['subtotal' => 0, 'total' => 0];

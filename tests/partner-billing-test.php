@@ -88,6 +88,22 @@ $priceProposal = jg_partner_billing_price_proposal([
 partner_billing_expect(35000, $priceProposal['original_amount'], 'The dispute must preserve the original order value.');
 partner_billing_expect(32000, $priceProposal['proposed_amount'], 'The proposed order value must sum editable product prices by quantity.');
 partner_billing_expect(12000, $priceProposal['lines'][0]['proposed_unit_price'], 'Each proposed product price must remain auditable.');
+partner_billing_expect(true, jg_partner_billing_price_proposal_changed($priceProposal), 'A changed product price must classify the dispute as a price dispute.');
+
+$sameTotalProposal = jg_partner_billing_price_proposal([
+    'order_id' => 'PO-PRICE-SAME-TOTAL',
+    'amount' => 20000,
+    'units' => 2,
+    'snapshot_json' => json_encode(['items' => [
+        ['sku_code' => 'SKU-A', 'quantity' => 1, 'unit_revenue' => 8000],
+        ['sku_code' => 'SKU-B', 'quantity' => 1, 'unit_revenue' => 12000],
+    ]]),
+], ['lines' => [
+    ['line_index' => 0, 'unit_price' => 9000],
+    ['line_index' => 1, 'unit_price' => 11000],
+]]);
+partner_billing_expect(20000, $sameTotalProposal['proposed_amount'], 'Offsetting product edits may preserve the order total.');
+partner_billing_expect(true, jg_partner_billing_price_proposal_changed($sameTotalProposal), 'Line edits must remain price disputes even when the order total is unchanged.');
 
 $missingPriceRejected = false;
 try {
@@ -108,5 +124,6 @@ $legacyProposal = jg_partner_billing_price_proposal([
     'snapshot_json' => json_encode(['items' => [['sku_code' => 'SKU-A', 'quantity' => 1, 'unit_revenue' => 10000]]]),
 ], []);
 partner_billing_expect(10000, $legacyProposal['proposed_amount'], 'Older paid-dispute requests without price fields must retain their current behavior.');
+partner_billing_expect(false, jg_partner_billing_price_proposal_changed($legacyProposal), 'An unchanged legacy request must remain an already-paid dispute.');
 
 echo "partner-billing-test: ok\n";

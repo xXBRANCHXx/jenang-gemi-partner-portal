@@ -397,6 +397,21 @@ function jg_partner_billing_price_proposal(array $billItem, mixed $proposal): ar
     ];
 }
 
+/**
+ * A price dispute is identified from the submitted product prices, not merely
+ * from the resulting order total. This also catches offsetting line changes.
+ */
+function jg_partner_billing_price_proposal_changed(array $proposal): bool
+{
+    foreach ((array) ($proposal['lines'] ?? []) as $line) {
+        if (!is_array($line)) continue;
+        if ((int) ($line['proposed_unit_price'] ?? 0) !== (int) ($line['original_unit_price'] ?? 0)) {
+            return true;
+        }
+    }
+    return false;
+}
+
 function jg_partner_billing_recalculate_bill(PDO $pdo, string $billId): void
 {
     $stmt = $pdo->prepare(
@@ -946,7 +961,9 @@ function jg_partner_billing_submit_dispute(string $partnerCode, string $billId, 
             $orderId = (string) $item['order_id'];
             $normalized = jg_partner_billing_price_proposal($item, $proposalByOrder[$orderId] ?? null);
             $normalizedProposals[(int) $item['id']] = $normalized;
-            if ($proposalByOrder !== [] && $normalized['proposed_amount'] !== $normalized['original_amount']) $hasPriceChange = true;
+            if (isset($proposalByOrder[$orderId]) && jg_partner_billing_price_proposal_changed($normalized)) {
+                $hasPriceChange = true;
+            }
         }
 
         $disputeType = $hasPriceChange ? 'price' : 'paid';

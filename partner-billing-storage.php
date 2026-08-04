@@ -176,14 +176,10 @@ function jg_partner_billing_align_calendar_weeks(PDO $pdo, string $partnerCode):
     );
     $stmt->execute([':partner_code' => $partnerCode]);
     $items = $stmt->fetchAll();
-    if ($items === []) {
-        return [];
-    }
 
     $timezone = new DateTimeZone('Asia/Jakarta');
     $utc = new DateTimeZone('UTC');
     $affected = [];
-    $legacyBillIds = [];
     $targetState = [];
 
     $insertBill = $pdo->prepare(
@@ -256,20 +252,18 @@ function jg_partner_billing_align_calendar_weeks(PDO $pdo, string $partnerCode):
             $moveItem->execute([':bill_id' => $targetBillId, ':id' => (int) $item['id']]);
             $affected[$sourceBillId] = true;
             $affected[$targetBillId] = true;
-            $legacyBillIds[$sourceBillId] = true;
         }
 
-        $deleteEmpty = $pdo->prepare(
+        $deleteEmptyLegacyBills = $pdo->prepare(
             'DELETE FROM partner_weekly_bills
-             WHERE bill_id = :bill_id
+             WHERE partner_code = :partner_code
+               AND (WEEKDAY(period_start) <> 0 OR WEEKDAY(period_end) <> 6 OR DATEDIFF(period_end, period_start) <> 6)
                AND NOT EXISTS(SELECT 1 FROM partner_weekly_bill_items i WHERE i.bill_id = partner_weekly_bills.bill_id)
                AND NOT EXISTS(SELECT 1 FROM partner_weekly_bill_payments p WHERE p.bill_id = partner_weekly_bills.bill_id)
                AND NOT EXISTS(SELECT 1 FROM partner_weekly_bill_disputes d WHERE d.bill_id = partner_weekly_bills.bill_id)
                AND NOT EXISTS(SELECT 1 FROM partner_weekly_bill_files f WHERE f.bill_id = partner_weekly_bills.bill_id)'
         );
-        foreach (array_keys($legacyBillIds) as $legacyBillId) {
-            $deleteEmpty->execute([':bill_id' => $legacyBillId]);
-        }
+        $deleteEmptyLegacyBills->execute([':partner_code' => $partnerCode]);
         $pdo->commit();
     } catch (Throwable $error) {
         if ($pdo->inTransaction()) {

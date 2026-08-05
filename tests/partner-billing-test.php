@@ -32,6 +32,36 @@ partner_billing_expect(
     'Bill IDs must be stable for normalized partner codes.'
 );
 
+partner_billing_expect(true, jg_partner_billing_bill_is_mutable([
+    'status' => 'paid',
+    'total_amount' => 230000,
+    'has_payment' => 0,
+    'has_dispute' => 0,
+    'has_file' => 0,
+]), 'A closed zero bill must remain repairable when backdated orders later give it a balance.');
+partner_billing_expect(false, jg_partner_billing_bill_is_mutable([
+    'status' => 'paid',
+    'total_amount' => 230000,
+    'has_payment' => 1,
+    'has_dispute' => 0,
+    'has_file' => 1,
+]), 'A bill with a real payment audit trail must remain immutable.');
+partner_billing_expect(
+    'unpaid',
+    jg_partner_billing_recalculated_status('paid', '2026-08-02', 230000, false, '2026-08-05'),
+    'Backdated orders must reopen a synthetically paid closed bill as unpaid.'
+);
+partner_billing_expect(
+    'paid',
+    jg_partner_billing_recalculated_status('paid', '2026-08-02', 230000, true, '2026-08-05'),
+    'A confirmed payment must keep a closed bill paid.'
+);
+partner_billing_expect(
+    'paid',
+    jg_partner_billing_recalculated_status('unpaid', '2026-08-02', 0, false, '2026-08-05'),
+    'A genuinely empty closed bill may still settle automatically.'
+);
+
 $badgeCreated = '2026-07-30 02:00:00';
 $beforeBadgeExpiry = jg_partner_billing_new_badge_state(
     $badgeCreated,

@@ -166,6 +166,41 @@ function jg_partner_billing_period(DateTimeImmutable $date, ?DateTimeZone $timez
     ];
 }
 
+/** @param array<string,mixed> $bill */
+function jg_partner_billing_bill_is_mutable(array $bill): bool
+{
+    $status = (string) ($bill['status'] ?? $bill['bill_status'] ?? '');
+    if (!in_array($status, ['accruing', 'unpaid', 'paid'], true)) {
+        return false;
+    }
+
+    return (int) ($bill['has_payment'] ?? 0) === 0
+        && (int) ($bill['has_dispute'] ?? 0) === 0
+        && (int) ($bill['has_file'] ?? 0) === 0;
+}
+
+function jg_partner_billing_recalculated_status(
+    string $currentStatus,
+    string $periodEnd,
+    int $total,
+    bool $hasConfirmedPayment,
+    ?string $today = null
+): string {
+    $today ??= jg_partner_billing_local_today();
+    $periodClosed = $periodEnd < $today;
+
+    if (in_array($currentStatus, ['payment_submitted', 'disputed'], true)
+        || ($currentStatus === 'paid' && $hasConfirmedPayment)) {
+        return $currentStatus;
+    }
+
+    if ($total <= 0 && $periodClosed) {
+        return 'paid';
+    }
+
+    return $periodClosed ? 'unpaid' : 'accruing';
+}
+
 /**
  * Move legacy Wednesday–Tuesday bill items into calendar-week bills.
  *
@@ -215,13 +250,7 @@ function jg_partner_billing_align_calendar_weeks(PDO $pdo, string $partnerCode):
     $pdo->beginTransaction();
     try {
         foreach ($items as $item) {
-            $sourceStatus = (string) ($item['bill_status'] ?? '');
-            $sourceIsMutable = in_array($sourceStatus, ['accruing', 'unpaid'], true)
-                || ($sourceStatus === 'paid' && (int) ($item['total_amount'] ?? 0) === 0);
-            if (!$sourceIsMutable
-                || (int) ($item['has_payment'] ?? 0) !== 0
-                || (int) ($item['has_dispute'] ?? 0) !== 0
-                || (int) ($item['has_file'] ?? 0) !== 0) {
+            if (!jg_partner_billing_bill_is_mutable($item)) {
                 continue;
             }
 
@@ -251,13 +280,7 @@ function jg_partner_billing_align_calendar_weeks(PDO $pdo, string $partnerCode):
                 $targetState[$targetBillId] = $targetLookup->fetch() ?: null;
             }
             $target = $targetState[$targetBillId];
-            $targetStatus = is_array($target) ? (string) ($target['status'] ?? '') : '';
-            $targetIsMutable = in_array($targetStatus, ['accruing', 'unpaid'], true)
-                || ($targetStatus === 'paid' && (int) ($target['total_amount'] ?? 0) === 0);
-            if (!$targetIsMutable
-                || (int) ($target['has_payment'] ?? 0) !== 0
-                || (int) ($target['has_dispute'] ?? 0) !== 0
-                || (int) ($target['has_file'] ?? 0) !== 0) {
+            if (!is_array($target) || !jg_partner_billing_bill_is_mutable($target)) {
                 continue;
             }
 
@@ -432,19 +455,26 @@ function jg_partner_billing_recalculate_bill(PDO $pdo, string $billId): void
     $subtotal = (int) round((float) ($totals['subtotal'] ?? 0));
     $total = (int) round((float) ($totals['total'] ?? 0));
 
-    $billStmt = $pdo->prepare('SELECT status, period_end FROM partner_weekly_bills WHERE bill_id = :bill_id LIMIT 1');
+    $billStmt = $pdo->prepare(
+        'SELECT b.status, b.period_end,
+                EXISTS(
+                    SELECT 1 FROM partner_weekly_bill_payments p
+                    WHERE p.bill_id = b.bill_id AND p.status = "confirmed"
+                ) AS has_confirmed_payment
+         FROM partner_weekly_bills b
+         WHERE b.bill_id = :bill_id LIMIT 1'
+    );
     $billStmt->execute([':bill_id' => $billId]);
     $bill = $billStmt->fetch();
     if (!is_array($bill)) {
         return;
     }
-    $status = (string) ($bill['status'] ?? 'accruing');
-    if (!in_array($status, ['paid', 'payment_submitted', 'disputed'], true)) {
-        $status = (string) ($bill['period_end'] ?? '') < jg_partner_billing_local_today() ? 'unpaid' : 'accruing';
-    }
-    if ($total <= 0 && (string) ($bill['period_end'] ?? '') < jg_partner_billing_local_today()) {
-        $status = 'paid';
-    }
+    $status = jg_partner_billing_recalculated_status(
+        (string) ($bill['status'] ?? 'accruing'),
+        (string) ($bill['period_end'] ?? ''),
+        $total,
+        (int) ($bill['has_confirmed_payment'] ?? 0) !== 0
+    );
 
     $update = $pdo->prepare(
         'UPDATE partner_weekly_bills
@@ -452,7 +482,11 @@ function jg_partner_billing_recalculate_bill(PDO $pdo, string $billId): void
              adjustment_amount = :adjustment,
              total_amount = :total,
              status = :status,
-             paid_at = CASE WHEN :mark_paid = 1 AND paid_at IS NULL THEN UTC_TIMESTAMP() ELSE paid_at END,
+             paid_at = CASE
+                 WHEN :mark_paid = 1 AND paid_at IS NULL THEN UTC_TIMESTAMP()
+                 WHEN :mark_paid = 0 THEN NULL
+                 ELSE paid_at
+             END,
              updated_at = UTC_TIMESTAMP()
          WHERE bill_id = :bill_id'
     );

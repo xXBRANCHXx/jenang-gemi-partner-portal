@@ -35,17 +35,21 @@ partner_billing_expect(
 partner_billing_expect(true, jg_partner_billing_bill_is_mutable([
     'status' => 'paid',
     'total_amount' => 230000,
-    'has_payment' => 0,
-    'has_dispute' => 0,
-    'has_file' => 0,
-]), 'A closed zero bill must remain repairable when backdated orders later give it a balance.');
+    'has_active_payment' => 0,
+    'has_active_dispute' => 0,
+    'has_file' => 1,
+]), 'A closed zero bill must remain repairable when only obsolete proof history remains.');
 partner_billing_expect(false, jg_partner_billing_bill_is_mutable([
     'status' => 'paid',
     'total_amount' => 230000,
-    'has_payment' => 1,
-    'has_dispute' => 0,
-    'has_file' => 1,
+    'has_active_payment' => 1,
+    'has_active_dispute' => 0,
 ]), 'A bill with a real payment audit trail must remain immutable.');
+partner_billing_expect(false, jg_partner_billing_bill_is_mutable([
+    'status' => 'unpaid',
+    'has_active_payment' => 0,
+    'has_active_dispute' => 1,
+]), 'An active or accepted dispute must prevent automatic bill movement.');
 partner_billing_expect(
     'unpaid',
     jg_partner_billing_recalculated_status('paid', '2026-08-02', 230000, false, '2026-08-05'),

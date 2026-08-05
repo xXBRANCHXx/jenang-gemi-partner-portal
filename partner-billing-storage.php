@@ -174,9 +174,8 @@ function jg_partner_billing_bill_is_mutable(array $bill): bool
         return false;
     }
 
-    return (int) ($bill['has_payment'] ?? 0) === 0
-        && (int) ($bill['has_dispute'] ?? 0) === 0
-        && (int) ($bill['has_file'] ?? 0) === 0;
+    return (int) ($bill['has_active_payment'] ?? $bill['has_payment'] ?? 0) === 0
+        && (int) ($bill['has_active_dispute'] ?? $bill['has_dispute'] ?? 0) === 0;
 }
 
 function jg_partner_billing_recalculated_status(
@@ -213,9 +212,14 @@ function jg_partner_billing_align_calendar_weeks(PDO $pdo, string $partnerCode):
 {
     $stmt = $pdo->prepare(
         'SELECT i.id, i.bill_id, i.order_date, b.status AS bill_status, b.total_amount,
-                EXISTS(SELECT 1 FROM partner_weekly_bill_payments p WHERE p.bill_id = b.bill_id) AS has_payment,
-                EXISTS(SELECT 1 FROM partner_weekly_bill_disputes d WHERE d.bill_id = b.bill_id) AS has_dispute,
-                EXISTS(SELECT 1 FROM partner_weekly_bill_files f WHERE f.bill_id = b.bill_id) AS has_file
+                EXISTS(
+                    SELECT 1 FROM partner_weekly_bill_payments p
+                    WHERE p.bill_id = b.bill_id AND p.status IN ("pending", "confirmed")
+                ) AS has_active_payment,
+                EXISTS(
+                    SELECT 1 FROM partner_weekly_bill_disputes d
+                    WHERE d.bill_id = b.bill_id AND d.status IN ("pending", "accepted")
+                ) AS has_active_dispute
          FROM partner_weekly_bill_items i
          JOIN partner_weekly_bills b ON b.bill_id = i.bill_id
          WHERE i.partner_code = :partner_code
@@ -238,9 +242,14 @@ function jg_partner_billing_align_calendar_weeks(PDO $pdo, string $partnerCode):
     );
     $targetLookup = $pdo->prepare(
         'SELECT b.status, b.total_amount,
-                EXISTS(SELECT 1 FROM partner_weekly_bill_payments p WHERE p.bill_id = b.bill_id) AS has_payment,
-                EXISTS(SELECT 1 FROM partner_weekly_bill_disputes d WHERE d.bill_id = b.bill_id) AS has_dispute,
-                EXISTS(SELECT 1 FROM partner_weekly_bill_files f WHERE f.bill_id = b.bill_id) AS has_file
+                EXISTS(
+                    SELECT 1 FROM partner_weekly_bill_payments p
+                    WHERE p.bill_id = b.bill_id AND p.status IN ("pending", "confirmed")
+                ) AS has_active_payment,
+                EXISTS(
+                    SELECT 1 FROM partner_weekly_bill_disputes d
+                    WHERE d.bill_id = b.bill_id AND d.status IN ("pending", "accepted")
+                ) AS has_active_dispute
          FROM partner_weekly_bills b WHERE b.bill_id = :bill_id LIMIT 1'
     );
     $moveItem = $pdo->prepare(
@@ -683,6 +692,9 @@ function jg_partner_billing_payload(string $partnerCode, string $fileEndpoint): 
                 total_amount, payment_submitted_at, paid_at, created_at, updated_at
          FROM partner_weekly_bills
          WHERE partner_code = :partner_code
+           AND WEEKDAY(period_start) = 0
+           AND WEEKDAY(period_end) = 6
+           AND DATEDIFF(period_end, period_start) = 6
          ORDER BY period_start DESC'
     );
     $billStmt->execute([':partner_code' => $partnerCode]);

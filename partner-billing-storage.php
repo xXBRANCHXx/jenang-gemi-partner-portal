@@ -484,7 +484,7 @@ function jg_partner_billing_recalculate_bill(PDO $pdo, string $billId): void
              status = :status,
              paid_at = CASE
                  WHEN :mark_paid = 1 AND paid_at IS NULL THEN UTC_TIMESTAMP()
-                 WHEN :mark_paid = 0 THEN NULL
+                 WHEN :clear_paid = 1 THEN NULL
                  ELSE paid_at
              END,
              updated_at = UTC_TIMESTAMP()
@@ -496,6 +496,7 @@ function jg_partner_billing_recalculate_bill(PDO $pdo, string $billId): void
         ':total' => $total,
         ':status' => $status,
         ':mark_paid' => $status === 'paid' ? 1 : 0,
+        ':clear_paid' => $status === 'paid' ? 0 : 1,
         ':bill_id' => $billId,
     ]);
 }

@@ -218,7 +218,7 @@ function jg_partner_billing_align_calendar_weeks(PDO $pdo, string $partnerCode):
                 ) AS has_active_payment,
                 EXISTS(
                     SELECT 1 FROM partner_weekly_bill_disputes d
-                    WHERE d.bill_id = b.bill_id AND d.status IN ("pending", "accepted")
+                    WHERE d.bill_id = b.bill_id AND d.status = "pending"
                 ) AS has_active_dispute
          FROM partner_weekly_bill_items i
          JOIN partner_weekly_bills b ON b.bill_id = i.bill_id
@@ -248,7 +248,7 @@ function jg_partner_billing_align_calendar_weeks(PDO $pdo, string $partnerCode):
                 ) AS has_active_payment,
                 EXISTS(
                     SELECT 1 FROM partner_weekly_bill_disputes d
-                    WHERE d.bill_id = b.bill_id AND d.status IN ("pending", "accepted")
+                    WHERE d.bill_id = b.bill_id AND d.status = "pending"
                 ) AS has_active_dispute
          FROM partner_weekly_bills b WHERE b.bill_id = :bill_id LIMIT 1'
     );

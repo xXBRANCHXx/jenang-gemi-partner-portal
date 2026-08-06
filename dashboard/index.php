@@ -49,8 +49,8 @@ try {
 }
 $billingStaticCopy = $partnerPreferences['language'] === 'id'
     ? [
-        'kicker' => 'Tagihan mingguan',
-        'title' => 'Tujuh hari, rekonsiliasi jelas',
+        'kicker' => 'Tagihan minggu kerja',
+        'title' => 'Senin sampai Jumat, rekonsiliasi jelas',
         'copy' => 'Periksa setiap pesanan di balik saldo Anda, selesaikan perbedaan, dan kirim bukti pembayaran dalam satu tempat.',
         'guide' => 'Cara kerja',
         'outstanding' => 'Belum dibayar',
@@ -58,14 +58,14 @@ $billingStaticCopy = $partnerPreferences['language'] === 'id'
         'awaiting_review' => 'Menunggu tinjauan',
         'reviews' => 'Pembayaran dan sengketa',
         'confirmed_paid' => 'Pembayaran terkonfirmasi',
-        'confirmed_bills' => 'Semua tagihan mingguan yang dikonfirmasi',
-        'loading' => 'Memuat tagihan mingguan…',
+        'confirmed_bills' => 'Semua tagihan minggu kerja yang dikonfirmasi',
+        'loading' => 'Memuat tagihan minggu kerja…',
         'detail_title' => 'Rincian tagihan Anda akan muncul di sini',
-        'detail_copy' => 'Pilih periode tujuh hari untuk melihat setiap pesanan yang termasuk.',
+        'detail_copy' => 'Pilih periode minggu kerja untuk melihat setiap pesanan yang termasuk.',
     ]
     : [
-        'kicker' => 'Weekly billing',
-        'title' => 'Seven days, clearly reconciled',
+        'kicker' => 'Business-week billing',
+        'title' => 'Monday to Friday, clearly reconciled',
         'copy' => 'Review each order behind your balance, resolve discrepancies, and submit payment proof in one place.',
         'guide' => 'How it works',
         'outstanding' => 'Outstanding',
@@ -73,10 +73,10 @@ $billingStaticCopy = $partnerPreferences['language'] === 'id'
         'awaiting_review' => 'Awaiting review',
         'reviews' => 'Payments and disputes',
         'confirmed_paid' => 'Confirmed paid',
-        'confirmed_bills' => 'All confirmed weekly bills',
-        'loading' => 'Loading weekly bills…',
+        'confirmed_bills' => 'All confirmed business-week bills',
+        'loading' => 'Loading business-week bills…',
         'detail_title' => 'Your bill details will appear here',
-        'detail_copy' => 'Select a seven-day period to see every included order.',
+        'detail_copy' => 'Select a business-week period to see every included order.',
     ];
 $configuredFaviconThemes = array_values(array_filter(
     ['light', 'dark'],
@@ -797,10 +797,10 @@ $sectionUrl = static function (string $section) use ($dashboardPath): string {
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"></path></svg>
             </button>
             <div class="partner-billing-tutorial-progress" data-billing-tutorial-progress aria-label="Tutorial progress"></div>
-            <span class="partner-panel-kicker" data-billing-tutorial-kicker>Weekly billing</span>
+            <span class="partner-panel-kicker" data-billing-tutorial-kicker>Business-week billing</span>
             <div class="partner-billing-tutorial-visual" data-billing-tutorial-visual aria-hidden="true"></div>
             <h3 id="billing-tutorial-title" data-billing-tutorial-title>Know exactly what you are paying</h3>
-            <p data-billing-tutorial-copy>Every bill covers one seven-day period and includes a transparent order-by-order breakdown.</p>
+            <p data-billing-tutorial-copy>Every bill covers one Monday–Friday business week and includes a transparent order-by-order breakdown.</p>
             <div class="partner-billing-tutorial-actions">
                 <button type="button" class="admin-ghost-btn" data-billing-tutorial-back hidden>Back</button>
                 <button type="button" class="admin-primary-btn" data-billing-tutorial-next>Next</button>

@@ -15,22 +15,29 @@ function partner_billing_expect(mixed $expected, mixed $actual, string $message)
 $utc = new DateTimeZone('UTC');
 $first = jg_partner_billing_period(new DateTimeImmutable('2026-07-01 00:00:00', $utc));
 partner_billing_expect('2026-06-29', $first['start'], 'A Wednesday order must belong to the preceding Monday.');
-partner_billing_expect('2026-07-05', $first['end'], 'Calendar billing weeks must end on Sunday.');
-partner_billing_expect('2026-07-08', $first['due'], 'Closed bills should be due three days after Sunday.');
+partner_billing_expect('2026-07-03', $first['end'], 'Business weeks must end on Friday.');
+partner_billing_expect('2026-07-06', $first['due'], 'Closed business-week bills should be due three days after Friday.');
 
 $boundary = jg_partner_billing_period(new DateTimeImmutable('2026-07-05 16:59:59', $utc));
-partner_billing_expect('2026-06-29', $boundary['start'], 'The last WIB second of Sunday must remain in the closing week.');
+partner_billing_expect('2026-07-06', $boundary['start'], 'A Sunday order must roll into the following business week.');
 $next = jg_partner_billing_period(new DateTimeImmutable('2026-07-05 17:00:00', $utc));
 partner_billing_expect('2026-07-06', $next['start'], 'Midnight WIB on Monday must start a new billing week.');
-partner_billing_expect('2026-07-12', $next['end'], 'Every billing week must run through Sunday.');
+partner_billing_expect('2026-07-10', $next['end'], 'Every business week must run through Friday.');
 
 $before = jg_partner_billing_period(new DateTimeImmutable('2026-06-30 12:00:00', $utc));
-partner_billing_expect('2026-06-29', $before['start'], 'Tuesday must belong to its Monday–Sunday calendar week.');
+partner_billing_expect('2026-06-29', $before['start'], 'Tuesday must belong to its Monday–Friday business week.');
+$month = jg_partner_billing_period(new DateTimeImmutable('2028-02-17 12:00:00', $utc), 'calendar_month');
+partner_billing_expect('calendar_month', $month['type'], 'Calendar-month selection must be preserved.');
+partner_billing_expect('2028-02-01', $month['start'], 'Calendar months must begin on day one.');
+partner_billing_expect('2028-02-29', $month['end'], 'Calendar months must respect leap years.');
+partner_billing_expect('2028-03-03', $month['due'], 'Calendar-month bills remain due three days after month end.');
+partner_billing_expect('business_week', jg_partner_billing_period_type('unknown'), 'Unknown settings must safely use the default business week.');
 partner_billing_expect(
-    jg_partner_billing_bill_id('BAGGOS', '2026-07-01'),
-    jg_partner_billing_bill_id(' baggos ', '2026-07-01'),
+    jg_partner_billing_bill_id('BAGGOS', '2026-07-01', 'business_week'),
+    jg_partner_billing_bill_id(' baggos ', '2026-07-01', 'business_week'),
     'Bill IDs must be stable for normalized partner codes.'
 );
+partner_billing_expect(false, jg_partner_billing_bill_id('BAGGOS', '2026-07-01', 'business_week') === jg_partner_billing_bill_id('BAGGOS', '2026-07-01', 'calendar_month'), 'PO IDs must be unique across period types.');
 
 partner_billing_expect(true, jg_partner_billing_bill_is_mutable([
     'status' => 'paid',
@@ -56,6 +63,11 @@ partner_billing_expect(true, jg_partner_billing_bill_is_mutable([
     'has_active_dispute' => 0,
     'has_accepted_dispute' => 1,
 ]), 'An accepted dispute must not block unrelated orders from moving into a bill.');
+
+$billingSource = (string) file_get_contents(dirname(__DIR__) . '/partner-billing-storage.php');
+partner_billing_expect(true, str_contains($billingSource, 'i.paid_at IS NULL') && str_contains($billingSource, 'i.status <> "removed"'), 'Period changes must move only unpaid, non-removed orders.');
+partner_billing_expect(true, strpos($billingSource, 'jg_partner_billing_recalculate_bill($pdo, $billId);') < strpos($billingSource, '$deleteEmptyLegacyBills = $pdo->prepare('), 'PO totals must recalculate before obsolete POs are deleted inside the transaction.');
+partner_billing_expect(true, str_contains($billingSource, 'NOT EXISTS(SELECT 1 FROM partner_weekly_bill_payments') && str_contains($billingSource, 'NOT EXISTS(SELECT 1 FROM partner_weekly_bill_disputes'), 'Obsolete PO deletion must preserve payment and dispute audit records.');
 partner_billing_expect(
     'unpaid',
     jg_partner_billing_recalculated_status('paid', '2026-08-02', 230000, false, '2026-08-05'),

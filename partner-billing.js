@@ -41,6 +41,10 @@ document.addEventListener('DOMContentLoaded', () => {
   const locale = () => isIndonesian() ? 'id-ID' : 'en-US';
   const timezone = () => root.dataset.partnerTimezone || 'Asia/Jakarta';
   const t = (english, indonesian) => isIndonesian() ? indonesian : english;
+  const isMonthly = () => state.payload?.billing_period_type === 'calendar_month';
+  const periodName = () => isMonthly()
+    ? t('calendar month', 'bulan kalender')
+    : t('business week', 'minggu kerja');
   const escapeHtml = (value) => String(value ?? '')
     .replaceAll('&', '&amp;')
     .replaceAll('<', '&lt;')
@@ -104,7 +108,9 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   const statusCopy = (status) => ({
-    accruing: [t('In progress', 'Berjalan'), t('This seven-day period is still collecting orders.', 'Periode tujuh hari ini masih mengumpulkan pesanan.')],
+    accruing: [t('In progress', 'Berjalan'), isMonthly()
+      ? t('This calendar month is still collecting orders.', 'Bulan kalender ini masih mengumpulkan pesanan.')
+      : t('This Monday–Friday business week is still collecting orders.', 'Minggu kerja Senin–Jumat ini masih mengumpulkan pesanan.')],
     unpaid: [t('Payment due', 'Menunggu pembayaran'), t('Review the breakdown, then submit your proof.', 'Periksa rincian, lalu kirim bukti pembayaran.')],
     disputed: [t('Dispute under review', 'Sengketa sedang ditinjau'), t('Finance is checking the selected orders.', 'Tim keuangan sedang memeriksa pesanan terpilih.')],
     payment_submitted: [t('Proof under review', 'Bukti sedang ditinjau'), t('Your payment proof is waiting for confirmation.', 'Bukti pembayaran Anda menunggu konfirmasi.')],
@@ -112,8 +118,10 @@ document.addEventListener('DOMContentLoaded', () => {
   }[status] || [status, '']);
 
   const renderShellLanguage = () => {
-    if (heroKicker) heroKicker.textContent = t('Weekly billing', 'Tagihan mingguan');
-    if (heroTitle) heroTitle.textContent = t('Seven days, clearly reconciled', 'Tujuh hari, rekonsiliasi jelas');
+    if (heroKicker) heroKicker.textContent = isMonthly() ? t('Monthly billing', 'Tagihan bulanan') : t('Business-week billing', 'Tagihan minggu kerja');
+    if (heroTitle) heroTitle.textContent = isMonthly()
+      ? t('One month, clearly reconciled', 'Satu bulan, rekonsiliasi jelas')
+      : t('Monday to Friday, clearly reconciled', 'Senin sampai Jumat, rekonsiliasi jelas');
     if (heroCopy) heroCopy.textContent = t(
       'Review each order behind your balance, resolve discrepancies, and submit payment proof in one place.',
       'Periksa setiap pesanan di balik saldo Anda, selesaikan perbedaan, dan kirim bukti pembayaran dalam satu tempat.'
@@ -181,7 +189,7 @@ document.addEventListener('DOMContentLoaded', () => {
       <article>
         <span>${escapeHtml(t('Confirmed paid', 'Pembayaran terkonfirmasi'))}</span>
         <strong>${escapeHtml(formatMoney(summary.paid_amount))}</strong>
-        <small>${escapeHtml(t('All confirmed weekly bills', 'Semua tagihan mingguan yang dikonfirmasi'))}</small>
+        <small>${escapeHtml(isMonthly() ? t('All confirmed monthly bills', 'Semua tagihan bulanan yang dikonfirmasi') : t('All confirmed business-week bills', 'Semua tagihan minggu kerja yang dikonfirmasi'))}</small>
       </article>`;
   };
 
@@ -192,7 +200,7 @@ document.addEventListener('DOMContentLoaded', () => {
       listNode.innerHTML = `
         <div class="partner-billing-no-bills">
           <span aria-hidden="true">✓</span>
-          <strong>${escapeHtml(t('No weekly bills yet', 'Belum ada tagihan mingguan'))}</strong>
+          <strong>${escapeHtml(isMonthly() ? t('No monthly bills yet', 'Belum ada tagihan bulanan') : t('No business-week bills yet', 'Belum ada tagihan minggu kerja'))}</strong>
           <p>${escapeHtml(t('A new period appears after your first billable order.', 'Periode baru akan muncul setelah pesanan tertagih pertama Anda.'))}</p>
         </div>`;
       return;
@@ -291,7 +299,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!(detailNode instanceof HTMLElement)) return;
     const bill = selectedBill();
     if (!bill) {
-      detailNode.innerHTML = `<div class="partner-billing-empty"><span aria-hidden="true">✓</span><h4>${escapeHtml(t('Nothing to pay yet', 'Belum ada yang perlu dibayar'))}</h4><p>${escapeHtml(t('Your first weekly breakdown will appear here automatically.', 'Rincian mingguan pertama Anda akan muncul otomatis di sini.'))}</p></div>`;
+      detailNode.innerHTML = `<div class="partner-billing-empty"><span aria-hidden="true">✓</span><h4>${escapeHtml(t('Nothing to pay yet', 'Belum ada yang perlu dibayar'))}</h4><p>${escapeHtml(t(`Your first ${periodName()} breakdown will appear here automatically.`, `Rincian ${periodName()} pertama Anda akan muncul otomatis di sini.`))}</p></div>`;
       return;
     }
     state.selectedBillId = bill.id;
@@ -305,7 +313,7 @@ document.addEventListener('DOMContentLoaded', () => {
       : (hasAcceptedPriceCorrection ? t('Price correction', 'Koreksi harga') : t('Bill adjustment', 'Penyesuaian tagihan'));
     detailNode.innerHTML = `
       <header class="partner-billing-detail-head">
-        <div><span>${escapeHtml(t('Weekly bill', 'Tagihan mingguan'))}</span><h4>${escapeHtml(periodLabel(bill))}</h4><p>${escapeHtml(status[1])}</p></div>
+        <div><span>${escapeHtml(isMonthly() ? t('Monthly bill', 'Tagihan bulanan') : t('Business-week bill', 'Tagihan minggu kerja'))}</span><h4>${escapeHtml(periodLabel(bill))}</h4><p>${escapeHtml(status[1])}</p></div>
         <span class="partner-billing-status is-${escapeHtml(bill.status)}"><i></i>${escapeHtml(status[0])}</span>
       </header>
       <section class="partner-billing-total-card">
@@ -349,6 +357,7 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       const payload = await requestJson();
       state.payload = payload;
+      renderShellLanguage();
       if (!state.selectedBillId || !payload.bills?.some((bill) => bill.id === state.selectedBillId)) {
         state.selectedBillId = payload.bills?.[0]?.id || '';
       }
@@ -368,7 +377,9 @@ document.addEventListener('DOMContentLoaded', () => {
     {
       kicker: t('Step 1 of 4', 'Langkah 1 dari 4'),
       title: t('Know exactly what you are paying', 'Ketahui persis apa yang Anda bayar'),
-      copy: t('Every bill covers one seven-day period and includes a transparent order-by-order breakdown.', 'Setiap tagihan mencakup satu periode tujuh hari dengan rincian yang transparan untuk setiap pesanan.'),
+      copy: isMonthly()
+        ? t('Every bill covers one calendar month and includes a transparent order-by-order breakdown.', 'Setiap tagihan mencakup satu bulan kalender dengan rincian transparan untuk setiap pesanan.')
+        : t('Every bill covers one Monday–Friday business week and includes a transparent order-by-order breakdown.', 'Setiap tagihan mencakup satu minggu kerja Senin–Jumat dengan rincian transparan untuk setiap pesanan.'),
       icon: '<svg viewBox="0 0 64 64"><rect x="15" y="9" width="34" height="46" rx="6"></rect><path d="M23 22h18M23 31h18M23 40h10"></path></svg>'
     },
     {

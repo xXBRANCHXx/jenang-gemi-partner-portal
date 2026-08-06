@@ -27,6 +27,7 @@ ALTER TABLE `partner_favicons`
 CREATE TABLE IF NOT EXISTS `partner_weekly_bills` (
   `bill_id` VARCHAR(120) NOT NULL,
   `partner_code` VARCHAR(64) NOT NULL,
+  `period_type` VARCHAR(32) NOT NULL DEFAULT 'business_week',
   `period_start` DATE NOT NULL,
   `period_end` DATE NOT NULL,
   `due_date` DATE NOT NULL,
@@ -39,10 +40,17 @@ CREATE TABLE IF NOT EXISTS `partner_weekly_bills` (
   `created_at` DATETIME NOT NULL,
   `updated_at` DATETIME NOT NULL,
   PRIMARY KEY (`bill_id`),
-  UNIQUE KEY `uniq_partner_bill_period` (`partner_code`, `period_start`),
+  UNIQUE KEY `uniq_partner_bill_type_period` (`partner_code`, `period_type`, `period_start`),
   KEY `idx_partner_bills_status` (`status`, `due_date`),
   KEY `idx_partner_bills_partner` (`partner_code`, `period_start`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+ALTER TABLE `partner_weekly_bills`
+  ADD COLUMN IF NOT EXISTS `period_type` VARCHAR(32) NOT NULL DEFAULT 'business_week' AFTER `partner_code`;
+
+DROP INDEX IF EXISTS `uniq_partner_bill_period` ON `partner_weekly_bills`;
+CREATE UNIQUE INDEX IF NOT EXISTS `uniq_partner_bill_type_period`
+  ON `partner_weekly_bills` (`partner_code`, `period_type`, `period_start`);
 
 CREATE TABLE IF NOT EXISTS `partner_weekly_bill_items` (
   `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,

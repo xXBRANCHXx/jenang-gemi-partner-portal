@@ -28,6 +28,7 @@ function jg_partner_billing_ensure_schema(PDO $pdo): void
         'CREATE TABLE IF NOT EXISTS partner_weekly_bills (
             bill_id VARCHAR(120) NOT NULL PRIMARY KEY,
             partner_code VARCHAR(64) NOT NULL,
+            period_type VARCHAR(32) NOT NULL DEFAULT "business_week",
             period_start DATE NOT NULL,
             period_end DATE NOT NULL,
             due_date DATE NOT NULL,
@@ -39,7 +40,7 @@ function jg_partner_billing_ensure_schema(PDO $pdo): void
             paid_at DATETIME NULL DEFAULT NULL,
             created_at DATETIME NOT NULL,
             updated_at DATETIME NOT NULL,
-            UNIQUE KEY uniq_partner_bill_period (partner_code, period_start),
+            UNIQUE KEY uniq_partner_bill_type_period (partner_code, period_type, period_start),
             KEY idx_partner_bills_status (status, due_date),
             KEY idx_partner_bills_partner (partner_code, period_start)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci',
@@ -139,6 +140,7 @@ function jg_partner_billing_ensure_schema(PDO $pdo): void
     jg_partner_data_ensure_column($pdo, 'partner_orders', 'billing_status', 'VARCHAR(32) NOT NULL DEFAULT "unbilled"');
     jg_partner_data_ensure_column($pdo, 'partner_orders', 'billing_reference', 'VARCHAR(120) NOT NULL DEFAULT ""');
     jg_partner_data_ensure_column($pdo, 'partner_orders', 'billing_paid_at', 'DATETIME NULL DEFAULT NULL');
+    jg_partner_data_ensure_column($pdo, 'partner_weekly_bills', 'period_type', 'VARCHAR(32) NOT NULL DEFAULT "business_week" AFTER partner_code');
     jg_partner_data_ensure_column($pdo, 'partner_weekly_bill_disputes', 'dispute_type', 'VARCHAR(32) NOT NULL DEFAULT "paid"');
     jg_partner_data_ensure_column($pdo, 'partner_weekly_bill_dispute_items', 'original_amount', 'BIGINT NULL DEFAULT NULL');
     jg_partner_data_ensure_column($pdo, 'partner_weekly_bill_dispute_items', 'proposed_amount', 'BIGINT NULL DEFAULT NULL');
@@ -146,19 +148,60 @@ function jg_partner_billing_ensure_schema(PDO $pdo): void
     jg_partner_data_ensure_column($pdo, 'partner_weekly_bill_dispute_items', 'resolved_amount', 'BIGINT NULL DEFAULT NULL');
     jg_partner_data_ensure_column($pdo, 'partner_weekly_bill_dispute_items', 'resolution_json', 'LONGTEXT NULL DEFAULT NULL');
     jg_partner_data_ensure_index($pdo, 'partner_orders', 'idx_partner_orders_billing', '(partner_code, billing_status, billing_paid_at)');
+    $legacyPeriodIndex = $pdo->prepare(
+        'SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS
+         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = "partner_weekly_bills" AND INDEX_NAME = "uniq_partner_bill_period"'
+    );
+    $legacyPeriodIndex->execute();
+    if ((int) $legacyPeriodIndex->fetchColumn() > 0) {
+        $pdo->exec('ALTER TABLE partner_weekly_bills DROP INDEX uniq_partner_bill_period');
+    }
+    $typedPeriodIndex = $pdo->prepare(
+        'SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS
+         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = "partner_weekly_bills" AND INDEX_NAME = "uniq_partner_bill_type_period"'
+    );
+    $typedPeriodIndex->execute();
+    if ((int) $typedPeriodIndex->fetchColumn() === 0) {
+        $pdo->exec('ALTER TABLE partner_weekly_bills ADD UNIQUE INDEX uniq_partner_bill_type_period (partner_code, period_type, period_start)');
+    }
 
     $prepared[$key] = true;
 }
 
-/** @return array{start:string,end:string,due:string,id_date:string} */
-function jg_partner_billing_period(DateTimeImmutable $date, ?DateTimeZone $timezone = null): array
+function jg_partner_billing_period_type(mixed $value): string
 {
+    return (string) $value === 'calendar_month' ? 'calendar_month' : 'business_week';
+}
+
+function jg_partner_billing_period_type_for_partner(PDO $pdo, string $partnerCode): string
+{
+    try {
+        $stmt = $pdo->prepare('SELECT billing_period_type FROM partner_profiles WHERE code = :code LIMIT 1');
+        $stmt->execute([':code' => strtoupper(trim($partnerCode))]);
+        return jg_partner_billing_period_type($stmt->fetchColumn());
+    } catch (Throwable) {
+        return 'business_week';
+    }
+}
+
+/** @return array{type:string,start:string,end:string,due:string,id_date:string} */
+function jg_partner_billing_period(DateTimeImmutable $date, string $periodType = 'business_week', ?DateTimeZone $timezone = null): array
+{
+    $periodType = jg_partner_billing_period_type($periodType);
     $timezone ??= new DateTimeZone('Asia/Jakarta');
     $localDate = $date->setTimezone($timezone)->setTime(0, 0);
-    $daysSinceMonday = (int) $localDate->format('N') - 1;
-    $start = $daysSinceMonday > 0 ? $localDate->modify('-' . $daysSinceMonday . ' days') : $localDate;
-    $end = $start->modify('+6 days');
+    if ($periodType === 'calendar_month') {
+        $start = $localDate->modify('first day of this month');
+        $end = $localDate->modify('last day of this month');
+    } else {
+        $weekday = (int) $localDate->format('N');
+        $start = $weekday <= 5
+            ? $localDate->modify('-' . ($weekday - 1) . ' days')
+            : $localDate->modify('+' . (8 - $weekday) . ' days');
+        $end = $start->modify('+4 days');
+    }
     return [
+        'type' => $periodType,
         'start' => $start->format('Y-m-d'),
         'end' => $end->format('Y-m-d'),
         'due' => $end->modify('+3 days')->format('Y-m-d'),
@@ -201,15 +244,16 @@ function jg_partner_billing_recalculated_status(
 }
 
 /**
- * Move legacy Wednesday–Tuesday bill items into calendar-week bills.
+ * Move unpaid order items into the partner's configured billing periods.
  *
- * Bills with a payment, dispute, or uploaded file are intentionally preserved so
- * a period correction can never rewrite an active or completed audit trail.
+ * Active payments and disputes freeze their POs. Empty POs with any payment,
+ * dispute, or uploaded-file history are retained for auditability.
  *
  * @return list<string> Bill IDs whose totals need recalculating.
  */
-function jg_partner_billing_align_calendar_weeks(PDO $pdo, string $partnerCode): array
+function jg_partner_billing_rebucket_partner(PDO $pdo, string $partnerCode, string $periodType): array
 {
+    $periodType = jg_partner_billing_period_type($periodType);
     $stmt = $pdo->prepare(
         'SELECT i.id, i.bill_id, i.order_date, b.status AS bill_status, b.total_amount,
                 EXISTS(
@@ -223,6 +267,8 @@ function jg_partner_billing_align_calendar_weeks(PDO $pdo, string $partnerCode):
          FROM partner_weekly_bill_items i
          JOIN partner_weekly_bills b ON b.bill_id = i.bill_id
          WHERE i.partner_code = :partner_code
+           AND i.paid_at IS NULL
+           AND i.status <> "removed"
          ORDER BY i.id ASC'
     );
     $stmt->execute([':partner_code' => $partnerCode]);
@@ -235,10 +281,10 @@ function jg_partner_billing_align_calendar_weeks(PDO $pdo, string $partnerCode):
 
     $insertBill = $pdo->prepare(
         'INSERT IGNORE INTO partner_weekly_bills
-            (bill_id, partner_code, period_start, period_end, due_date, status, subtotal_amount,
+            (bill_id, partner_code, period_type, period_start, period_end, due_date, status, subtotal_amount,
              adjustment_amount, total_amount, created_at, updated_at)
          VALUES
-            (:bill_id, :partner_code, :period_start, :period_end, :due_date, :status, 0, 0, 0, UTC_TIMESTAMP(), UTC_TIMESTAMP())'
+            (:bill_id, :partner_code, :period_type, :period_start, :period_end, :due_date, :status, 0, 0, 0, UTC_TIMESTAMP(), UTC_TIMESTAMP())'
     );
     $targetLookup = $pdo->prepare(
         'SELECT b.status, b.total_amount,
@@ -268,8 +314,8 @@ function jg_partner_billing_align_calendar_weeks(PDO $pdo, string $partnerCode):
             } catch (Throwable) {
                 continue;
             }
-            $period = jg_partner_billing_period($orderDate, $timezone);
-            $targetBillId = jg_partner_billing_bill_id($partnerCode, $period['start']);
+            $period = jg_partner_billing_period($orderDate, $periodType, $timezone);
+            $targetBillId = jg_partner_billing_bill_id($partnerCode, $period['start'], $periodType);
             $sourceBillId = (string) $item['bill_id'];
             if ($targetBillId === $sourceBillId) {
                 continue;
@@ -278,6 +324,7 @@ function jg_partner_billing_align_calendar_weeks(PDO $pdo, string $partnerCode):
             $insertBill->execute([
                 ':bill_id' => $targetBillId,
                 ':partner_code' => $partnerCode,
+                ':period_type' => $periodType,
                 ':period_start' => $period['start'],
                 ':period_end' => $period['end'],
                 ':due_date' => $period['due'],
@@ -298,10 +345,13 @@ function jg_partner_billing_align_calendar_weeks(PDO $pdo, string $partnerCode):
             $affected[$targetBillId] = true;
         }
 
+        foreach (array_keys($affected) as $billId) {
+            jg_partner_billing_recalculate_bill($pdo, $billId);
+        }
         $deleteEmptyLegacyBills = $pdo->prepare(
             'DELETE FROM partner_weekly_bills
              WHERE partner_code = :partner_code
-               AND (WEEKDAY(period_start) <> 0 OR WEEKDAY(period_end) <> 6 OR DATEDIFF(period_end, period_start) <> 6)
+               AND status IN ("accruing", "unpaid", "paid")
                AND NOT EXISTS(SELECT 1 FROM partner_weekly_bill_items i WHERE i.bill_id = partner_weekly_bills.bill_id)
                AND NOT EXISTS(SELECT 1 FROM partner_weekly_bill_payments p WHERE p.bill_id = partner_weekly_bills.bill_id)
                AND NOT EXISTS(SELECT 1 FROM partner_weekly_bill_disputes d WHERE d.bill_id = partner_weekly_bills.bill_id)
@@ -319,9 +369,10 @@ function jg_partner_billing_align_calendar_weeks(PDO $pdo, string $partnerCode):
     return array_keys($affected);
 }
 
-function jg_partner_billing_bill_id(string $partnerCode, string $periodStart): string
+function jg_partner_billing_bill_id(string $partnerCode, string $periodStart, string $periodType = 'business_week'): string
 {
-    return 'PB-' . str_replace('-', '', $periodStart) . '-' . strtoupper(substr(hash('sha256', strtoupper(trim($partnerCode))), 0, 12));
+    $typeCode = jg_partner_billing_period_type($periodType) === 'calendar_month' ? 'CM' : 'BW';
+    return 'PB-' . $typeCode . '-' . str_replace('-', '', $periodStart) . '-' . strtoupper(substr(hash('sha256', strtoupper(trim($partnerCode))), 0, 12));
 }
 
 function jg_partner_billing_now(): string
@@ -517,6 +568,7 @@ function jg_partner_billing_sync(string $partnerCode): void
         return;
     }
     $pdo = jg_partner_billing_db();
+    $periodType = jg_partner_billing_period_type_for_partner($pdo, $partnerCode);
     $ordersStmt = $pdo->prepare(
         'SELECT id, partner_code, customer_name, product_name, sku_code, sku_label, quantity, status,
                 marketplace_platform, revenue_total, items_json, order_timestamp, created_at, billing_paid_at
@@ -562,21 +614,22 @@ function jg_partner_billing_sync(string $partnerCode): void
             } catch (Throwable) {
                 $orderDate = new DateTimeImmutable('now', new DateTimeZone('UTC'));
             }
-            $period = jg_partner_billing_period($orderDate, $timezone);
-            $billId = jg_partner_billing_bill_id($partnerCode, $period['start']);
+            $period = jg_partner_billing_period($orderDate, $periodType, $timezone);
+            $billId = jg_partner_billing_bill_id($partnerCode, $period['start'], $periodType);
             $billIds[$billId] = true;
             $initialStatus = $period['end'] < jg_partner_billing_local_today() ? 'unpaid' : 'accruing';
 
             $billInsert = $pdo->prepare(
                 'INSERT IGNORE INTO partner_weekly_bills
-                    (bill_id, partner_code, period_start, period_end, due_date, status, subtotal_amount,
+                    (bill_id, partner_code, period_type, period_start, period_end, due_date, status, subtotal_amount,
                      adjustment_amount, total_amount, created_at, updated_at)
                  VALUES
-                    (:bill_id, :partner_code, :period_start, :period_end, :due_date, :status, 0, 0, 0, UTC_TIMESTAMP(), UTC_TIMESTAMP())'
+                    (:bill_id, :partner_code, :period_type, :period_start, :period_end, :due_date, :status, 0, 0, 0, UTC_TIMESTAMP(), UTC_TIMESTAMP())'
             );
             $billInsert->execute([
                 ':bill_id' => $billId,
                 ':partner_code' => $partnerCode,
+                ':period_type' => $periodType,
                 ':period_start' => $period['start'],
                 ':period_end' => $period['end'],
                 ':due_date' => $period['due'],
@@ -610,6 +663,9 @@ function jg_partner_billing_sync(string $partnerCode): void
                 ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
             ]);
         }
+        foreach (array_keys($billIds) as $billId) {
+            jg_partner_billing_recalculate_bill($pdo, $billId);
+        }
         $pdo->commit();
     } catch (Throwable $error) {
         if ($pdo->inTransaction()) {
@@ -618,7 +674,7 @@ function jg_partner_billing_sync(string $partnerCode): void
         throw $error;
     }
 
-    foreach (jg_partner_billing_align_calendar_weeks($pdo, $partnerCode) as $billId) {
+    foreach (jg_partner_billing_rebucket_partner($pdo, $partnerCode, $periodType) as $billId) {
         $billIds[$billId] = true;
     }
 
@@ -688,13 +744,10 @@ function jg_partner_billing_payload(string $partnerCode, string $fileEndpoint): 
     jg_partner_billing_sync($partnerCode);
     $pdo = jg_partner_billing_db();
     $billStmt = $pdo->prepare(
-        'SELECT bill_id, period_start, period_end, due_date, status, subtotal_amount, adjustment_amount,
+        'SELECT bill_id, period_type, period_start, period_end, due_date, status, subtotal_amount, adjustment_amount,
                 total_amount, payment_submitted_at, paid_at, created_at, updated_at
          FROM partner_weekly_bills
          WHERE partner_code = :partner_code
-           AND WEEKDAY(period_start) = 0
-           AND WEEKDAY(period_end) = 6
-           AND DATEDIFF(period_end, period_start) = 6
          ORDER BY period_start DESC'
     );
     $billStmt->execute([':partner_code' => $partnerCode]);
@@ -800,6 +853,7 @@ function jg_partner_billing_payload(string $partnerCode, string $fileEndpoint): 
 
         $bills[] = [
             'id' => $billId,
+            'period_type' => jg_partner_billing_period_type($bill['period_type'] ?? null),
             'period_start' => (string) $bill['period_start'],
             'period_end' => (string) $bill['period_end'],
             'due_date' => (string) $bill['due_date'],
@@ -832,6 +886,7 @@ function jg_partner_billing_payload(string $partnerCode, string $fileEndpoint): 
 
     return [
         'ok' => true,
+        'billing_period_type' => jg_partner_billing_period_type_for_partner($pdo, $partnerCode),
         'bills' => $bills,
         'summary' => [
             'outstanding_amount' => $outstanding,

@@ -69,6 +69,9 @@ $billingSource = (string) file_get_contents(dirname(__DIR__) . '/partner-billing
 partner_billing_expect(true, str_contains($billingSource, 'i.paid_at IS NULL') && str_contains($billingSource, 'i.status <> "removed"'), 'Period changes must move only unpaid, non-removed orders.');
 partner_billing_expect(true, strpos($billingSource, 'jg_partner_billing_recalculate_bill($pdo, $billId);') < strpos($billingSource, '$deleteEmptyLegacyBills = $pdo->prepare('), 'PO totals must recalculate before obsolete POs are deleted inside the transaction.');
 partner_billing_expect(true, str_contains($billingSource, 'NOT EXISTS(SELECT 1 FROM partner_weekly_bill_payments') && str_contains($billingSource, 'NOT EXISTS(SELECT 1 FROM partner_weekly_bill_disputes'), 'Obsolete PO deletion must preserve payment and dispute audit records.');
+partner_billing_expect(true, str_contains($billingSource, 'function jg_partner_billing_merge_duplicate_periods'), 'Exact duplicate periods must be consolidated after rebucketing.');
+partner_billing_expect(true, str_contains($billingSource, 'UPDATE partner_weekly_bill_items SET bill_id = :target_id') && str_contains($billingSource, 'UPDATE partner_weekly_bill_disputes SET bill_id = :target_id'), 'Duplicate consolidation must preserve item and dispute audit history on the canonical bill.');
+partner_billing_expect(true, strpos($billingSource, 'jg_partner_billing_rebucket_partner($pdo, $partnerCode, $periodType)') < strpos($billingSource, 'jg_partner_billing_merge_duplicate_periods($pdo, $partnerCode, $periodType)'), 'Legacy orders must rebucket before exact duplicate periods are merged.');
 partner_billing_expect(
     'unpaid',
     jg_partner_billing_recalculated_status('paid', '2026-08-02', 230000, false, '2026-08-05'),

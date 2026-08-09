@@ -367,6 +367,126 @@ function jg_partner_billing_rebucket_partner(PDO $pdo, string $partnerCode, stri
     return array_keys($affected);
 }
 
+/**
+ * Merge legacy and canonical bills that already describe the same exact period.
+ *
+ * The calendar-week migration can leave an audit-only legacy bill beside the
+ * canonical bill because removed items are deliberately excluded from normal
+ * rebucketing. When both bills have identical boundaries and neither has an
+ * active payment or dispute, move the complete audit trail to the canonical
+ * bill and remove the redundant container.
+ *
+ * @return list<string> Canonical bill IDs whose totals need recalculating.
+ */
+function jg_partner_billing_merge_duplicate_periods(PDO $pdo, string $partnerCode, string $periodType): array
+{
+    $partnerCode = strtoupper(trim($partnerCode));
+    $periodType = jg_partner_billing_period_type($periodType);
+    if ($partnerCode === '') {
+        return [];
+    }
+
+    $sourceStmt = $pdo->prepare(
+        'SELECT b.*,
+                EXISTS(
+                    SELECT 1 FROM partner_weekly_bill_payments p
+                    WHERE p.bill_id = b.bill_id AND p.status IN ("pending", "confirmed")
+                ) AS has_active_payment,
+                EXISTS(
+                    SELECT 1 FROM partner_weekly_bill_disputes d
+                    WHERE d.bill_id = b.bill_id AND d.status = "pending"
+                ) AS has_active_dispute,
+                EXISTS(SELECT 1 FROM partner_weekly_bill_payments p WHERE p.bill_id = b.bill_id) AS has_any_payment
+         FROM partner_weekly_bills b
+         WHERE b.partner_code = :partner_code
+         ORDER BY b.created_at ASC, b.bill_id ASC'
+    );
+    $sourceStmt->execute([':partner_code' => $partnerCode]);
+    $sources = $sourceStmt->fetchAll();
+
+    $targetStmt = $pdo->prepare(
+        'SELECT b.*,
+                EXISTS(
+                    SELECT 1 FROM partner_weekly_bill_payments p
+                    WHERE p.bill_id = b.bill_id AND p.status IN ("pending", "confirmed")
+                ) AS has_active_payment,
+                EXISTS(
+                    SELECT 1 FROM partner_weekly_bill_disputes d
+                    WHERE d.bill_id = b.bill_id AND d.status = "pending"
+                ) AS has_active_dispute,
+                EXISTS(SELECT 1 FROM partner_weekly_bill_payments p WHERE p.bill_id = b.bill_id) AS has_any_payment
+         FROM partner_weekly_bills b
+         WHERE b.bill_id = :bill_id
+         LIMIT 1 FOR UPDATE'
+    );
+    $moveItems = $pdo->prepare('UPDATE partner_weekly_bill_items SET bill_id = :target_id, updated_at = UTC_TIMESTAMP() WHERE bill_id = :source_id');
+    $moveDisputes = $pdo->prepare('UPDATE partner_weekly_bill_disputes SET bill_id = :target_id, updated_at = UTC_TIMESTAMP() WHERE bill_id = :source_id');
+    $moveFiles = $pdo->prepare('UPDATE partner_weekly_bill_files SET bill_id = :target_id WHERE bill_id = :source_id');
+    $movePayments = $pdo->prepare('UPDATE partner_weekly_bill_payments SET bill_id = :target_id, updated_at = UTC_TIMESTAMP() WHERE bill_id = :source_id');
+    $moveOrderReferences = $pdo->prepare(
+        'UPDATE partner_orders SET billing_reference = :target_id, updated_at = UTC_TIMESTAMP()
+         WHERE partner_code = :partner_code AND billing_reference = :source_id'
+    );
+    $deleteSource = $pdo->prepare('DELETE FROM partner_weekly_bills WHERE bill_id = :source_id');
+    $timezone = new DateTimeZone('Asia/Jakarta');
+    $merged = [];
+
+    $pdo->beginTransaction();
+    try {
+        foreach ($sources as $source) {
+            if (jg_partner_billing_period_type($source['period_type'] ?? null) !== $periodType
+                || !jg_partner_billing_bill_is_mutable($source)) {
+                continue;
+            }
+
+            try {
+                $sourceStart = new DateTimeImmutable((string) $source['period_start'], $timezone);
+            } catch (Throwable) {
+                continue;
+            }
+            $period = jg_partner_billing_period($sourceStart, $periodType, $timezone);
+            if ((string) ($source['period_start'] ?? '') !== $period['start']
+                || (string) ($source['period_end'] ?? '') !== $period['end']) {
+                continue;
+            }
+
+            $sourceId = (string) ($source['bill_id'] ?? '');
+            $targetId = jg_partner_billing_bill_id($partnerCode, $period['start'], $periodType);
+            if ($sourceId === '' || $sourceId === $targetId) {
+                continue;
+            }
+
+            $targetStmt->execute([':bill_id' => $targetId]);
+            $target = $targetStmt->fetch();
+            if (!is_array($target)
+                || (string) ($target['period_start'] ?? '') !== $period['start']
+                || (string) ($target['period_end'] ?? '') !== $period['end']
+                || !jg_partner_billing_bill_is_mutable($target)
+                || ((int) ($source['has_any_payment'] ?? 0) !== 0 && (int) ($target['has_any_payment'] ?? 0) !== 0)) {
+                continue;
+            }
+
+            $params = [':target_id' => $targetId, ':source_id' => $sourceId];
+            $moveItems->execute($params);
+            $moveDisputes->execute($params);
+            $moveFiles->execute($params);
+            $movePayments->execute($params);
+            $moveOrderReferences->execute($params + [':partner_code' => $partnerCode]);
+            $deleteSource->execute([':source_id' => $sourceId]);
+            jg_partner_billing_recalculate_bill($pdo, $targetId);
+            $merged[$targetId] = true;
+        }
+        $pdo->commit();
+    } catch (Throwable $error) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        throw $error;
+    }
+
+    return array_keys($merged);
+}
+
 function jg_partner_billing_bill_id(string $partnerCode, string $periodStart, string $periodType = 'calendar_week'): string
 {
     $typeCode = jg_partner_billing_period_type($periodType) === 'calendar_month' ? 'CM' : 'CW';
@@ -673,6 +793,9 @@ function jg_partner_billing_sync(string $partnerCode): void
     }
 
     foreach (jg_partner_billing_rebucket_partner($pdo, $partnerCode, $periodType) as $billId) {
+        $billIds[$billId] = true;
+    }
+    foreach (jg_partner_billing_merge_duplicate_periods($pdo, $partnerCode, $periodType) as $billId) {
         $billIds[$billId] = true;
     }
 

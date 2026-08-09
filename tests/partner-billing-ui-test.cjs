@@ -24,7 +24,7 @@ assert.doesNotMatch(billing, /newBadge\.hidden\s*=\s*true/, 'Opening Billing mus
 assert.match(markup, /data-billing-hero-title[\s\S]*\$billingStaticCopy/, 'The initial billing hero should be rendered in the selected language.');
 assert.match(billing, /renderShellLanguage[\s\S]*'How it works', 'Cara kerja'/, 'Billing shell copy should update when the language setting changes.');
 assert.match(billing, /billing_period_type === 'calendar_month'/, 'Billing copy should follow the partner-specific period returned by the server.');
-assert.match(billing, /Monday–Friday business week[\s\S]*calendar month/, 'The portal should explain both supported billing-period choices.');
+assert.match(billing, /Monday–Sunday calendar week[\s\S]*calendar month/, 'The portal should explain both supported billing-period choices.');
 assert.match(api, /jg_partner_billing_localized_error[\s\S]*Tagihan sementara tidak tersedia/, 'Partner-visible API errors should follow the selected language.');
 assert.match(billing, /data-billing-dispute-order/, 'Disputes should target exact order IDs.');
 assert.match(billing, /data-billing-proposal-price[\s\S]*price_proposals/, 'Selected orders should submit per-product proposed prices.');

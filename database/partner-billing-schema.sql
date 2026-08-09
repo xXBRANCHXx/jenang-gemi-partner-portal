@@ -27,7 +27,7 @@ ALTER TABLE `partner_favicons`
 CREATE TABLE IF NOT EXISTS `partner_weekly_bills` (
   `bill_id` VARCHAR(120) NOT NULL,
   `partner_code` VARCHAR(64) NOT NULL,
-  `period_type` VARCHAR(32) NOT NULL DEFAULT 'business_week',
+  `period_type` VARCHAR(32) NOT NULL DEFAULT 'calendar_week',
   `period_start` DATE NOT NULL,
   `period_end` DATE NOT NULL,
   `due_date` DATE NOT NULL,
@@ -46,7 +46,7 @@ CREATE TABLE IF NOT EXISTS `partner_weekly_bills` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 ALTER TABLE `partner_weekly_bills`
-  ADD COLUMN IF NOT EXISTS `period_type` VARCHAR(32) NOT NULL DEFAULT 'business_week' AFTER `partner_code`;
+  ADD COLUMN IF NOT EXISTS `period_type` VARCHAR(32) NOT NULL DEFAULT 'calendar_week' AFTER `partner_code`;
 
 DROP INDEX IF EXISTS `uniq_partner_bill_period` ON `partner_weekly_bills`;
 CREATE UNIQUE INDEX IF NOT EXISTS `uniq_partner_bill_type_period`

@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require_once dirname(__DIR__, 2) . '/config.php';
 require_once dirname(__DIR__, 2) . '/partner-order-storage.php';
+require_once dirname(__DIR__, 2) . '/partner-return-storage.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
@@ -168,6 +169,9 @@ function jg_store_orders_normalize(array $order): array
         'instant' => false,
         'deadlineAt' => jg_store_orders_deadline_at($order),
         'createdAt' => $createdAt !== '' ? gmdate(DATE_ATOM, strtotime($createdAt . ' UTC') ?: time()) : null,
+        'orderTimestamp' => trim((string) ($order['order_timestamp'] ?? '')) !== ''
+            ? gmdate(DATE_ATOM, strtotime((string) $order['order_timestamp'] . ' UTC') ?: time())
+            : ($createdAt !== '' ? gmdate(DATE_ATOM, strtotime($createdAt . ' UTC') ?: time()) : null),
         'updatedAt' => $updatedAt !== '' ? gmdate(DATE_ATOM, strtotime($updatedAt . ' UTC') ?: time()) : null,
         'customerName' => (string) ($order['customer_name'] ?? ''),
         'notes' => (string) ($order['notes'] ?? ''),
@@ -196,6 +200,20 @@ $method = strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET'));
 if ($method === 'POST') {
     $payload = jg_store_orders_request_body();
     $action = (string) ($payload['action'] ?? '');
+    if ($action === 'apply_return_adjustment') {
+        try {
+            echo json_encode([
+                'ok' => true,
+                'adjustment' => jg_partner_return_apply($payload),
+            ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+        } catch (InvalidArgumentException | RuntimeException $exception) {
+            jg_store_orders_fail($exception->getMessage(), 422);
+        } catch (Throwable $exception) {
+            error_log('Partner return adjustment failed: ' . $exception->getMessage());
+            jg_store_orders_fail('The Partner return adjustment could not be saved.', 500);
+        }
+        exit;
+    }
     if ($action !== 'update_status') {
         jg_store_orders_fail('Unknown action.', 400);
     }
@@ -243,6 +261,41 @@ if ($historyOrderId !== '') {
             'fetched_at' => gmdate(DATE_ATOM),
         ],
     ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+    exit;
+}
+
+if (strtolower(trim((string) ($_GET['action'] ?? ''))) === 'return_catalog') {
+    $partnerCode = strtoupper(trim((string) ($_GET['partner_code'] ?? '')));
+    try {
+        $allOrders = jg_partner_order_list_all();
+        $counts = [];
+        foreach ($allOrders as $order) {
+            $code = strtoupper(trim((string) ($order['partner_code'] ?? '')));
+            if ($code !== '') $counts[$code] = ($counts[$code] ?? 0) + 1;
+        }
+        ksort($counts, SORT_NATURAL | SORT_FLAG_CASE);
+        $partners = array_map(
+            static fn (string $code, int $count): array => ['code' => $code, 'name' => $code, 'order_count' => $count],
+            array_keys($counts),
+            array_values($counts)
+        );
+        $orders = $partnerCode === '' ? [] : array_values(array_map(
+            static fn (array $order): array => jg_store_orders_normalize($order),
+            array_filter($allOrders, static fn (array $order): bool => strtoupper(trim((string) ($order['partner_code'] ?? ''))) === $partnerCode)
+        ));
+        usort($orders, static fn (array $left, array $right): int => strcmp(
+            (string) ($right['orderTimestamp'] ?? $right['createdAt'] ?? ''),
+            (string) ($left['orderTimestamp'] ?? $left['createdAt'] ?? '')
+        ));
+        echo json_encode([
+            'ok' => true,
+            'partners' => array_values($partners),
+            'orders' => $orders,
+            'meta' => ['source' => 'partner-return-catalog', 'partner_code' => $partnerCode, 'count' => count($orders)],
+        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+    } catch (Throwable $exception) {
+        jg_store_orders_fail($exception->getMessage() ?: 'Unable to load Partner return orders.', 500);
+    }
     exit;
 }
 

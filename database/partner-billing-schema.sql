@@ -159,3 +159,24 @@ CREATE TABLE IF NOT EXISTS `partner_billing_onboarding` (
   `updated_at` DATETIME NOT NULL,
   PRIMARY KEY (`partner_code`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `partner_return_adjustments` (
+  `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `adjustment_key` VARCHAR(120) NOT NULL,
+  `return_number` VARCHAR(64) NOT NULL,
+  `partner_code` VARCHAR(64) NOT NULL,
+  `original_order_id` VARCHAR(64) NOT NULL,
+  `bill_id` VARCHAR(120) NOT NULL,
+  `bill_item_id` BIGINT UNSIGNED NOT NULL,
+  `fault_party` VARCHAR(16) NOT NULL,
+  `condition_code` VARCHAR(24) NOT NULL,
+  `rate_basis_points` INT UNSIGNED NOT NULL,
+  `selected_value` BIGINT NOT NULL,
+  `adjustment_amount` BIGINT NOT NULL,
+  `item_snapshot_json` LONGTEXT NOT NULL,
+  `created_at` DATETIME NOT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uniq_partner_return_adjustment_key` (`adjustment_key`),
+  KEY `idx_partner_return_adjustments_order` (`partner_code`, `original_order_id`, `created_at`),
+  KEY `idx_partner_return_adjustments_bill` (`bill_id`, `created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

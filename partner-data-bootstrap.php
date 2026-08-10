@@ -123,6 +123,7 @@ function jg_partner_data_status(): array
             'partner_weekly_bill_files',
             'partner_weekly_bill_payments',
             'partner_billing_onboarding',
+            'partner_return_adjustments',
         ] as $tableName) {
             $stmt = $pdo->prepare(
                 'SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES

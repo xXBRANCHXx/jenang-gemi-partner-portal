@@ -357,6 +357,7 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       const payload = await requestJson();
       state.payload = payload;
+      setError('');
       renderShellLanguage();
       if (!state.selectedBillId || !payload.bills?.some((bill) => bill.id === state.selectedBillId)) {
         state.selectedBillId = payload.bills?.[0]?.id || '';

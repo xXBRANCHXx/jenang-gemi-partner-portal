@@ -20,6 +20,7 @@ assert.match(billing, /submit_payment[\s\S]*submit_dispute/, 'Partners should be
 assert.match(billing, /'Open my bills', 'Buka tagihan saya'/, 'The first-run tutorial must be localized.');
 assert.match(billing, /localStorage\.getItem\(tutorialStorageKey\)[\s\S]*localStorage\.setItem\(tutorialStorageKey, 'seen'\)/, 'Tutorial completion should be remembered on each device per partner account.');
 assert.match(billing, /newBadge\.hidden = !Boolean\(payload\.onboarding\?\.new_badge_visible\)/, 'The NEW badge should follow its seven-day server window.');
+assert.match(billing, /const payload = await requestJson\(\);[\s\S]*state\.payload = payload;[\s\S]*setError\(''\);[\s\S]*renderShellLanguage\(\);/, 'Every successful billing refresh must clear a stale request error, including silent polling recovery.');
 assert.doesNotMatch(billing, /newBadge\.hidden\s*=\s*true/, 'Opening Billing must not dismiss the NEW badge.');
 assert.match(markup, /data-billing-hero-title[\s\S]*\$billingStaticCopy/, 'The initial billing hero should be rendered in the selected language.');
 assert.match(billing, /renderShellLanguage[\s\S]*'How it works', 'Cara kerja'/, 'Billing shell copy should update when the language setting changes.');

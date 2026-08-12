@@ -53,8 +53,6 @@ function jg_partner_billing_localized_error(string $message, string $language): 
         'Method not allowed.' => 'Metode tidak diizinkan.',
         'Unknown billing action.' => 'Tindakan tagihan tidak dikenali.',
         'Billing is temporarily unavailable.' => 'Tagihan sementara tidak tersedia.',
-        'Billing reconciliation did not pass its integrity checks.' => 'Rekonsiliasi tagihan tidak lulus pemeriksaan integritas.',
-        'A late order reached a billing period with an active payment or dispute.' => 'Pesanan terlambat masuk ke periode tagihan yang memiliki pembayaran atau sengketa aktif.',
     ][$message] ?? $message;
 }
 

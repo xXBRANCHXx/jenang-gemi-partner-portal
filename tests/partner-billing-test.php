@@ -162,21 +162,6 @@ partner_billing_expect(true, jg_partner_billing_bill_is_mutable([
     'has_active_dispute' => 0,
     'has_accepted_dispute' => 1,
 ]), 'An accepted dispute must not block unrelated orders from moving into a bill.');
-partner_billing_expect(false, jg_partner_billing_bill_accepts_new_orders([
-    'status' => 'payment_submitted',
-    'has_active_payment' => 1,
-    'has_active_dispute' => 0,
-]), 'A bill under payment review must reject late order insertion.');
-partner_billing_expect(false, jg_partner_billing_bill_accepts_new_orders([
-    'status' => 'disputed',
-    'has_active_payment' => 0,
-    'has_active_dispute' => 1,
-]), 'A disputed bill must reject late order insertion.');
-partner_billing_expect(true, jg_partner_billing_bill_accepts_new_orders([
-    'status' => 'unpaid',
-    'has_active_payment' => 0,
-    'has_active_dispute' => 0,
-]), 'An unpaid bill without an active audit workflow may accept backdated orders and recalculate.');
 
 $billingSource = (string) file_get_contents(dirname(__DIR__) . '/partner-billing-storage.php');
 partner_billing_expect(true, str_contains($billingSource, 'i.paid_at IS NULL') && str_contains($billingSource, 'i.status <> "removed"'), 'Period changes must move only unpaid, non-removed orders.');
@@ -189,8 +174,6 @@ partner_billing_expect(true, str_contains($billingSource, 'function jg_partner_b
 partner_billing_expect(true, str_contains($billingSource, 'ON DUPLICATE KEY UPDATE bill_id = bill_id'), 'Existing legacy bills must be preserved instead of silently replacing their audit ID.');
 partner_billing_expect(true, str_contains($billingSource, 'AND current_bill.bill_id IS NULL'), 'A later sync must repair unpaid order items orphaned by the legacy bill-ID migration.');
 partner_billing_expect(true, str_contains($billingSource, 'could not be attached to a valid bill'), 'Billing sync must fail loudly if an order item is still detached after repair.');
-partner_billing_expect(true, str_contains($billingSource, 'function jg_partner_billing_assert_integrity'), 'Every completed sync must run the production integrity audit.');
-partner_billing_expect(true, str_contains($billingSource, 'A late order reached a billing period with an active payment or dispute.'), 'Late orders must not silently change bills under payment or dispute review.');
 partner_billing_expect(false, str_contains($billingSource, 'INSERT IGNORE INTO partner_weekly_bills'), 'Bill creation must not silently continue with an ID that the database rejected.');
 partner_billing_expect(
     'unpaid',

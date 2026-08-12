@@ -238,6 +238,14 @@ function jg_partner_billing_bill_is_mutable(array $bill): bool
         && (int) ($bill['has_active_dispute'] ?? $bill['has_dispute'] ?? 0) === 0;
 }
 
+/** @param array<string,mixed> $bill */
+function jg_partner_billing_bill_accepts_new_orders(array $bill): bool
+{
+    return !in_array((string) ($bill['status'] ?? ''), ['payment_submitted', 'disputed'], true)
+        && (int) ($bill['has_active_payment'] ?? 0) === 0
+        && (int) ($bill['has_active_dispute'] ?? 0) === 0;
+}
+
 function jg_partner_billing_recalculated_status(
     string $currentStatus,
     string $periodEnd,
@@ -745,6 +753,144 @@ function jg_partner_billing_recalculate_bill(PDO $pdo, string $billId): void
     ]);
 }
 
+/** @return array<string,int> */
+function jg_partner_billing_integrity_issues(PDO $pdo, string $partnerCode): array
+{
+    $partnerCode = strtoupper(trim($partnerCode));
+    if ($partnerCode === '') {
+        return ['invalid_partner' => 1];
+    }
+
+    $coverage = $pdo->prepare(
+        'SELECT
+            COALESCE(SUM(CASE
+                WHEN UPPER(TRIM(o.status)) NOT IN ("CANCELLED", "CANCELED") AND i.id IS NULL THEN 1 ELSE 0
+            END), 0) AS missing_items,
+            COALESCE(SUM(CASE
+                WHEN UPPER(TRIM(o.status)) NOT IN ("CANCELLED", "CANCELED") AND i.id IS NOT NULL AND b.bill_id IS NULL THEN 1 ELSE 0
+            END), 0) AS orphaned_items,
+            COALESCE(SUM(CASE
+                WHEN i.id IS NOT NULL AND (i.partner_code <> o.partner_code OR b.partner_code <> o.partner_code) THEN 1 ELSE 0
+            END), 0) AS wrong_partner_links,
+            COALESCE(SUM(CASE
+                WHEN UPPER(TRIM(o.status)) NOT IN ("CANCELLED", "CANCELED") AND i.status = "removed" THEN 1 ELSE 0
+            END), 0) AS active_orders_removed,
+            COALESCE(SUM(CASE
+                WHEN UPPER(TRIM(o.status)) IN ("CANCELLED", "CANCELED") AND i.id IS NOT NULL AND i.status <> "removed" THEN 1 ELSE 0
+            END), 0) AS cancelled_orders_included,
+            COALESCE(SUM(CASE
+                WHEN UPPER(TRIM(o.status)) NOT IN ("CANCELLED", "CANCELED")
+                 AND i.id IS NOT NULL
+                 AND i.status = "included"
+                 AND i.dispute_id IS NULL
+                 AND i.paid_at IS NULL
+                 AND o.billing_paid_at IS NULL
+                 AND i.amount <> ROUND(o.revenue_total)
+                THEN 1 ELSE 0
+            END), 0) AS amount_mismatches
+         FROM partner_orders o
+         LEFT JOIN partner_weekly_bill_items i ON i.order_id = o.id
+         LEFT JOIN partner_weekly_bills b ON b.bill_id = i.bill_id
+         WHERE o.partner_code = :partner_code'
+    );
+    $coverage->execute([':partner_code' => $partnerCode]);
+    $issues = array_map('intval', $coverage->fetch() ?: []);
+
+    $periodMismatch = $pdo->prepare(
+        'SELECT COUNT(*)
+         FROM partner_weekly_bill_items i
+         JOIN partner_weekly_bills b ON b.bill_id = i.bill_id
+         WHERE i.partner_code = :partner_code
+           AND i.paid_at IS NULL
+           AND i.status <> "removed"
+           AND b.status IN ("accruing", "unpaid", "paid")
+           AND NOT EXISTS(
+               SELECT 1 FROM partner_weekly_bill_payments p
+               WHERE p.bill_id = b.bill_id AND p.status IN ("pending", "confirmed")
+           )
+           AND NOT EXISTS(
+               SELECT 1 FROM partner_weekly_bill_disputes d
+               WHERE d.bill_id = b.bill_id AND d.status = "pending"
+           )
+           AND DATE(CONVERT_TZ(i.order_date, "+00:00", "+07:00")) NOT BETWEEN b.period_start AND b.period_end'
+    );
+    $periodMismatch->execute([':partner_code' => $partnerCode]);
+    $issues['period_mismatches'] = (int) $periodMismatch->fetchColumn();
+
+    $totalMismatch = $pdo->prepare(
+        'SELECT COUNT(*)
+         FROM partner_weekly_bills b
+         LEFT JOIN (
+             SELECT i.bill_id,
+                    COALESCE(SUM(COALESCE((
+                        SELECT di.original_amount
+                        FROM partner_weekly_bill_dispute_items di
+                        JOIN partner_weekly_bill_disputes d ON d.id = di.dispute_id
+                        WHERE di.bill_item_id = i.id AND d.status = "accepted" AND d.dispute_type = "price"
+                        ORDER BY COALESCE(d.resolved_at, d.updated_at) DESC, d.id DESC LIMIT 1
+                    ), i.amount)), 0) AS expected_subtotal,
+                    COALESCE(SUM(CASE WHEN i.status <> "removed" THEN i.amount ELSE 0 END), 0) AS expected_total
+             FROM partner_weekly_bill_items i
+             WHERE i.partner_code = :item_partner_code
+             GROUP BY i.bill_id
+         ) expected ON expected.bill_id = b.bill_id
+         WHERE b.partner_code = :bill_partner_code
+           AND (
+               b.subtotal_amount <> COALESCE(expected.expected_subtotal, 0)
+               OR b.total_amount <> COALESCE(expected.expected_total, 0)
+               OR b.adjustment_amount <> GREATEST(0, COALESCE(expected.expected_subtotal, 0) - COALESCE(expected.expected_total, 0))
+           )'
+    );
+    $totalMismatch->execute([
+        ':item_partner_code' => $partnerCode,
+        ':bill_partner_code' => $partnerCode,
+    ]);
+    $issues['bill_total_mismatches'] = (int) $totalMismatch->fetchColumn();
+
+    $paymentMismatch = $pdo->prepare(
+        'SELECT COUNT(*)
+         FROM partner_weekly_bill_payments p
+         JOIN partner_weekly_bills b ON b.bill_id = p.bill_id
+         WHERE p.partner_code = :partner_code
+           AND p.status IN ("pending", "confirmed")
+           AND p.amount <> b.total_amount'
+    );
+    $paymentMismatch->execute([':partner_code' => $partnerCode]);
+    $issues['payment_total_mismatches'] = (int) $paymentMismatch->fetchColumn();
+
+    $auditOrphans = $pdo->prepare(
+        'SELECT
+            (SELECT COUNT(*) FROM partner_weekly_bill_payments p
+             LEFT JOIN partner_weekly_bills b ON b.bill_id = p.bill_id
+             WHERE p.partner_code = :payment_partner_code AND b.bill_id IS NULL)
+          + (SELECT COUNT(*) FROM partner_weekly_bill_disputes d
+             LEFT JOIN partner_weekly_bills b ON b.bill_id = d.bill_id
+             WHERE d.partner_code = :dispute_partner_code AND b.bill_id IS NULL)
+          + (SELECT COUNT(*) FROM partner_weekly_bill_files f
+             LEFT JOIN partner_weekly_bills b ON b.bill_id = f.bill_id
+             WHERE f.partner_code = :file_partner_code AND b.bill_id IS NULL)'
+    );
+    $auditOrphans->execute([
+        ':payment_partner_code' => $partnerCode,
+        ':dispute_partner_code' => $partnerCode,
+        ':file_partner_code' => $partnerCode,
+    ]);
+    $issues['orphaned_audit_records'] = (int) $auditOrphans->fetchColumn();
+
+    return array_filter($issues, static fn (int $count): bool => $count > 0);
+}
+
+function jg_partner_billing_assert_integrity(PDO $pdo, string $partnerCode): void
+{
+    $issues = jg_partner_billing_integrity_issues($pdo, $partnerCode);
+    if ($issues === []) {
+        return;
+    }
+
+    error_log('Partner billing integrity failure for ' . strtoupper(trim($partnerCode)) . ': ' . json_encode($issues));
+    throw new RuntimeException('Billing reconciliation did not pass its integrity checks.');
+}
+
 function jg_partner_billing_sync(string $partnerCode): void
 {
     $partnerCode = strtoupper(trim($partnerCode));
@@ -758,7 +904,6 @@ function jg_partner_billing_sync(string $partnerCode): void
                 marketplace_platform, revenue_total, items_json, order_timestamp, created_at, billing_paid_at
          FROM partner_orders
          WHERE partner_code = :partner_code
-           AND revenue_total > 0
          ORDER BY COALESCE(order_timestamp, created_at) ASC, id ASC'
     );
     $ordersStmt->execute([':partner_code' => $partnerCode]);
@@ -781,6 +926,20 @@ function jg_partner_billing_sync(string $partnerCode): void
          LEFT JOIN partner_weekly_bills current_bill ON current_bill.bill_id = i.bill_id
          WHERE i.order_id = :order_id
          LIMIT 1'
+    );
+    $targetBillState = $pdo->prepare(
+        'SELECT b.status,
+                EXISTS(
+                    SELECT 1 FROM partner_weekly_bill_payments p
+                    WHERE p.bill_id = b.bill_id AND p.status IN ("pending", "confirmed")
+                ) AS has_active_payment,
+                EXISTS(
+                    SELECT 1 FROM partner_weekly_bill_disputes d
+                    WHERE d.bill_id = b.bill_id AND d.status = "pending"
+                ) AS has_active_dispute
+         FROM partner_weekly_bills b
+         WHERE b.bill_id = :bill_id
+         LIMIT 1 FOR UPDATE'
     );
 
     $pdo->beginTransaction();
@@ -820,6 +979,16 @@ function jg_partner_billing_sync(string $partnerCode): void
             $initialStatus = $period['end'] < jg_partner_billing_local_today() ? 'unpaid' : 'accruing';
             $billId = jg_partner_billing_ensure_period_bill($pdo, $partnerCode, $period, $initialStatus);
             $billIds[$billId] = true;
+
+            $verifyItemBill->execute([':order_id' => $orderId]);
+            $existingItem = $verifyItemBill->fetch();
+            if (!is_array($existingItem) || trim((string) ($existingItem['existing_bill_id'] ?? '')) === '') {
+                $targetBillState->execute([':bill_id' => $billId]);
+                $targetState = $targetBillState->fetch();
+                if (!is_array($targetState) || !jg_partner_billing_bill_accepts_new_orders($targetState)) {
+                    throw new RuntimeException('A late order reached a billing period with an active payment or dispute.');
+                }
+            }
 
             $summary = jg_partner_billing_order_summary($order);
             $itemInsert = $pdo->prepare(
@@ -888,6 +1057,7 @@ function jg_partner_billing_sync(string $partnerCode): void
     foreach (array_keys($billIds) as $billId) {
         jg_partner_billing_recalculate_bill($pdo, $billId);
     }
+    jg_partner_billing_assert_integrity($pdo, $partnerCode);
 }
 
 /** @return array{visible:bool,expires_at:?string} */

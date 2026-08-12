@@ -59,6 +59,7 @@ If phpMyAdmin needs the tables created manually, import `database/partner-data-s
 - Billing periods are configured per partner and default to a Monday–Sunday calendar week in the Asia/Jakarta billing timezone. Calendar-month billing runs from the first through the last day of each month. Closed bills are due three days after the period ends. Changing the setting atomically moves unpaid/accruing orders into the correct POs and deletes empty obsolete POs, while paid periods and active payment/dispute audit trails remain unchanged. The legacy `business_week` setting is treated as `calendar_week` so existing profiles automatically converge on the corrected schedule. Proofs accept PDF, PNG, JPEG, GIF, or WebP files up to 10 MB and are stored privately in MySQL so the Executive Dashboard can review them without a public file URL.
 - The Billing navigation `NEW` marker remains visible for seven full days from the partner's first post-launch dashboard load; opening Billing does not dismiss it. The automatic tutorial runs once per browser/device for each partner account and remains manually reopenable. Language, number formatting, dates, and tutorial copy follow the partner's existing regional preferences.
 - An order-level dispute only changes the selected bill items. Finance can accept the dispute, or reject it with a reason and optional evidence image that remains visible in the partner's bill detail.
+- Every Billing load runs a server-side integrity audit after reconciliation. It verifies complete order coverage (including Rp 0 orders), valid bill and partner links, cancellation state, order amounts, configured period placement, recomputed bill totals, payment-total equality, and payment/dispute/file audit references. A failed invariant returns a visible billing error and is logged instead of presenting incomplete financial data.
 
 ## Production deployment order
 
@@ -66,3 +67,7 @@ If phpMyAdmin needs the tables created manually, import `database/partner-data-s
 2. Confirm `/api/db-status/` returns `{ "ok": true }` and an authenticated partner can load the dashboard.
 3. Deploy the Executive Dashboard partner API hardening that narrows the public registry. Existing Partner Portal sessions are intentionally invalidated once and must sign in again.
 4. Submit and fulfill one test order through Store Ops before inviting partners.
+
+## Billing integrity tests
+
+`tests/partner-billing-mariadb-smoke.php` is the destructive production-shaped billing test. It refuses to run unless its database name ends in `_smoke` or `_test` and `JG_PARTNER_BILLING_SMOKE_ALLOW_RESET=1`. GitHub Actions runs it against a disposable MariaDB 10.11 service on every pull request and every push to `main`, together with all PHP regression and browser contract tests.

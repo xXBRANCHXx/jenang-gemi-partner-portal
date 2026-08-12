@@ -12,6 +12,80 @@ function partner_billing_expect(mixed $expected, mixed $actual, string $message)
     exit(1);
 }
 
+final class PartnerBillingFakePdo extends PDO
+{
+    /** @var list<array<string,string>> */
+    public array $bills;
+
+    /** @param list<array<string,string>> $bills */
+    public function __construct(array $bills = [])
+    {
+        $this->bills = $bills;
+    }
+
+    public function prepare(string $query, array $options = []): PDOStatement|false
+    {
+        return new PartnerBillingFakeStatement($this, $query);
+    }
+}
+
+final class PartnerBillingFakeStatement extends PDOStatement
+{
+    private PartnerBillingFakePdo $database;
+    private string $sql;
+    private mixed $result = false;
+
+    public function __construct(PartnerBillingFakePdo $database, string $sql)
+    {
+        $this->database = $database;
+        $this->sql = $sql;
+    }
+
+    public function execute(?array $params = null): bool
+    {
+        $params ??= [];
+        if (str_contains($this->sql, 'INSERT INTO partner_weekly_bills')) {
+            foreach ($this->database->bills as $bill) {
+                if ($bill['bill_id'] === $params[':bill_id']
+                    || ($bill['partner_code'] === $params[':partner_code']
+                        && $bill['period_type'] === $params[':period_type']
+                        && $bill['period_start'] === $params[':period_start'])) {
+                    return true;
+                }
+            }
+            $this->database->bills[] = [
+                'bill_id' => $params[':bill_id'],
+                'partner_code' => $params[':partner_code'],
+                'period_type' => $params[':period_type'],
+                'period_start' => $params[':period_start'],
+                'period_end' => $params[':period_end'],
+                'due_date' => $params[':due_date'],
+            ];
+            return true;
+        }
+
+        if (str_contains($this->sql, 'FROM partner_weekly_bills')) {
+            $this->result = false;
+            foreach ($this->database->bills as $bill) {
+                if ($bill['partner_code'] === $params[':partner_code']
+                    && $bill['period_type'] === $params[':period_type']
+                    && $bill['period_start'] === $params[':period_start']) {
+                    $this->result = $bill;
+                    break;
+                }
+            }
+            return true;
+        }
+
+        throw new RuntimeException('Unexpected fake billing query.');
+    }
+
+    public function fetch(int $mode = PDO::FETCH_DEFAULT, int $cursorOrientation = PDO::FETCH_ORI_NEXT, int $cursorOffset = 0): mixed
+    {
+        return $this->result;
+    }
+}
+
 $utc = new DateTimeZone('UTC');
 $first = jg_partner_billing_period(new DateTimeImmutable('2026-07-01 00:00:00', $utc));
 partner_billing_expect('2026-06-29', $first['start'], 'A Wednesday order must belong to the preceding Monday.');
@@ -39,6 +113,30 @@ partner_billing_expect(
     'Bill IDs must be stable for normalized partner codes.'
 );
 partner_billing_expect(false, jg_partner_billing_bill_id('BAGGOS', '2026-07-01', 'calendar_week') === jg_partner_billing_bill_id('BAGGOS', '2026-07-01', 'calendar_month'), 'PO IDs must be unique across period types.');
+
+$legacyPeriod = jg_partner_billing_period(new DateTimeImmutable('2026-08-12 00:00:00', $utc));
+$legacyBillId = 'PB-20260810-LEGACY';
+$legacyDatabase = new PartnerBillingFakePdo([[
+    'bill_id' => $legacyBillId,
+    'partner_code' => 'BAGGOS',
+    'period_type' => 'calendar_week',
+    'period_start' => $legacyPeriod['start'],
+    'period_end' => $legacyPeriod['end'],
+    'due_date' => $legacyPeriod['due'],
+]]);
+partner_billing_expect(
+    $legacyBillId,
+    jg_partner_billing_ensure_period_bill($legacyDatabase, 'BAGGOS', $legacyPeriod, 'accruing'),
+    'A legacy bill ID must remain canonical when its unique period already exists.'
+);
+partner_billing_expect(1, count($legacyDatabase->bills), 'Canonical period resolution must not create a duplicate bill container.');
+
+$newDatabase = new PartnerBillingFakePdo();
+partner_billing_expect(
+    jg_partner_billing_bill_id('BAGGOS', $legacyPeriod['start'], 'calendar_week'),
+    jg_partner_billing_ensure_period_bill($newDatabase, 'BAGGOS', $legacyPeriod, 'accruing'),
+    'A new period must return the bill ID that was actually inserted.'
+);
 
 partner_billing_expect(true, jg_partner_billing_bill_is_mutable([
     'status' => 'paid',
@@ -72,6 +170,11 @@ partner_billing_expect(true, str_contains($billingSource, 'NOT EXISTS(SELECT 1 F
 partner_billing_expect(true, str_contains($billingSource, 'function jg_partner_billing_merge_duplicate_periods'), 'Exact duplicate periods must be consolidated after rebucketing.');
 partner_billing_expect(true, str_contains($billingSource, 'UPDATE partner_weekly_bill_items SET bill_id = :target_id') && str_contains($billingSource, 'UPDATE partner_weekly_bill_disputes SET bill_id = :target_id'), 'Duplicate consolidation must preserve item and dispute audit history on the canonical bill.');
 partner_billing_expect(true, strpos($billingSource, 'jg_partner_billing_rebucket_partner($pdo, $partnerCode, $periodType)') < strpos($billingSource, 'jg_partner_billing_merge_duplicate_periods($pdo, $partnerCode, $periodType)'), 'Legacy orders must rebucket before exact duplicate periods are merged.');
+partner_billing_expect(true, str_contains($billingSource, 'function jg_partner_billing_ensure_period_bill'), 'Bill insertion must resolve the canonical row selected by the unique period key.');
+partner_billing_expect(true, str_contains($billingSource, 'ON DUPLICATE KEY UPDATE bill_id = bill_id'), 'Existing legacy bills must be preserved instead of silently replacing their audit ID.');
+partner_billing_expect(true, str_contains($billingSource, 'AND current_bill.bill_id IS NULL'), 'A later sync must repair unpaid order items orphaned by the legacy bill-ID migration.');
+partner_billing_expect(true, str_contains($billingSource, 'could not be attached to a valid bill'), 'Billing sync must fail loudly if an order item is still detached after repair.');
+partner_billing_expect(false, str_contains($billingSource, 'INSERT IGNORE INTO partner_weekly_bills'), 'Bill creation must not silently continue with an ID that the database rejected.');
 partner_billing_expect(
     'unpaid',
     jg_partner_billing_recalculated_status('paid', '2026-08-02', 230000, false, '2026-08-05'),

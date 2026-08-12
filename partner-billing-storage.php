@@ -261,6 +261,65 @@ function jg_partner_billing_recalculated_status(
 }
 
 /**
+ * Return the real bill row for a period, including legacy rows whose bill ID
+ * predates the period-type prefix. The unique period key, not a generated ID,
+ * is the source of truth.
+ *
+ * @param array{type:string,start:string,end:string,due:string,id_date:string} $period
+ */
+function jg_partner_billing_ensure_period_bill(
+    PDO $pdo,
+    string $partnerCode,
+    array $period,
+    string $initialStatus
+): string {
+    $partnerCode = strtoupper(trim($partnerCode));
+    $periodType = jg_partner_billing_period_type($period['type'] ?? null);
+    $generatedBillId = jg_partner_billing_bill_id($partnerCode, (string) $period['start'], $periodType);
+
+    $insert = $pdo->prepare(
+        'INSERT INTO partner_weekly_bills
+            (bill_id, partner_code, period_type, period_start, period_end, due_date, status, subtotal_amount,
+             adjustment_amount, total_amount, created_at, updated_at)
+         VALUES
+            (:bill_id, :partner_code, :period_type, :period_start, :period_end, :due_date, :status, 0, 0, 0, UTC_TIMESTAMP(), UTC_TIMESTAMP())
+         ON DUPLICATE KEY UPDATE bill_id = bill_id'
+    );
+    $insert->execute([
+        ':bill_id' => $generatedBillId,
+        ':partner_code' => $partnerCode,
+        ':period_type' => $periodType,
+        ':period_start' => (string) $period['start'],
+        ':period_end' => (string) $period['end'],
+        ':due_date' => (string) $period['due'],
+        ':status' => $initialStatus,
+    ]);
+
+    $lookup = $pdo->prepare(
+        'SELECT bill_id, period_end, due_date
+         FROM partner_weekly_bills
+         WHERE partner_code = :partner_code
+           AND period_type = :period_type
+           AND period_start = :period_start
+         LIMIT 1 FOR UPDATE'
+    );
+    $lookup->execute([
+        ':partner_code' => $partnerCode,
+        ':period_type' => $periodType,
+        ':period_start' => (string) $period['start'],
+    ]);
+    $bill = $lookup->fetch();
+    if (!is_array($bill)
+        || trim((string) ($bill['bill_id'] ?? '')) === ''
+        || (string) ($bill['period_end'] ?? '') !== (string) $period['end']
+        || (string) ($bill['due_date'] ?? '') !== (string) $period['due']) {
+        throw new RuntimeException('Billing period could not be resolved safely.');
+    }
+
+    return (string) $bill['bill_id'];
+}
+
+/**
  * Move unpaid order items into the partner's configured billing periods.
  *
  * Active payments and disputes freeze their POs. Empty POs with any payment,
@@ -296,13 +355,6 @@ function jg_partner_billing_rebucket_partner(PDO $pdo, string $partnerCode, stri
     $affected = [];
     $targetState = [];
 
-    $insertBill = $pdo->prepare(
-        'INSERT IGNORE INTO partner_weekly_bills
-            (bill_id, partner_code, period_type, period_start, period_end, due_date, status, subtotal_amount,
-             adjustment_amount, total_amount, created_at, updated_at)
-         VALUES
-            (:bill_id, :partner_code, :period_type, :period_start, :period_end, :due_date, :status, 0, 0, 0, UTC_TIMESTAMP(), UTC_TIMESTAMP())'
-    );
     $targetLookup = $pdo->prepare(
         'SELECT b.status, b.total_amount,
                 EXISTS(
@@ -332,21 +384,16 @@ function jg_partner_billing_rebucket_partner(PDO $pdo, string $partnerCode, stri
                 continue;
             }
             $period = jg_partner_billing_period($orderDate, $periodType, $timezone);
-            $targetBillId = jg_partner_billing_bill_id($partnerCode, $period['start'], $periodType);
+            $targetBillId = jg_partner_billing_ensure_period_bill(
+                $pdo,
+                $partnerCode,
+                $period,
+                $period['end'] < jg_partner_billing_local_today() ? 'unpaid' : 'accruing'
+            );
             $sourceBillId = (string) $item['bill_id'];
             if ($targetBillId === $sourceBillId) {
                 continue;
             }
-
-            $insertBill->execute([
-                ':bill_id' => $targetBillId,
-                ':partner_code' => $partnerCode,
-                ':period_type' => $periodType,
-                ':period_start' => $period['start'],
-                ':period_end' => $period['end'],
-                ':due_date' => $period['due'],
-                ':status' => $period['end'] < jg_partner_billing_local_today() ? 'unpaid' : 'accruing',
-            ]);
 
             if (!array_key_exists($targetBillId, $targetState)) {
                 $targetLookup->execute([':bill_id' => $targetBillId]);
@@ -717,6 +764,24 @@ function jg_partner_billing_sync(string $partnerCode): void
     $ordersStmt->execute([':partner_code' => $partnerCode]);
     $billIds = [];
     $timezone = new DateTimeZone('Asia/Jakarta');
+    $repairOrphanedItem = $pdo->prepare(
+        'UPDATE partner_weekly_bill_items i
+         LEFT JOIN partner_weekly_bills current_bill ON current_bill.bill_id = i.bill_id
+         SET i.bill_id = :bill_id, i.updated_at = UTC_TIMESTAMP()
+         WHERE i.order_id = :order_id
+           AND i.partner_code = :partner_code
+           AND i.paid_at IS NULL
+           AND i.status = "included"
+           AND i.dispute_id IS NULL
+           AND current_bill.bill_id IS NULL'
+    );
+    $verifyItemBill = $pdo->prepare(
+        'SELECT i.bill_id, i.partner_code, current_bill.bill_id AS existing_bill_id
+         FROM partner_weekly_bill_items i
+         LEFT JOIN partner_weekly_bills current_bill ON current_bill.bill_id = i.bill_id
+         WHERE i.order_id = :order_id
+         LIMIT 1'
+    );
 
     $pdo->beginTransaction();
     try {
@@ -752,26 +817,9 @@ function jg_partner_billing_sync(string $partnerCode): void
                 $orderDate = new DateTimeImmutable('now', new DateTimeZone('UTC'));
             }
             $period = jg_partner_billing_period($orderDate, $periodType, $timezone);
-            $billId = jg_partner_billing_bill_id($partnerCode, $period['start'], $periodType);
-            $billIds[$billId] = true;
             $initialStatus = $period['end'] < jg_partner_billing_local_today() ? 'unpaid' : 'accruing';
-
-            $billInsert = $pdo->prepare(
-                'INSERT IGNORE INTO partner_weekly_bills
-                    (bill_id, partner_code, period_type, period_start, period_end, due_date, status, subtotal_amount,
-                     adjustment_amount, total_amount, created_at, updated_at)
-                 VALUES
-                    (:bill_id, :partner_code, :period_type, :period_start, :period_end, :due_date, :status, 0, 0, 0, UTC_TIMESTAMP(), UTC_TIMESTAMP())'
-            );
-            $billInsert->execute([
-                ':bill_id' => $billId,
-                ':partner_code' => $partnerCode,
-                ':period_type' => $periodType,
-                ':period_start' => $period['start'],
-                ':period_end' => $period['end'],
-                ':due_date' => $period['due'],
-                ':status' => $initialStatus,
-            ]);
+            $billId = jg_partner_billing_ensure_period_bill($pdo, $partnerCode, $period, $initialStatus);
+            $billIds[$billId] = true;
 
             $summary = jg_partner_billing_order_summary($order);
             $itemInsert = $pdo->prepare(
@@ -799,6 +847,20 @@ function jg_partner_billing_sync(string $partnerCode): void
                     'items' => $summary['items'],
                 ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
             ]);
+            $repairOrphanedItem->execute([
+                ':bill_id' => $billId,
+                ':order_id' => $orderId,
+                ':partner_code' => $partnerCode,
+            ]);
+            $verifyItemBill->execute([':order_id' => $orderId]);
+            $verifiedItem = $verifyItemBill->fetch();
+            if (!is_array($verifiedItem)
+                || (string) ($verifiedItem['partner_code'] ?? '') !== $partnerCode
+                || trim((string) ($verifiedItem['bill_id'] ?? '')) === ''
+                || trim((string) ($verifiedItem['existing_bill_id'] ?? '')) === '') {
+                throw new RuntimeException('Order ' . $orderId . ' could not be attached to a valid bill.');
+            }
+            $billIds[(string) $verifiedItem['bill_id']] = true;
         }
         foreach (array_keys($billIds) as $billId) {
             jg_partner_billing_recalculate_bill($pdo, $billId);

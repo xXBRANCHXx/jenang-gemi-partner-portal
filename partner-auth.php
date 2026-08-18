@@ -99,6 +99,7 @@ function jg_partner_refresh_current_profile(): ?array
     $partner = jg_partner_source_find($code);
     if (is_array($partner)
         && (string) ($partner['code'] ?? '') === $code
+        && array_key_exists('partner_class', $partner)
         && jg_partner_profile_has_complete_sku_access($partner)) {
         $_SESSION['jg_partner_profile'] = $partner;
         $_SESSION['jg_partner_name'] = trim((string) ($partner['name'] ?? ''));

@@ -243,6 +243,58 @@ function jg_partner_data_ensure_schema(PDO $pdo): void
             updated_at DATETIME NOT NULL,
             KEY idx_partner_preferences_updated (updated_at)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci',
+        'CREATE TABLE IF NOT EXISTS partner_wallets (
+            partner_code VARCHAR(64) NOT NULL PRIMARY KEY,
+            balance DECIMAL(14,2) NOT NULL DEFAULT 0.00,
+            created_at DATETIME NOT NULL,
+            updated_at DATETIME NOT NULL,
+            KEY idx_partner_wallets_updated (updated_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci',
+        'CREATE TABLE IF NOT EXISTS partner_wallet_transactions (
+            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+            partner_code VARCHAR(64) NOT NULL,
+            transaction_type VARCHAR(32) NOT NULL,
+            amount DECIMAL(14,2) NOT NULL,
+            balance_after DECIMAL(14,2) NOT NULL,
+            reference_type VARCHAR(32) NOT NULL DEFAULT "",
+            reference_id VARCHAR(80) NOT NULL DEFAULT "",
+            note VARCHAR(500) NOT NULL DEFAULT "",
+            actor VARCHAR(80) NOT NULL DEFAULT "system",
+            created_at DATETIME NOT NULL,
+            UNIQUE KEY uniq_partner_wallet_reference (partner_code, transaction_type, reference_type, reference_id),
+            KEY idx_partner_wallet_activity (partner_code, created_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci',
+        'CREATE TABLE IF NOT EXISTS partner_deposit_requests (
+            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+            partner_code VARCHAR(64) NOT NULL,
+            requested_amount DECIMAL(14,2) NOT NULL,
+            approved_amount DECIMAL(14,2) NULL DEFAULT NULL,
+            status VARCHAR(32) NOT NULL DEFAULT "pending",
+            proof_name VARCHAR(255) NOT NULL,
+            proof_mime VARCHAR(120) NOT NULL,
+            proof_size BIGINT UNSIGNED NOT NULL DEFAULT 0,
+            proof_data LONGBLOB NOT NULL,
+            review_note VARCHAR(1000) NOT NULL DEFAULT "",
+            submitted_at DATETIME NOT NULL,
+            reviewed_at DATETIME NULL DEFAULT NULL,
+            reviewed_by VARCHAR(80) NOT NULL DEFAULT "",
+            updated_at DATETIME NOT NULL,
+            KEY idx_partner_deposit_queue (status, submitted_at),
+            KEY idx_partner_deposit_history (partner_code, submitted_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci',
+        'CREATE TABLE IF NOT EXISTS partner_stock_events (
+            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+            partner_code VARCHAR(64) NOT NULL,
+            entity_type VARCHAR(32) NOT NULL,
+            entity_id VARCHAR(80) NOT NULL,
+            event_type VARCHAR(48) NOT NULL,
+            title VARCHAR(180) NOT NULL,
+            detail VARCHAR(1000) NOT NULL DEFAULT "",
+            actor VARCHAR(80) NOT NULL DEFAULT "system",
+            created_at DATETIME NOT NULL,
+            KEY idx_partner_stock_entity (entity_type, entity_id, created_at),
+            KEY idx_partner_stock_partner (partner_code, created_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci',
     ];
 
     foreach ($statements as $sql) {
@@ -263,6 +315,17 @@ function jg_partner_data_ensure_schema(PDO $pdo): void
     jg_partner_data_ensure_column($pdo, 'partner_order_labels', 'expires_at', 'DATETIME NULL DEFAULT NULL');
     jg_partner_data_ensure_column($pdo, 'partner_order_labels', 'deleted_at', 'DATETIME NULL DEFAULT NULL');
     jg_partner_data_ensure_column($pdo, 'partner_order_labels', 'deletion_reason', 'VARCHAR(64) NOT NULL DEFAULT ""');
+    jg_partner_data_ensure_column($pdo, 'partner_order_labels', 'file_data', 'LONGBLOB NULL DEFAULT NULL');
+    jg_partner_data_ensure_column($pdo, 'partner_order_labels', 'uploaded_by', 'VARCHAR(80) NOT NULL DEFAULT "partner"');
+    jg_partner_data_ensure_column($pdo, 'partner_orders', 'order_type', 'VARCHAR(32) NOT NULL DEFAULT "class_a_dropship"');
+    jg_partner_data_ensure_column($pdo, 'partner_orders', 'recipient_email', 'VARCHAR(190) NOT NULL DEFAULT ""');
+    jg_partner_data_ensure_column($pdo, 'partner_orders', 'recipient_phone', 'VARCHAR(64) NOT NULL DEFAULT ""');
+    jg_partner_data_ensure_column($pdo, 'partner_orders', 'recipient_address', 'TEXT NULL DEFAULT NULL');
+    jg_partner_data_ensure_column($pdo, 'partner_orders', 'shipping_weight_grams', 'INT UNSIGNED NOT NULL DEFAULT 0');
+    jg_partner_data_ensure_column($pdo, 'partner_orders', 'executive_status', 'VARCHAR(32) NOT NULL DEFAULT "not_required"');
+    jg_partner_data_ensure_column($pdo, 'partner_orders', 'balance_amount', 'DECIMAL(14,2) NOT NULL DEFAULT 0.00');
+    jg_partner_data_ensure_column($pdo, 'partner_orders', 'submitted_at', 'DATETIME NULL DEFAULT NULL');
+    jg_partner_data_ensure_column($pdo, 'partner_orders', 'shipment_arranged_at', 'DATETIME NULL DEFAULT NULL');
     jg_partner_data_ensure_column($pdo, 'partner_favicons', 'file_data', 'LONGBLOB NULL DEFAULT NULL');
     jg_partner_data_ensure_index($pdo, 'partner_orders', 'idx_partner_orders_archived', '(archived_at)');
     jg_partner_data_ensure_index($pdo, 'partner_orders', 'idx_partner_orders_billing', '(partner_code, billing_status, billing_paid_at)');

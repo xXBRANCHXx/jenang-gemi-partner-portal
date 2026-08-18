@@ -49,7 +49,8 @@ function jg_partner_start_session(): void
         if ($now - $loginAt > JG_PARTNER_SESSION_LIFETIME || $now - $lastActivity > JG_PARTNER_SESSION_IDLE_TIMEOUT) {
             $_SESSION = [];
             session_regenerate_id(true);
-        } elseif (!jg_partner_profile_has_complete_sku_access($_SESSION['jg_partner_profile'] ?? null)) {
+        } elseif (!jg_partner_profile_has_complete_sku_access($_SESSION['jg_partner_profile'] ?? null)
+            || !array_key_exists('partner_class', (array) ($_SESSION['jg_partner_profile'] ?? []))) {
             // Incomplete cached profiles cannot safely validate or display approved SKUs.
             $_SESSION = [];
             session_regenerate_id(true);

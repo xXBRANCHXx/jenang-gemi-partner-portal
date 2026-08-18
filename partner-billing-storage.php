@@ -759,6 +759,7 @@ function jg_partner_billing_sync(string $partnerCode): void
          FROM partner_orders
          WHERE partner_code = :partner_code
            AND revenue_total > 0
+           AND COALESCE(order_type, "class_a_dropship") <> "class_b_stock"
          ORDER BY COALESCE(order_timestamp, created_at) ASC, id ASC'
     );
     $ordersStmt->execute([':partner_code' => $partnerCode]);

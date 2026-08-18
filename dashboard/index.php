@@ -14,6 +14,10 @@ if (!jg_partner_is_authenticated()) {
 $adminCssVersion = (string) @filemtime(dirname(__DIR__) . '/admin.css');
 $dashboardJsVersion = (string) @filemtime(dirname(__DIR__) . '/dashboard.js');
 $partner = jg_partner_current_profile();
+if (is_array($partner) && strtoupper(trim((string) ($partner['partner_class'] ?? 'B'))) === 'B') {
+    require dirname(__DIR__) . '/class-b-dashboard/index.php';
+    exit;
+}
 $partnerSlug = jg_partner_profile_slug($partner);
 $requestPath = trim(parse_url((string) ($_SERVER['REQUEST_URI'] ?? '/'), PHP_URL_PATH) ?: '/', '/');
 

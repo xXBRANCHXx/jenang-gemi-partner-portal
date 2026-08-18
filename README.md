@@ -11,6 +11,7 @@ Partner-facing dashboard for `partner.jenanggemi.com`.
 - Localized, print-ready partner performance PDF reports
 - Catalog restrictions driven by admin partner profiles
 - Future communication layer with store operations
+- Dedicated Class B stock dashboard with prepaid balances, deposit-proof review, and executive-arranged shipping
 
 ## Current routes
 
@@ -40,6 +41,10 @@ The partner order tables are created automatically when the portal can connect t
 If phpMyAdmin needs the tables created manually, import `database/partner-data-schema.sql` and then `database/partner-billing-schema.sql` into `u558678012_Partner_Data`.
 
 ## Notes
+
+- Partner classes are additive to the existing history. Baggos and Orezz remain Class A and continue using the original dropship order and billing workspace; all other existing partners default to Class B. No existing bills, payment proofs, disputes, orders, or labels are removed by the migration.
+- Class B partners submit deposits with private payment proof. Executive approval credits an auditable balance ledger exactly once. Stock orders debit that balance atomically and remain `AWAITING_EXECUTIVE` until the Executive Dashboard uploads a PDF shipping label.
+- A labeled Class B order moves to `IS_LISTED` and then enters the existing Store Ops partner feed. Executive-uploaded labels are stored privately in the shared partner database so both deployments can retrieve the same file.
 
 - Partner profile access currently reads from the executive dashboard partner registry endpoint, with `data/partners.json` as local fallback.
 - Partner-created orders use MySQL when configured, otherwise local JSON storage in `data/orders.json`. If MySQL is configured but unavailable, the portal now fails closed instead of silently switching storage backends.

@@ -144,10 +144,22 @@ function jg_partner_order_label_pdf_file_path(array $label): ?string
     return $signature === '%PDF-' ? $path : null;
 }
 
+function jg_partner_order_database_label_data(array $label): ?string
+{
+    $labelId = (int) ($label['id'] ?? 0);
+    if ($labelId <= 0 || jg_partner_order_label_is_expired($label)) return null;
+    $pdo = jg_partner_data_db();
+    if (!$pdo instanceof PDO) return null;
+    $stmt = $pdo->prepare('SELECT file_data FROM partner_order_labels WHERE id = :id AND deleted_at IS NULL LIMIT 1');
+    $stmt->execute([':id' => $labelId]);
+    $data = $stmt->fetchColumn();
+    return is_string($data) && str_starts_with($data, '%PDF-') ? $data : null;
+}
+
 function jg_partner_order_has_available_label_pdf(array $order): bool
 {
     foreach ((array) ($order['labels'] ?? []) as $label) {
-        if (is_array($label) && jg_partner_order_label_pdf_file_path($label) !== null) {
+        if (is_array($label) && (jg_partner_order_label_pdf_file_path($label) !== null || jg_partner_order_database_label_data($label) !== null)) {
             return true;
         }
     }
@@ -1273,6 +1285,11 @@ function jg_partner_order_schedule_label_expiration(string $orderId, string $sta
     $expiresAt = jg_partner_order_label_expiration_for_status($normalizedStatus);
     $pdo = jg_partner_data_db();
     if ($pdo instanceof PDO) {
+        $typeStmt = $pdo->prepare('SELECT order_type FROM partner_orders WHERE id = :order_id LIMIT 1');
+        $typeStmt->execute([':order_id' => $orderId]);
+        if (strtolower((string) $typeStmt->fetchColumn()) === 'class_b_stock') {
+            return;
+        }
         $stmt = $pdo->prepare(
             'UPDATE partner_order_labels
              SET expires_at = CASE
@@ -1880,7 +1897,7 @@ function jg_partner_order_cleanup_expired_labels(?int $now = null): int
             $update = $pdo->prepare(
                 'UPDATE partner_order_labels
                  SET original_name = "Expired shipping label", stored_name = "", relative_path = "",
-                     mime_type = "", size_bytes = 0, deleted_at = ?, deletion_reason = "retention_expired"
+                     mime_type = "", size_bytes = 0, file_data = NULL, deleted_at = ?, deletion_reason = "retention_expired"
                  WHERE id IN (' . $placeholders . ')'
             );
             $update->execute(array_merge([gmdate('Y-m-d H:i:s', $now)], $ids));
@@ -1915,6 +1932,20 @@ function jg_partner_order_cleanup_expired_labels(?int $now = null): int
 
 function jg_partner_order_stream_label(array $label): never
 {
+    $databaseData = jg_partner_order_database_label_data($label);
+    if (is_string($databaseData)) {
+        $downloadName = trim((string) ($label['name'] ?? 'shipping-label.pdf'));
+        $downloadName = preg_replace('/[^A-Za-z0-9._ -]+/', '-', $downloadName) ?: 'shipping-label.pdf';
+        if (!str_ends_with(strtolower($downloadName), '.pdf')) $downloadName .= '.pdf';
+        header('Content-Type: application/pdf');
+        header('Content-Length: ' . strlen($databaseData));
+        header('Content-Disposition: inline; filename="' . addcslashes($downloadName, "\\\"") . '"');
+        header('Cache-Control: private, no-store, max-age=0');
+        header('X-Content-Type-Options: nosniff');
+        header('Content-Security-Policy: sandbox');
+        echo $databaseData;
+        exit;
+    }
     $path = jg_partner_order_label_pdf_file_path($label);
     if ($path === null) {
         throw new RuntimeException('Shipping label PDF is unavailable.');

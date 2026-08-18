@@ -70,7 +70,6 @@ $jsVersion = (string) @filemtime(__DIR__ . '/class-b-dashboard.js');
      data-csrf="<?php echo htmlspecialchars(jg_partner_csrf_token(), ENT_QUOTES); ?>">
     <aside class="cb-sidebar" data-sidebar>
         <a class="cb-brand" href="<?php echo htmlspecialchars($base . '/dashboard/', ENT_QUOTES); ?>" aria-label="Partner dashboard home">
-            <span class="cb-brand-mark" aria-hidden="true"><i></i><i></i></span>
             <span><strong>JENANG GEMI</strong><small>Stock partner</small></span>
         </a>
 
@@ -118,26 +117,25 @@ $jsVersion = (string) @filemtime(__DIR__ . '/class-b-dashboard.js');
         <div class="cb-alert" data-alert hidden><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 17h.01"/></svg><span></span></div>
 
         <section class="cb-view is-active" data-section="overview" hidden>
-            <section class="cb-balance-hero">
-                <div>
-                    <span class="cb-eyebrow"><i></i> Available to spend</span>
-                    <strong data-balance>Rp0</strong>
-                    <p>Approved funds are ready for your next stock order.</p>
-                </div>
-                <div class="cb-hero-actions">
-                    <button type="button" data-open-deposit><svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg>Add funds</button>
-                    <button type="button" data-open-order><svg viewBox="0 0 24 24"><path d="M3 6h18M6 6l1 14h10l1-14M9 6V4h6v2M9 11v5M15 11v5"/></svg>Order stock</button>
-                </div>
-                <svg class="cb-hero-art" viewBox="0 0 300 160" aria-hidden="true"><circle cx="247" cy="25" r="90"/><circle cx="225" cy="141" r="54"/><path d="M164 32h91v91h-91z"/></svg>
-            </section>
-
-            <section class="cb-metrics">
+            <section class="cb-metrics cb-overview-metrics">
+                <article class="cb-balance-metric"><span class="cb-metric-icon"><svg viewBox="0 0 24 24"><path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5"/><path d="M16 13h2"/></svg></span><span><small>Available balance</small><strong data-balance>Rp0</strong><em>Ready for stock orders</em></span></article>
                 <article><span class="cb-metric-icon is-blue"><svg viewBox="0 0 24 24"><path d="M20 7h-9M14 17H5M17 3l4 4-4 4M8 13l-4 4 4 4"/></svg></span><span><small>Orders in progress</small><strong data-metric-progress>0</strong></span></article>
                 <article><span class="cb-metric-icon is-amber"><svg viewBox="0 0 24 24"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg></span><span><small>Awaiting review</small><strong data-metric-review>0</strong></span></article>
                 <article><span class="cb-metric-icon is-green"><svg viewBox="0 0 24 24"><path d="m9 12 2 2 4-4"/><circle cx="12" cy="12" r="9"/></svg></span><span><small>Shipped orders</small><strong data-metric-shipped>0</strong></span></article>
             </section>
 
-            <section class="cb-grid">
+            <section class="cb-insight-grid">
+                <article class="cb-panel cb-chart-panel">
+                    <header><div><small>Balance activity</small><h2>Credits and stock spending</h2></div><div class="cb-chart-legend"><span class="is-credit"><i></i><b data-chart-credit>Rp0</b> added</span><span class="is-spend"><i></i><b data-chart-spend>Rp0</b> spent</span></div></header>
+                    <div class="cb-balance-chart" data-balance-chart aria-label="Balance activity chart"></div>
+                </article>
+                <article class="cb-panel cb-order-chart-panel">
+                    <header><div><small>Order status</small><h2>Stock order mix</h2></div><button type="button" data-view-jump="orders">View all <svg viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg></button></header>
+                    <div class="cb-order-chart" data-order-chart></div>
+                </article>
+            </section>
+
+            <section class="cb-grid cb-overview-bottom">
                 <article class="cb-panel cb-panel-orders">
                     <header><div><small>Stock orders</small><h2>Recent activity</h2></div><button type="button" data-view-jump="orders">View all <svg viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg></button></header>
                     <div class="cb-order-list" data-recent-orders></div>
@@ -237,7 +235,7 @@ $jsVersion = (string) @filemtime(__DIR__ . '/class-b-dashboard.js');
             <div class="cb-order-builder">
                 <div class="cb-builder-main">
                     <section class="cb-builder-section"><div class="cb-builder-heading"><span>01</span><div><strong>Choose approved products</strong><small>Everything selected stays together in one order.</small></div></div><label class="cb-search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m16 16 4 4"/></svg><input type="search" placeholder="Search product, flavor or SKU" data-product-search></label><div class="cb-product-table" data-product-table></div></section>
-                    <section class="cb-builder-section"><div class="cb-builder-heading"><span>02</span><div><strong>Confirm delivery details</strong><small>These details are saved with this order.</small></div></div><div class="cb-contact-grid"><label class="cb-field"><span>Full name</span><input type="text" name="recipient_name" maxlength="160" required></label><label class="cb-field"><span>Email</span><input type="email" name="recipient_email" maxlength="190" required></label><label class="cb-field"><span>Phone</span><input type="tel" name="recipient_phone" maxlength="64" required></label><label class="cb-field is-wide"><span>Full address</span><textarea name="recipient_address" maxlength="2000" rows="3" required></textarea></label><label class="cb-field is-wide"><span>Order note <small>Optional</small></span><input type="text" name="notes" maxlength="300" placeholder="Delivery instructions or reference"></label></div></section>
+                    <section class="cb-builder-section"><div class="cb-builder-heading"><span>02</span><div><strong>Delivery profile</strong><small>Filled automatically from your partner profile.</small></div></div><div class="cb-delivery-profile"><div><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3"/><path d="M5 20a7 7 0 0 1 14 0"/></svg><span><small>Full name</small><strong data-delivery-name>Not configured</strong></span></div><div><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg><span><small>Email</small><strong data-delivery-email>Not configured</strong></span></div><div class="is-wide"><svg viewBox="0 0 24 24"><path d="M22 16.9v3a2 2 0 0 1-2.18 2 19.8 19.8 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.69 2.8a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.33 1.85.56 2.81.69A2 2 0 0 1 22 16.9z"/></svg><span><small>Phone</small><strong data-delivery-phone>Not configured</strong></span></div><div class="is-wide"><svg viewBox="0 0 24 24"><path d="M20 10c0 5-8 12-8 12S4 15 4 10a8 8 0 1 1 16 0z"/><circle cx="12" cy="10" r="2"/></svg><span><small>Full address</small><strong data-delivery-address>Not configured</strong></span></div></div><p class="cb-delivery-note">Delivery details are managed from the partner profile workspace and saved automatically with every order.</p><label class="cb-field"><span>Order note <small>Optional</small></span><input type="text" name="notes" maxlength="300" placeholder="Delivery instructions or reference"></label></section>
                 </div>
                 <aside class="cb-order-summary"><div><small>Available balance</small><strong data-order-balance>Rp0</strong></div><section><header><span>Order summary</span><small data-summary-count>0 products</small></header><div data-summary-lines><p>No products selected yet.</p></div></section><div class="cb-summary-total"><span>Total</span><strong data-order-total>Rp0</strong></div><div class="cb-balance-check" data-balance-check><svg viewBox="0 0 24 24"><path d="m6 12 4 4 8-8"/></svg><span>Covered by your balance</span></div><p class="cb-form-error" data-order-error hidden></p><button type="submit" class="cb-button cb-button-primary" disabled data-submit-order>Pay from balance · Submit</button><small class="cb-submit-note">Funds are deducted immediately. The order then waits for shipment arrangement.</small></aside>
             </div>

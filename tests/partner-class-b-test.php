@@ -28,8 +28,11 @@ class_b_expect(str_contains($classBDashboard, '/admin.css'), 'Class B must share
 class_b_expect(str_contains($classBDashboard, 'data-section="settings"'), 'Class B must include a complete settings view.');
 class_b_expect(str_contains($classBDashboard, 'data-language-setting') && str_contains($classBDashboard, 'data-timezone-setting'), 'Class B must support the same language and time settings as Class A.');
 class_b_expect(str_contains($classBDashboard, 'data-favicon-form') && str_contains($classBDashboard, 'data-password-form'), 'Class B must support favicon and password management.');
+class_b_expect(str_contains($classBDashboard, 'data-delivery-address') && !str_contains($classBDashboard, 'name="recipient_address"'), 'Checkout must show profile delivery details without editable recipient fields.');
 $classBDashboardJs = (string) file_get_contents(dirname(__DIR__) . '/class-b-dashboard/class-b-dashboard.js');
 class_b_expect(str_contains($classBDashboardJs, "action:'update_preferences'") && str_contains($classBDashboardJs, "action:'change_password'"), 'Class B settings must persist through the shared session API.');
+$classBStorage = (string) file_get_contents(dirname(__DIR__) . '/partner-class-b-storage.php');
+class_b_expect(!str_contains($classBStorage, "\$payload['recipient_email']") && !str_contains($classBStorage, "\$payload['recipient_address']"), 'Order delivery identity must be sourced from the saved partner profile, never client input.');
 $orderStorage = (string) file_get_contents(dirname(__DIR__) . '/partner-order-storage.php');
 class_b_expect(str_contains($orderStorage, "=== 'class_b_stock'"), 'Class B shipping labels must remain available in history instead of entering Class A retention cleanup.');
 $schema = (string) file_get_contents(dirname(__DIR__) . '/database/partner-data-schema.sql');

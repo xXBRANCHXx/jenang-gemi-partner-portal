@@ -188,14 +188,14 @@ function jg_partner_class_b_create_order(string $partnerCode, array $partner, ar
     jg_partner_class_b_require_profile($partner);
     $pdo = jg_partner_class_b_db();
     $payload['marketplace_platform'] = 'Class B Stock';
-    $payload['customer_name'] = jg_partner_class_b_contact($payload['recipient_name'] ?? $partner['name'] ?? '', 'Full name', 160);
+    $payload['customer_name'] = jg_partner_class_b_contact($partner['name'] ?? '', 'Full name', 160);
     $payload['order_timestamp'] = gmdate(DATE_ATOM);
     $payload['deadline_hours'] = 48;
     $record = jg_partner_order_build_record($partnerCode, $partner, $payload);
     $record['status'] = 'AWAITING_EXECUTIVE';
-    $email = jg_partner_class_b_contact($payload['recipient_email'] ?? $partner['contact_email'] ?? '', 'Email address', 190, true);
-    $phone = jg_partner_class_b_contact($payload['recipient_phone'] ?? $partner['contact_phone'] ?? '', 'Phone number', 64);
-    $address = jg_partner_class_b_contact($payload['recipient_address'] ?? $partner['contact_address'] ?? '', 'Full address', 2000);
+    $email = jg_partner_class_b_contact($partner['contact_email'] ?? '', 'Email address', 190, true);
+    $phone = jg_partner_class_b_contact($partner['contact_phone'] ?? '', 'Phone number', 64);
+    $address = jg_partner_class_b_contact($partner['contact_address'] ?? '', 'Full address', 2000);
     $weight = jg_partner_class_b_estimated_weight($record['items']);
     $total = round((float) $record['revenue_total'], 2);
     if ($total <= 0) throw new InvalidArgumentException('This order does not have a valid partner price.');

@@ -11,7 +11,7 @@ $method = strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET'));
 
 if ($method === 'GET') {
     jg_partner_require_auth_json();
-    $partner = jg_partner_current_profile();
+    $partner = jg_partner_refresh_current_profile();
     $safePartner = is_array($partner) ? $partner : [];
     unset($safePartner['code']);
     $platformOptions = jg_partner_platform_builtins();

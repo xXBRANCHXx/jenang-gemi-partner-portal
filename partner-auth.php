@@ -89,6 +89,26 @@ function jg_partner_current_profile(): ?array
     return $partner;
 }
 
+function jg_partner_refresh_current_profile(): ?array
+{
+    $code = jg_partner_current_code();
+    if ($code === '') {
+        return null;
+    }
+
+    $partner = jg_partner_source_find($code);
+    if (is_array($partner)
+        && (string) ($partner['code'] ?? '') === $code
+        && jg_partner_profile_has_complete_sku_access($partner)) {
+        $_SESSION['jg_partner_profile'] = $partner;
+        $_SESSION['jg_partner_name'] = trim((string) ($partner['name'] ?? ''));
+        $_SESSION['jg_partner_slug'] = jg_partner_profile_slug($partner);
+        return $partner;
+    }
+
+    return jg_partner_current_profile();
+}
+
 function jg_partner_current_slug(): string
 {
     jg_partner_start_session();

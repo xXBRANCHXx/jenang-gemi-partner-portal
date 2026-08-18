@@ -33,6 +33,8 @@ $classBDashboardJs = (string) file_get_contents(dirname(__DIR__) . '/class-b-das
 class_b_expect(str_contains($classBDashboardJs, "action:'update_preferences'") && str_contains($classBDashboardJs, "action:'change_password'"), 'Class B settings must persist through the shared session API.');
 $classBStorage = (string) file_get_contents(dirname(__DIR__) . '/partner-class-b-storage.php');
 class_b_expect(!str_contains($classBStorage, "\$payload['recipient_email']") && !str_contains($classBStorage, "\$payload['recipient_address']"), 'Order delivery identity must be sourced from the saved partner profile, never client input.');
+$classBApi = (string) file_get_contents(dirname(__DIR__) . '/api/class-b/index.php');
+class_b_expect(str_contains($classBApi, 'jg_partner_refresh_current_profile()'), 'Checkout must refresh workspace delivery details before creating an order.');
 $orderStorage = (string) file_get_contents(dirname(__DIR__) . '/partner-order-storage.php');
 class_b_expect(str_contains($orderStorage, "=== 'class_b_stock'"), 'Class B shipping labels must remain available in history instead of entering Class A retention cleanup.');
 $schema = (string) file_get_contents(dirname(__DIR__) . '/database/partner-data-schema.sql');

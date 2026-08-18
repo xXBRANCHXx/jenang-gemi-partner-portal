@@ -16,7 +16,7 @@ function jg_class_b_json(array $payload, int $status = 200): never
 }
 
 $partnerCode = jg_partner_current_code();
-$partner = jg_partner_current_profile();
+$partner = jg_partner_refresh_current_profile();
 $method = strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET'));
 $action = strtolower(trim((string) ($_GET['action'] ?? 'summary')));
 

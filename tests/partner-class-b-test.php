@@ -23,6 +23,13 @@ class_b_expect(str_contains($billing, 'COALESCE(order_type, "class_a_dropship") 
 $dashboard = (string) file_get_contents(dirname(__DIR__) . '/dashboard/index.php');
 class_b_expect(str_contains($dashboard, "partner_class") && str_contains($dashboard, "class-b-dashboard/index.php"), 'Only Class B profiles should route to the new dashboard.');
 class_b_expect(str_contains($dashboard, "data-partner-section=\"billing\""), 'The original Class A billing dashboard must remain present.');
+$classBDashboard = (string) file_get_contents(dirname(__DIR__) . '/class-b-dashboard/index.php');
+class_b_expect(str_contains($classBDashboard, '/admin.css'), 'Class B must share the established Class A visual system.');
+class_b_expect(str_contains($classBDashboard, 'data-section="settings"'), 'Class B must include a complete settings view.');
+class_b_expect(str_contains($classBDashboard, 'data-language-setting') && str_contains($classBDashboard, 'data-timezone-setting'), 'Class B must support the same language and time settings as Class A.');
+class_b_expect(str_contains($classBDashboard, 'data-favicon-form') && str_contains($classBDashboard, 'data-password-form'), 'Class B must support favicon and password management.');
+$classBDashboardJs = (string) file_get_contents(dirname(__DIR__) . '/class-b-dashboard/class-b-dashboard.js');
+class_b_expect(str_contains($classBDashboardJs, "action:'update_preferences'") && str_contains($classBDashboardJs, "action:'change_password'"), 'Class B settings must persist through the shared session API.');
 $orderStorage = (string) file_get_contents(dirname(__DIR__) . '/partner-order-storage.php');
 class_b_expect(str_contains($orderStorage, "=== 'class_b_stock'"), 'Class B shipping labels must remain available in history instead of entering Class A retention cleanup.');
 $schema = (string) file_get_contents(dirname(__DIR__) . '/database/partner-data-schema.sql');
